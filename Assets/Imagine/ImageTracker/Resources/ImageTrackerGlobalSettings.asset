@@ -1,0 +1,40 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e35785f9acbb7427fb38a829e2ad8947, type: 3}
+  m_Name: ImageTrackerGlobalSettings
+  m_EditorClassIdentifier: 
+  imageTargetInfos:
+  - id: bfly
+    texture: {fileID: 2800000, guid: 51cd527e8ff5d4040a756da7cafdc9a7, type: 3}
+  - id: flower
+    texture: {fileID: 2800000, guid: 22e6e002c40714983b84e5721851d377, type: 3}
+  - id: lady
+    texture: {fileID: 2800000, guid: ce0f31aa880f94ad6a695850f5c8762c, type: 3}
+  - id: reel
+    texture: {fileID: 2800000, guid: 39980db0759a547a5b9f3e413c7972e4, type: 3}
+  - id: rmn
+    texture: {fileID: 2800000, guid: e7fd3cb830773404693d049b4e6582a8, type: 3}
+  - id: bear
+    texture: {fileID: 2800000, guid: 174b033aeb9c8482aa43686a5271d72b, type: 3}
+  - id: modi
+    texture: {fileID: 2800000, guid: 77866592b955c4bf68e5bc646ef0e99e, type: 3}
+  - id: Bottle
+    texture: {fileID: 2800000, guid: af89ae56f2dba448e9e19b3707f95519, type: 3}
+  defaultTrackerSettings:
+    maxSimultaneousTargets: 1
+    targetFrameRate: 30
+    advancedSettings:
+      maxFrameLength: 500
+      maxFrameArea: 40
+      trackedPoints: 25
+      detectInterval: 200
+    debugMode: 0
