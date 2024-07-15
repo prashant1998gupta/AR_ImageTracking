@@ -5,6 +5,7 @@
     <meta name="viewport" content='width=device-width, height=device-height, initial-scale=1.0, minimum-scale=1.0, user-scalable=no, shrink-to-fit=yes'>
     <title>Unity WebGL Player | AR_imageTracking</title>
     <link rel="stylesheet" href="TemplateData/style.css">
+
     <style>
         html{
             height: -webkit-fill-available;
@@ -34,14 +35,6 @@
 </head>
 <body>
     <!--IMAGETARGETS-->
-		<imagetarget id='bfly' src='targets/bfly.png'></imagetarget>
-		<imagetarget id='flower' src='targets/flower.png'></imagetarget>
-		<imagetarget id='lady' src='targets/lady.png'></imagetarget>
-		<imagetarget id='reel' src='targets/reel.png'></imagetarget>
-		<imagetarget id='rmn' src='targets/rmn.png'></imagetarget>
-		<imagetarget id='bear' src='targets/bear.png'></imagetarget>
-		<imagetarget id='modi' src='targets/modi.png'></imagetarget>
-		<imagetarget id='Bottle' src='targets/IMG_0062_1.jpg'></imagetarget>
 
     <video id="webcam-video" muted autoplay playsinline style="width:1px;position:absolute"></video>
     <div id="startARDiv" class="ctaDiv">
@@ -206,16 +199,19 @@
                 //console.log(window.WEBCAM_SETTINGS);
                 iTracker.WEBCAM_NAME = select.options[select.selectedIndex].innerHTML;
             }
+
             function ShowError(error){
                 document.getElementById("errorDiv").style.display = "flex";
                 document.getElementById("errorText").innerHTML = error;
             }
+
             function ShowScreenshot(dataUrl){
                 document.getElementById("screenshotDiv").style.display = "flex";
                 document.getElementById("screenshotImg").src = dataUrl;
                 document.getElementById("screenshotImg").style.width = "80vw";
                 document.getElementById("screenshotImg").style.height = 80 / window.innerWidth * window.innerHeight + "vw";
             }
+
             function ShowConfirmUrl(url){
                 document.getElementById("confirmUrlDiv").style.display = "flex";
                 window.newUrlString = url;
@@ -227,6 +223,7 @@
             //     document.getElementById("startWebcamManuallyDiv").style.display = "none";
             //     iTracker.VIDEO.play()
             // }
+
     </script>
 </body>
 </html>

@@ -29,6 +29,8 @@ MonoBehaviour:
     texture: {fileID: 2800000, guid: 77866592b955c4bf68e5bc646ef0e99e, type: 3}
   - id: Bottle
     texture: {fileID: 2800000, guid: af89ae56f2dba448e9e19b3707f95519, type: 3}
+  - id: IMG_0062_1
+    texture: {fileID: 2800000, guid: 7873757acca4a47bbb305c4c22c417c4, type: 3}
   defaultTrackerSettings:
     maxSimultaneousTargets: 1
     targetFrameRate: 30
