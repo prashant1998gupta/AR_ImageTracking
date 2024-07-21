@@ -38,7 +38,7 @@ RenderSettings:
   m_ReflectionIntensity: 1
   m_CustomReflection: {fileID: 0}
   m_Sun: {fileID: 705507994}
-  m_IndirectSpecularColor: {r: 0.18028326, g: 0.22571333, b: 0.30692202, a: 1}
+  m_IndirectSpecularColor: {r: 0.44657815, g: 0.49641192, b: 0.57481617, a: 1}
   m_UseRadianceAmbientProbe: 0
 --- !u!157 &3
 LightmapSettings:
@@ -1576,116 +1576,6 @@ MonoBehaviour:
   mainCamera: {fileID: 963194227}
   mode: 0
   negative: 0
---- !u!1001 &880522774
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    m_TransformParent: {fileID: 8117114315959382852}
-    m_Modifications:
-    - target: {fileID: 812178841097899961, guid: 37d51c6aec22d41448ed936a421e4d14, type: 3}
-      propertyPath: m_Name
-      value: modi
-      objectReference: {fileID: 0}
-    - target: {fileID: 812178841097899961, guid: 37d51c6aec22d41448ed936a421e4d14, type: 3}
-      propertyPath: m_IsActive
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 4340624013304174179, guid: 37d51c6aec22d41448ed936a421e4d14, type: 3}
-      propertyPath: m_Materials.Array.data[0]
-      value: 
-      objectReference: {fileID: 2100000, guid: c39909d4e5c0f4999bf4ca49973f59e3, type: 2}
-    - target: {fileID: 4920612201668616695, guid: 37d51c6aec22d41448ed936a421e4d14, type: 3}
-      propertyPath: m_RootOrder
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4920612201668616695, guid: 37d51c6aec22d41448ed936a421e4d14, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4920612201668616695, guid: 37d51c6aec22d41448ed936a421e4d14, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4920612201668616695, guid: 37d51c6aec22d41448ed936a421e4d14, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: -0.001
-      objectReference: {fileID: 0}
-    - target: {fileID: 4920612201668616695, guid: 37d51c6aec22d41448ed936a421e4d14, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 4920612201668616695, guid: 37d51c6aec22d41448ed936a421e4d14, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4920612201668616695, guid: 37d51c6aec22d41448ed936a421e4d14, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4920612201668616695, guid: 37d51c6aec22d41448ed936a421e4d14, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4920612201668616695, guid: 37d51c6aec22d41448ed936a421e4d14, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4920612201668616695, guid: 37d51c6aec22d41448ed936a421e4d14, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4920612201668616695, guid: 37d51c6aec22d41448ed936a421e4d14, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: 37d51c6aec22d41448ed936a421e4d14, type: 3}
---- !u!1 &880522775 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 812178841097899961, guid: 37d51c6aec22d41448ed936a421e4d14, type: 3}
-  m_PrefabInstance: {fileID: 880522774}
-  m_PrefabAsset: {fileID: 0}
---- !u!23 &880522776 stripped
-MeshRenderer:
-  m_CorrespondingSourceObject: {fileID: 4340624013304174179, guid: 37d51c6aec22d41448ed936a421e4d14, type: 3}
-  m_PrefabInstance: {fileID: 880522774}
-  m_PrefabAsset: {fileID: 0}
---- !u!328 &880522777
-VideoPlayer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 880522775}
-  m_Enabled: 1
-  m_VideoClip: {fileID: 0}
-  m_TargetCameraAlpha: 1
-  m_TargetCamera3DLayout: 0
-  m_TargetCamera: {fileID: 0}
-  m_TargetTexture: {fileID: 0}
-  m_TimeReference: 0
-  m_TargetMaterialRenderer: {fileID: 880522776}
-  m_TargetMaterialProperty: <noninit>
-  m_RenderMode: 3
-  m_AspectRatio: 2
-  m_DataSource: 1
-  m_PlaybackSpeed: 1
-  m_AudioOutputMode: 2
-  m_TargetAudioSources:
-  - {fileID: 0}
-  m_DirectAudioVolumes:
-  - 1
-  m_Url: https://firebasestorage.googleapis.com/v0/b/metaspace-4ed0d.appspot.com/o/ModiDemo.mp4?alt=media&token=21a3d9c6-7fc7-44f4-a8c5-d9610a7e5fc3
-  m_EnabledAudioTracks: 00
-  m_DirectAudioMutes: 00
-  m_ControlledAudioTrackCount: 1
-  m_PlayOnAwake: 1
-  m_SkipOnDrop: 1
-  m_Looping: 1
-  m_WaitForFirstFrame: 1
-  m_FrameReadyEventEnabled: 0
-  m_VideoShaders: []
 --- !u!1 &963194225
 GameObject:
   m_ObjectHideFlags: 0
@@ -1922,7 +1812,6 @@ Transform:
   - {fileID: 7565436024393578079}
   - {fileID: 1735354559220549898}
   - {fileID: 328323671}
-  - {fileID: 8117114315959382852}
   m_Father: {fileID: 0}
   m_RootOrder: 2
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -1946,8 +1835,6 @@ MonoBehaviour:
     transform: {fileID: 1735354559220549898}
   - id: flower
     transform: {fileID: 328323671}
-  - id: modi
-    transform: {fileID: 8117114315959382852}
   trackerOrigin: 1
   trackedIds: []
   overrideTrackerSettings: 1
@@ -2383,10 +2270,6 @@ PrefabInstance:
       propertyPath: m_Name
       value: rmn vid
       objectReference: {fileID: 0}
-    - target: {fileID: 2247442095861961101, guid: 8ba8650da5cfe45208323345e885eac4, type: 3}
-      propertyPath: m_IsActive
-      value: 1
-      objectReference: {fileID: 0}
     - target: {fileID: 3850591917385750171, guid: 8ba8650da5cfe45208323345e885eac4, type: 3}
       propertyPath: m_Materials.Array.data[0]
       value: 
@@ -2527,7 +2410,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4f231c4fb786f3946a6b90b886c48677, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_SendPointerHoverToParent: 1
   m_HorizontalAxis: Horizontal
   m_VerticalAxis: Vertical
   m_SubmitButton: Submit
@@ -3191,7 +3073,7 @@ VideoPlayer:
   - {fileID: 0}
   m_DirectAudioVolumes:
   - 1
-  m_Url: https://firebasestorage.googleapis.com/v0/b/arqr-5d0f9.appspot.com/o/reel.mp4?alt=media&token=6966097a-dceb-4821-a375-9aa6c39f3957
+  m_Url: https://firebasestorage.googleapis.com/v0/b/imagine-realities-website.appspot.com/o/videos%2Freel.mp4?alt=media
   m_EnabledAudioTracks: 00
   m_DirectAudioMutes: 00
   m_ControlledAudioTrackCount: 1
@@ -4109,70 +3991,4 @@ PrefabInstance:
 Transform:
   m_CorrespondingSourceObject: {fileID: 4920612201668616695, guid: 37d51c6aec22d41448ed936a421e4d14, type: 3}
   m_PrefabInstance: {fileID: 7565436024393578078}
-  m_PrefabAsset: {fileID: 0}
---- !u!1001 &8117114315959382851
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    m_TransformParent: {fileID: 1088328895}
-    m_Modifications:
-    - target: {fileID: 5325151180190400336, guid: f6b85afd59a2a45dabff714cc854af41, type: 3}
-      propertyPath: m_Name
-      value: modi
-      objectReference: {fileID: 0}
-    - target: {fileID: 5325151180190400336, guid: f6b85afd59a2a45dabff714cc854af41, type: 3}
-      propertyPath: m_IsActive
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 6914436713635171604, guid: f6b85afd59a2a45dabff714cc854af41, type: 3}
-      propertyPath: m_RootOrder
-      value: 3
-      objectReference: {fileID: 0}
-    - target: {fileID: 6914436713635171604, guid: f6b85afd59a2a45dabff714cc854af41, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: 3
-      objectReference: {fileID: 0}
-    - target: {fileID: 6914436713635171604, guid: f6b85afd59a2a45dabff714cc854af41, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6914436713635171604, guid: f6b85afd59a2a45dabff714cc854af41, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6914436713635171604, guid: f6b85afd59a2a45dabff714cc854af41, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 6914436713635171604, guid: f6b85afd59a2a45dabff714cc854af41, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6914436713635171604, guid: f6b85afd59a2a45dabff714cc854af41, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6914436713635171604, guid: f6b85afd59a2a45dabff714cc854af41, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6914436713635171604, guid: f6b85afd59a2a45dabff714cc854af41, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6914436713635171604, guid: f6b85afd59a2a45dabff714cc854af41, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6914436713635171604, guid: f6b85afd59a2a45dabff714cc854af41, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: f6b85afd59a2a45dabff714cc854af41, type: 3}
---- !u!4 &8117114315959382852 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: 6914436713635171604, guid: f6b85afd59a2a45dabff714cc854af41, type: 3}
-  m_PrefabInstance: {fileID: 8117114315959382851}
   m_PrefabAsset: {fileID: 0}
