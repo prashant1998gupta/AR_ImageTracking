@@ -25,11 +25,16 @@ MonoBehaviour:
     texture: {fileID: 2800000, guid: e7fd3cb830773404693d049b4e6582a8, type: 3}
   - id: bear
     texture: {fileID: 2800000, guid: 174b033aeb9c8482aa43686a5271d72b, type: 3}
+  - id: IMG_0062_1
+    texture: {fileID: 2800000, guid: 7873757acca4a47bbb305c4c22c417c4, type: 3}
+  - id: IMG_0062_1
+    texture: {fileID: 2800000, guid: 7873757acca4a47bbb305c4c22c417c4, type: 3}
   defaultTrackerSettings:
     maxSimultaneousTargets: 1
-    trackingQuality: 1
     targetFrameRate: 30
     advancedSettings:
-      detectability: 40
+      maxFrameLength: 500
+      maxFrameArea: 40
       trackedPoints: 25
+      detectInterval: 200
     debugMode: 0
