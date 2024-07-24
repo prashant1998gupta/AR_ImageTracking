@@ -9,15 +9,6 @@ EditorBuildSettings:
     path: Assets/Scenes/Demo-Main.unity
     guid: 640ba54b742624e088e49652c9c522f2
   - enabled: 1
-    path: Assets/Scenes/Demo-Video.unity
-    guid: 6cca40fbfd1a74e16b59ea8889afdbc3
-  - enabled: 1
     path: Assets/Scenes/Demo-3DAnim.unity
     guid: 6cc2b173b9af34cd7978053738087cde
-  - enabled: 1
-    path: Assets/Scenes/Demo-TextureExtraction.unity
-    guid: ae5db75e95bcd46dfb3050d474fc68dd
-  - enabled: 1
-    path: Assets/Scenes/Demo-Basic.unity
-    guid: b8d58ff5919404ade9c72a09eb5583f6
   m_configObjects: {}
