@@ -3342,7 +3342,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   rotationSpeed: 10
-  touchRotationSpeed: 0.03
+  touchRotationSpeed: 0.01
   resetDuration: 1
 --- !u!1 &1961581454
 GameObject:
