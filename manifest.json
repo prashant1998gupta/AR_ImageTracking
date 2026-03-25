@@ -1,0 +1,17 @@
+{
+    "name": "AR_imageTracking",
+    "short_name": "AR_imageTracking",
+    "description": "AR Experience powered by Imagine WebAR",
+    "start_url": "./",
+    "display": "standalone",
+    "orientation": "any",
+    "background_color": "#000000",
+    "theme_color": "#000000",
+    "icons": [
+        {
+            "src": "TemplateData/favicon.ico",
+            "sizes": "64x64",
+            "type": "image/x-icon"
+        }
+    ]
+}
