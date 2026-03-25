@@ -292,6 +292,32 @@
                 var spinner = document.getElementById('loadingSpinner');
                 if(spinner) spinner.style.display = 'none';
             }
+            // ============================================================
+            // iOS WHITE SCREEN FIX - Recover from WebGL context loss
+            // ============================================================
+            (function() {
+                var unityCanvas = document.querySelector("#unity-canvas");
+                
+                unityCanvas.addEventListener('webglcontextlost', function(e) {
+                    console.warn('iOS: WebGL context lost');
+                    e.preventDefault();
+                }, false);
+                unityCanvas.addEventListener('webglcontextrestored', function(e) {
+                    console.log('iOS: WebGL context restored - re-subscribing video texture');
+                    if (window.unityInstance) {
+                        window.unityInstance.SendMessage('ARCamera', 'SetVideoDims');
+                    }
+                }, false);
+                document.addEventListener('visibilitychange', function() {
+                    if (!document.hidden && window.unityInstance) {
+                        setTimeout(function() {
+                            if (window.arCamera && window.arCamera.isCameraStarted) {
+                                window.unityInstance.SendMessage('ARCamera', 'SetVideoDims');
+                            }
+                        }, 500);
+                    }
+                });
+            })();
             //Set Facing Mode here ('environment', 'user', '')
 		window.unityFacingMode = "environment"
             window.WEBCAM_SETTINGS = {
