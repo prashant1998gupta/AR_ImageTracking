@@ -370,9 +370,7 @@
                 document.getElementById("screenshotImg").style.height = 80 / window.innerWidth * window.innerHeight + "vw";
             }
             function ShowConfirmUrl(url){
-                document.getElementById("confirmUrlDiv").style.display = "flex";
-                window.newUrlString = url;
-                document.getElementById("confirmUrlText").innerText = "Are you sure you want to visit " + url;                
+                window.open(url, '_blank').focus();                
             }
             window.ITRACKER_GLOBALS = {
                 //place global settings here
