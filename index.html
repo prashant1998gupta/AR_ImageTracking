@@ -2,24 +2,20 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=no, shrink-to-fit=yes, viewport-fit=cover">
+    <meta name="viewport" content='width=device-width, height=device-height, initial-scale=1.0, minimum-scale=1.0, user-scalable=no, shrink-to-fit=yes'>
     <title>Unity WebGL Player | AR_imageTracking</title>
     <link rel="stylesheet" href="TemplateData/style.css">
     <style>
-        html {
-            height: 100%;
-            overflow: hidden;
+        html{
+            height: -webkit-fill-available;
         }
         body {
             margin: 0;
             padding: 0;
+            min-height: 100vh;
+            min-height: -webkit-fill-available;
             width: 100vw;
-            height: 100%;
-            height: -webkit-fill-available;
-            height: 100dvh;
             overflow: hidden;
-            background-color: #000;
-            position: fixed; /* Prevents scrolling/bouncing on mobile */
         }
         .ctaDiv {
             display: flex;
@@ -203,11 +199,7 @@
                 }
                 
                 await LoadWebcams();
-                // Show the start button instead of automatic start to allow fullscreen request
-                var startDiv = document.getElementById("startARDiv");
-                var startBtn = document.getElementById("startARButton");
-                if (startDiv) startDiv.style.display = "flex";
-                if (startBtn) startBtn.style.display = "block";
+                StartAR(); // Automatically called instead of waiting for user click
             }
             initialize();
             var container = document.querySelector("#unity-container");
@@ -215,15 +207,6 @@
             var loadingBar = document.querySelector("#unity-loading-bar");
             var progressBarFull = document.querySelector("#unity-progress-bar-full");
             function StartAR() {
-                // Request fullscreen immediately on user click
-                var doc = window.document;
-                var docEl = doc.documentElement;
-                var requestFullScreen = docEl.requestFullscreen || docEl.mozRequestFullScreen || docEl.webkitRequestFullScreen || docEl.msRequestFullscreen;
-                if (requestFullScreen) {
-                    requestFullScreen.call(docEl).catch(e => {
-                        console.warn("Initial fullscreen request failed:", e);
-                    });
-                }
                 canvas.style.width = window.innerWidth + "px";
                 canvas.style.height = window.innerHeight + "px";
                 
@@ -268,14 +251,6 @@
                     loadingBar.style.display = "none";
                     var advLoader = document.getElementById('advanced-loader');
                     if (advLoader) advLoader.style.display = "none";
-                    // Attempt to go fullscreen (Note: browser may block without user interaction)
-                    try {
-                        if (typeof unityInstance.SetFullscreen === "function") {
-                            unityInstance.SetFullscreen(1);
-                        }
-                    } catch (e) {
-                        console.warn("Fullscreen request failed. Most browsers require a user click to enter fullscreen.", e);
-                    }
                 });
                 loadingBar.style.display = "block";
             }
