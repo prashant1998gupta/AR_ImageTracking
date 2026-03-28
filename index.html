@@ -224,15 +224,26 @@
                     // devicePixelRatio: 1, // Uncomment this to override low DPI rendering on high DPI displays.
                     },
                     (progress) => {
-                        progressBarFull.style.width = 100 * progress + "%";
+                        // Unity progress goes from 0 to 0.9 during download, then jumps to 1.0 when starting.
+                        // Mapping 0-0.9 to 0-100% ensures the bar reaches the end smoothly.
+                        var displayProgress = Math.min(1, progress / 0.9);
+                        var percent = Math.round(displayProgress * 100);
+                        
+                        if (progressBarFull) progressBarFull.style.width = percent + "%";
                         
                         // Advanced loader logic
-                        var percent = Math.round(progress * 100);
                         var advBar = document.getElementById('advanced-progress-bar');
                         if (advBar) advBar.style.width = percent + "%";
                         
                         var pctText = document.getElementById('percentage-text');
                         if (pctText) pctText.innerText = percent + "%";
+                        // Optional: Change title text when initializing
+                        if (progress >= 0.9) {
+                            var title = document.querySelector('.loader-title');
+                            if (title && title.innerText !== "Starting Experience...") {
+                                title.innerText = "Starting Experience...";
+                            }
+                        }
                     }
                 ).then((unityInstance) => {
                     window.unityInstance = unityInstance;
