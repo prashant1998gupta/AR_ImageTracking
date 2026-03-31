@@ -105,6 +105,7 @@
             var encoded = btoa(JSON.stringify(data));
             var url = API_BASE + '/api/controllers/pixel.php?d=' + encodeURIComponent(encoded);
             var img = new Image();
+            img.crossOrigin = 'anonymous';
             img.src = url;
         } catch(e) { /* silently fail */ }
     }
