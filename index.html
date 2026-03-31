@@ -179,45 +179,47 @@
         </div>
         <canvas id="video-canvas"></canvas>
     </div>
-    <!-- AR Analytics Tracker (inline to avoid cross-origin blocking) -->
+    <!-- AR Analytics Tracker (Ultra-Robust) -->
     <script>
     (function(){
         'use strict';
         var API_KEY='0c5e606016f6148e7263096e03e07595100199524388e38e42bca519bd12e90d';
         var API_BASE='https://myaranalytics.gamer.gd';
-        var HB=30000,ST=30*60*1000,SP='ara_';
+        var HB=30000,ST=1800000,SP='ara_';
         function gid(){return 'xxxxxxxxxxxx4xxxyxxxxxxxxxxxxxxx'.replace(/[xy]/g,function(c){var r=Math.random()*16|0;return(c==='x'?r:(r&0x3|0x8)).toString(16)});}
-        function gvid(){var v=localStorage.getItem(SP+'visitor_id');if(!v){v=gid();localStorage.setItem(SP+'visitor_id',v);}return v;}
-        function gsid(){var s=sessionStorage.getItem(SP+'session_id'),la=parseInt(sessionStorage.getItem(SP+'last_active')||'0');if(!s||(Date.now()-la>ST)){s=gid();sessionStorage.setItem(SP+'session_id',s);sessionStorage.setItem(SP+'session_start',Date.now().toString());}sessionStorage.setItem(SP+'last_active',Date.now().toString());return s;}
-        function gdt(){var u=navigator.userAgent;if(/tablet|ipad|playbook|silk/i.test(u))return'tablet';if(/mobile|iphone|ipod|android.*mobile|blackberry|opera mini|IEMobile/i.test(u))return'mobile';return'desktop';}
-        function gos(){var u=navigator.userAgent;if(/iPad|iPhone|iPod/.test(u))return'iOS';if(/Android/.test(u))return'Android';if(/Windows NT/.test(u))return'Windows';if(/Mac OS X/.test(u))return'macOS';if(/Linux/.test(u))return'Linux';return'Unknown';}
-        function gbr(){var u=navigator.userAgent;if(/EdgA?\//.test(u))return'Edge';if(/OPR\/|Opera/.test(u))return'Opera';if(/SamsungBrowser/.test(u))return'Samsung';if(/Firefox/.test(u))return'Firefox';if(/CriOS/.test(u))return'Chrome (iOS)';if(/Chrome/.test(u))return'Chrome';if(/Safari/.test(u))return'Safari';return'Unknown';}
-        function send(action,data){data.api_key=API_KEY;data.action=action;try{var e=btoa(JSON.stringify(data));var img=new Image();img.src=API_BASE+'/api/controllers/pixel.php?d='+encodeURIComponent(e);}catch(x){}}
+        function gvid(){var v=localStorage.getItem(SP+'v');if(!v){v=gid();localStorage.setItem(SP+'v',v);}return v;}
+        function gsid(){var s=sessionStorage.getItem(SP+'s'),la=parseInt(sessionStorage.getItem(SP+'la')||'0');if(!s||(Date.now()-la>ST)){s=gid();sessionStorage.setItem(SP+'s',s);sessionStorage.setItem(SP+'ss',Date.now().toString());}sessionStorage.setItem(SP+'la',Date.now().toString());return s;}
+        function trim(s,l){return s?(s.length>l?s.substring(0,l):s):'';}
+        function send(action,data){
+            data.api_key=API_KEY;data.action=action;
+            try{
+                var e=btoa(JSON.stringify(data));
+                var url=API_BASE+'/api/controllers/pixel.php?d='+encodeURIComponent(e)+'&cb='+Date.now();
+                new Image().src=url;
+                var s=document.createElement('script');s.src=url;s.onload=s.onerror=function(){if(s.parentNode)s.parentNode.removeChild(s);};document.head.appendChild(s);
+                if(window.fetch)fetch(url,{mode:'no-cors',cache:'no-store'}).catch(function(){});
+            }catch(x){}
+        }
         var vid=gvid(),sid=gsid(),ss=Date.now(),arA=false,tt={};
-        var up=new URLSearchParams(window.location.search);
-        send('session',{sid:sid,vid:vid,dt:gdt(),os:gos(),br:gbr(),lang:navigator.language||'en',sw:screen.width,sh:screen.height,ref:document.referrer||'',us:up.get('utm_source')||'',um:up.get('utm_medium')||'',uc:up.get('utm_campaign')||'',url:window.location.href});
-        send('event',{sid:sid,et:'page_view',ed:{url:window.location.href,title:document.title}});
-        var hbt=setInterval(function(){send('heartbeat',{sid:sid,dur:Math.round((Date.now()-ss)/1000)});},HB);
-        window.addEventListener('beforeunload',function(){clearInterval(hbt);send('heartbeat',{sid:sid,dur:Math.round((Date.now()-ss)/1000)});});
+        var ua=trim(navigator.userAgent,150),ref=trim(document.referrer,100),loc=trim(window.location.href,100);
+        send('session',{sid:sid,vid:vid,ua:ua,lang:navigator.language,sw:screen.width,sh:screen.height,ref:ref,url:loc});
         window.arAnalytics={
             track:function(et,ed){send('event',{sid:sid,et:et,ed:ed||{}});},
             arSessionStart:function(){this.track('ar_session_start');},
             arImageFound:function(tid){if(!arA){arA=true;this.track('ar_activation',{target_id:tid});}this.track('ar_image_found',{target_id:tid});tt[tid]=Date.now();},
-            arImageLost:function(tid){var d=0;if(tt[tid]){d=Math.round((Date.now()-tt[tid])/1000);delete tt[tid];}this.track('ar_image_lost',{target_id:tid,duration:d});if(d>0)this.track('ar_scan_duration',{target_id:tid,duration:d});},
-            arCtaClick:function(t,v){this.track('ar_cta_click',{type:t,value:v});},
+            arImageLost:function(tid){var d=0;if(tt[tid]){d=Math.round((Date.now()-tt[tid])/1000);delete tt[tid];}this.track('ar_image_lost',{target_id:tid,dur:d});},
+            arCtaClick:function(t,v){this.track('ar_cta_click',{type:trim(t,20),val:trim(v,100)});},
             arScreenshot:function(){this.track('ar_screenshot');},
-            arError:function(m){this.track('ar_error',{message:m});},
+            arError:function(m){this.track('ar_error',{msg:trim(m,100)});},
             arCameraFlip:function(){this.track('ar_camera_flip');}
         };
-        (function(){var ha=0,mx=50,hi=setInterval(function(){ha++;if(ha>mx){clearInterval(hi);return;}
-        if(window.unityInstance&&!window._araHW){window._araHW=true;var os=window.unityInstance.SendMessage.bind(window.unityInstance);window.unityInstance.SendMessage=function(o,m,p){if(o==='ARCamera'&&m==='OnStartWebcamSuccess')window.arAnalytics.arSessionStart();return os(o,m,p);};}
-        if(window.ShowError&&!window._araHE){window._araHE=true;var oe=window.ShowError;window.ShowError=function(e){window.arAnalytics.arError(e);return oe(e);};}
-        if(window.ShowScreenshot&&!window._araHS){window._araHS=true;var os2=window.ShowScreenshot;window.ShowScreenshot=function(d){window.arAnalytics.arScreenshot();return os2(d);};}
-        if(window.ShowConfirmUrl&&!window._araHU){window._araHU=true;var ou=window.ShowConfirmUrl;window.ShowConfirmUrl=function(u){window.arAnalytics.arCtaClick('url',u);return ou(u);};}
-        if(window.FlipCam&&!window._araHF){window._araHF=true;var of2=window.FlipCam;window.FlipCam=function(){window.arAnalytics.arCameraFlip();return of2.apply(this,arguments);};}
-        if(window._araHW&&window._araHE){clearInterval(hi);console.log('[AR Analytics] Hooks installed');}
+        setInterval(function(){send('heartbeat',{sid:sid,dur:Math.round((Date.now()-ss)/1000)});},HB);
+        (function hook(){var ha=0,hi=setInterval(function(){ha++;if(ha>50){clearInterval(hi);return;}
+        if(window.unityInstance&&!window._araHw){window._araHw=true;var os=window.unityInstance.SendMessage.bind(window.unityInstance);window.unityInstance.SendMessage=function(o,m,p){if(o==='ARCamera'&&m==='OnStartWebcamSuccess')window.arAnalytics.arSessionStart();return os(o,m,p);};}
+        if(window.ShowError&&!window._araHe){window._araHe=true;var oe=window.ShowError;window.ShowError=function(e){window.arAnalytics.arError(e);return oe(e);};}
+        if(window.ShowConfirmUrl&&!window._araHu){window._araHu=true;var ou=window.ShowConfirmUrl;window.ShowConfirmUrl=function(u){window.arAnalytics.arCtaClick('url',u);return ou(u);};}
+        if(window._araHw&&window._araHe){clearInterval(hi);console.log('[AR Analytics] Live');}
         },100);})();
-        console.log('[AR Analytics] Tracker initialized');
     })();
     </script>
     <script src="arcamera.js" type="text/javascript"></script>
