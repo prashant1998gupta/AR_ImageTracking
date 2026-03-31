@@ -12,7 +12,7 @@
     // â”€â”€â”€ Configuration â”€â”€â”€
     const SCRIPT_TAG = document.currentScript || document.querySelector('script[data-project]');
     const API_KEY = SCRIPT_TAG ? SCRIPT_TAG.getAttribute('data-project') : null;
-    const API_BASE = SCRIPT_TAG ? new URL(SCRIPT_TAG.src).origin + new URL(SCRIPT_TAG.src).pathname.replace('/tracker/ar-analytics.js', '') : '';
+    const API_BASE = 'https://myaranalytics.gamer.gd';
     const HEARTBEAT_INTERVAL = 30000; // 30 seconds
     const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
 
