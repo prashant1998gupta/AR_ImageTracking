@@ -5,6 +5,7 @@
     <meta name="viewport" content='width=device-width, height=device-height, initial-scale=1.0, minimum-scale=1.0, user-scalable=no, shrink-to-fit=yes'>
     <title>Unity WebGL Player | AR_imageTracking</title>
     <link rel="stylesheet" href="TemplateData/style.css">
+
     <style>
         html{
             height: -webkit-fill-available;
@@ -36,18 +37,22 @@
             50% { background-position: 100% 50%; }
             100% { background-position: 0% 50%; }
         }
+
         @keyframes textPulse {
             0%, 100% { text-shadow: 0 0 10px #00d2ff, 0 0 20px #00d2ff; transform: scale(1); }
             50% { text-shadow: 0 0 20px #00d2ff, 0 0 40px #00d2ff; transform: scale(1.05); }
         }
+
         @keyframes ringSpin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+
         @keyframes barGlow {
             0%, 100% { box-shadow: 0 0 10px #00d2ff; }
             50% { box-shadow: 0 0 25px #00d2ff, 0 0 40px #3a7bd5; }
         }
+
         #advanced-loader {
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
@@ -62,6 +67,7 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             overflow: hidden;
         }
+
         .loader-title {
             color: #ffffff;
             font-size: 28px;
@@ -73,6 +79,7 @@
             animation: textPulse 2s infinite ease-in-out;
             padding-left: 6px; /* Offset the letter-spacing to perfectly center */
         }
+
         .loader-center-group {
             position: relative;
             display: flex;
@@ -82,6 +89,7 @@
             width: 150px;
             height: 150px;
         }
+
         .spinner-ring {
             position: absolute;
             width: 100%;
@@ -92,6 +100,7 @@
             border-radius: 50%;
             animation: ringSpin 2s linear infinite;
         }
+
         #percentage-text {
             color: #ffffff;
             font-size: 38px;
@@ -100,6 +109,7 @@
             z-index: 2;
             margin: 0;
         }
+
         .progress-container {
             width: 70%;
             max-width: 450px;
@@ -110,6 +120,7 @@
             overflow: hidden;
             position: relative;
         }
+
         #advanced-progress-bar {
             width: 0%;
             height: 100%;
@@ -123,14 +134,6 @@
 </head>
 <body>
     <!--IMAGETARGETS-->
-		<imagetarget id='flower' src='targets/flower.png'></imagetarget>
-		<imagetarget id='reel' src='targets/BJP Poster for AR (2).png'></imagetarget>
-		<imagetarget id='rmn' src='targets/America.jpeg'></imagetarget>
-		<imagetarget id='weddingInvitation' src='targets/Wedding Invitation Image.jpg'></imagetarget>
-		<imagetarget id='card' src='targets/Card_03.png'></imagetarget>
-		<imagetarget id='Shoes' src='targets/Shoes_Poster.png'></imagetarget>
-		<imagetarget id='Back' src='targets/Back.png'></imagetarget>
-		<imagetarget id='CultGym' src='targets/GYM Video Target.png'></imagetarget>
 
     <!-- ADVANCED LOADING UI -->
     <div id="advanced-loader">
@@ -140,10 +143,12 @@
             <div class="spinner-ring"></div>
             <div id="percentage-text">0%</div>
         </div>
+
         <div class="progress-container">
             <div id="advanced-progress-bar"></div>
         </div>
     </div>
+
     <video id="webcam-video" muted autoplay playsinline style="width:1px;position:absolute"></video>
     <!-- <video id="webcam-video" muted autoplay playsinline style="width:100%; height:100%; object-fit:cover; position:absolute"></video> -->
     <canvas id="video-canvas" style="width:100%; height:100%; object-fit:cover; position:absolute"></canvas>
@@ -204,7 +209,9 @@
                 await LoadWebcams();
                 StartAR(); // Automatically called instead of waiting for user click
             }
+
             initialize();
+
             var container = document.querySelector("#unity-container");
             var canvas = document.querySelector("#unity-canvas");
             var loadingBar = document.querySelector("#unity-loading-bar");
@@ -240,6 +247,7 @@
                         
                         var pctText = document.getElementById('percentage-text');
                         if (pctText) pctText.innerText = percent + "%";
+
                         // Optional: Change title text when initializing
                         if (progress >= 0.9) {
                             var title = document.querySelector('.loader-title');
@@ -251,6 +259,7 @@
                 ).then((unityInstance) => {
                     window.unityInstance = unityInstance;
                     RequestWebcam();
+
                     loadingBar.style.display = "none";
                     var advLoader = document.getElementById('advanced-loader');
                     if (advLoader) advLoader.style.display = "none";
@@ -258,13 +267,15 @@
                 loadingBar.style.display = "block";
             }
             //Set Facing Mode here ('environment', 'user', '')
-		window.unityFacingMode = "environment"
+            window.unityFacingMode = "environment";
+
             window.WEBCAM_SETTINGS = {
                 video: {
                     facingMode: unityFacingMode,
                 },
                 audio: false
             };
+
             window.requestingForPermissions = false;
             async function RequestWebcam(){
                 window.requestingForPermissions = true;
@@ -280,14 +291,18 @@
                     window.requestingForPermissions = false;
                 }           
             }
+
             async function StartWebcam(){
                 console.log("StartWebcam")
+
                 while (window.requestingForPermissions) {
                     // Wait until requestingForPermissions becomes true.
                     console.log("Waiting for permissions...");
                     await new Promise(resolve => setTimeout(resolve, 100)); // Adjust the delay time as needed.
                 }
+
                 console.log("Got Permissions");
+
                 if(window.webcamStream)
                 {
                     const video = document.querySelector("#webcam-video");
@@ -295,6 +310,7 @@
                     try {
                         await arCamera.startWebcam(video);
                         console.log("Webcam started successfully");
+
                         window.unityInstance.SendMessage('ARCamera', 'OnStartWebcamSuccess');
                     }
                     catch(err){
@@ -314,6 +330,7 @@
                 var ctr = 0;
                 devices.forEach(mediaDevice => {
                     if (mediaDevice.kind === 'videoinput') {
+
                         if(window.unityFacingMode == 'environment' && !mediaDevice.label.includes('facing front')){
                             //back cam only
                             camDevices.push(mediaDevice);
@@ -357,9 +374,11 @@
                 //console.log(window.WEBCAM_SETTINGS);
                 iTracker.WEBCAM_NAME = select.options[select.selectedIndex].innerHTML;
             }
+
             async function FlipCam(){
                 arCamera.stopWebcam();
                 window.WEBCAM_SETTINGS.video.deviceId = '';
+
                 if(window.WEBCAM_SETTINGS.video.facingMode == 'user'){
                     window.WEBCAM_SETTINGS.video.facingMode = 'environment';
                     arCamera.setFlipped(false);
@@ -369,28 +388,35 @@
                     arCamera.setFlipped(true);
                 }
                 window.webcamStream = await navigator.mediaDevices.getUserMedia(window.WEBCAM_SETTINGS);
+
                 const video = document.querySelector("#webcam-video");
                 video.srcObject = webcamStream;
+
                 await arCamera.startWebcam(video);
             }
+
             function ShowError(error){
                 document.getElementById("errorDiv").style.display = "flex";
                 document.getElementById("errorText").innerHTML = error;
             }
+
             function ShowScreenshot(dataUrl){
                 document.getElementById("screenshotDiv").style.display = "flex";
                 document.getElementById("screenshotImg").src = dataUrl;
                 document.getElementById("screenshotImg").style.width = "80vw";
                 document.getElementById("screenshotImg").style.height = 80 / window.innerWidth * window.innerHeight + "vw";
             }
+
             function ShowConfirmUrl(url){
                 window.location.assign(url);                
             }
+
             window.ITRACKER_GLOBALS = {
                 //place global settings here
                 INTERNAL_SMOOTHFACTOR_POS: .075,
             }
             
+
     </script>
 </body>
 </html>
