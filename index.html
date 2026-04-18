@@ -243,6 +243,40 @@
     <script src="https://dashboard.rionick.com/tracker/ar-analytics.js" data-project="e4cfcb9cfd6d120305bb7c268a981b8e8a65c32d0d5062563c8e2c1980ae769c"></script>
     <script src="arcamera.js" type="text/javascript"></script>
     <script src="itracker.js" type="text/javascript"></script>
+    <!-- iOS AudioContext Interceptor: MUST be before Unity loader! -->
+    <!-- Unity's loader.js caches AudioContext at load time. If we patch after, Unity ignores our patch. -->
+    <script>
+    (function() {
+        var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+                    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        if (!isIOS) return;
+        
+        var _OrigAC = window.AudioContext || window.webkitAudioContext;
+        if (!_OrigAC) return;
+        
+        window._readyAudioCtx = null;
+        
+        function _InterceptedAC() {
+            if (window._readyAudioCtx) {
+                var ctx = window._readyAudioCtx;
+                window._readyAudioCtx = null;
+                console.log('[iOS-Interceptor] Gave Unity pre-activated AudioContext (state: ' + ctx.state + ')');
+                return ctx;
+            }
+            var ctx = new _OrigAC();
+            console.log('[iOS-Interceptor] Created new AudioContext (state: ' + ctx.state + ')');
+            return ctx;
+        }
+        _InterceptedAC.prototype = _OrigAC.prototype;
+        
+        window.AudioContext = _InterceptedAC;
+        if (window.webkitAudioContext) window.webkitAudioContext = _InterceptedAC;
+        
+        window._OriginalAudioContext = _OrigAC;
+        
+        console.log('[iOS-Interceptor] AudioContext patched before Unity loader');
+    })();
+    </script>
     <script src="Build/AR_Build.loader.js"></script>
     <script>
             // ─── iOS Safari Detection ───
@@ -339,45 +373,24 @@
                     overlay.addEventListener('click', function onTap() {
                         overlay.removeEventListener('click', onTap);
                         
-                        // ─── STEP 1: Save original AudioContext constructor ───
-                        _OriginalAudioContext = window.AudioContext || window.webkitAudioContext;
-                        
-                        // ─── STEP 2: Create & resume AudioContext NOW (user gesture!) ───
+                        // Create & activate AudioContext during this user gesture
                         try {
-                            if (_OriginalAudioContext) {
-                                _preCreatedCtx = new _OriginalAudioContext();
-                                window._preCreatedCtx = _preCreatedCtx;
-                                _preCreatedCtx.resume();
-                                var osc = _preCreatedCtx.createOscillator();
-                                var gain = _preCreatedCtx.createGain();
-                                gain.gain.value = 0;
-                                osc.connect(gain);
-                                gain.connect(_preCreatedCtx.destination);
-                                osc.start(0);
-                                osc.stop(_preCreatedCtx.currentTime + 0.1);
-                                console.log('[iOS] Pre-created AudioContext state:', _preCreatedCtx.state);
-                            }
-                        } catch(e) { console.warn('[iOS] AudioContext pre-create error:', e); }
+                            var OrigAC = window._OriginalAudioContext || window.AudioContext || window.webkitAudioContext;
+                            var ctx = new OrigAC();
+                            ctx.resume();
+                            var osc = ctx.createOscillator();
+                            var gain = ctx.createGain();
+                            gain.gain.value = 0;
+                            osc.connect(gain);
+                            gain.connect(ctx.destination);
+                            osc.start(0);
+                            osc.stop(ctx.currentTime + 0.1);
+                            window._readyAudioCtx = ctx;
+                            window._preCreatedCtx = ctx;
+                            _preCreatedCtx = ctx;
+                            console.log('[iOS] Created AudioContext during tap (state: ' + ctx.state + ')');
+                        } catch(e) { console.warn('[iOS] AudioContext tap error:', e); }
                         
-                        // ─── STEP 3: Monkey-patch AFTER creating our context ───
-                        try {
-                            if (_OriginalAudioContext && _preCreatedCtx) {
-                                var _ctxGiven = false;
-                                function _PatchedAC() {
-                                    if (!_ctxGiven) {
-                                        _ctxGiven = true;
-                                        console.log('[iOS] Unity received pre-created AudioContext (state: ' + _preCreatedCtx.state + ')');
-                                        return _preCreatedCtx;
-                                    }
-                                    return new _OriginalAudioContext();
-                                }
-                                _PatchedAC.prototype = _OriginalAudioContext.prototype;
-                                window.AudioContext = _PatchedAC;
-                                if (window.webkitAudioContext) window.webkitAudioContext = _PatchedAC;
-                            }
-                        } catch(e) {}
-                        
-                        // ─── STEP 4: Now safe to call unlockIOSMedia ───
                         unlockIOSMedia();
                         overlay.style.display = 'none';
                         StartAR();
