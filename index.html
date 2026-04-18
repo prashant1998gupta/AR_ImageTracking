@@ -365,6 +365,45 @@
                     overlay.addEventListener('click', function onTap() {
                         overlay.removeEventListener('click', onTap);
                         // This click IS the user gesture that iOS requires!
+                        
+                        // ─── CRITICAL iOS FIX: Pre-create AudioContext during user gesture ───
+                        // iOS Safari ONLY allows AudioContext.resume() during a real user gesture.
+                        // Unity creates its AudioContext later (during createUnityInstance), which
+                        // is NOT in a user gesture chain — so it stays SUSPENDED forever.
+                        // FIX: Create an AudioContext NOW (user gesture), resume it, then
+                        // monkey-patch window.AudioContext so Unity reuses our running context.
+                        try {
+                            var _OrigAC = window.AudioContext || window.webkitAudioContext;
+                            if (_OrigAC) {
+                                var _preCtx = new _OrigAC();
+                                _preCtx.resume();
+                                // Play silent oscillator to fully activate
+                                var osc = _preCtx.createOscillator();
+                                var gain = _preCtx.createGain();
+                                gain.gain.value = 0;
+                                osc.connect(gain);
+                                gain.connect(_preCtx.destination);
+                                osc.start(0);
+                                osc.stop(_preCtx.currentTime + 0.1);
+                                console.log('[iOS] Pre-created AudioContext state:', _preCtx.state);
+                                
+                                // Monkey-patch: When Unity does "new AudioContext()", return our
+                                // pre-created running context instead of a new suspended one.
+                                var _ctxUsed = false;
+                                function _PatchedAC() {
+                                    if (!_ctxUsed) {
+                                        _ctxUsed = true;
+                                        console.log('[iOS] Unity received pre-created AudioContext (state: ' + _preCtx.state + ')');
+                                        return _preCtx;
+                                    }
+                                    return new _OrigAC();
+                                }
+                                _PatchedAC.prototype = _OrigAC.prototype;
+                                window.AudioContext = _PatchedAC;
+                                if (window.webkitAudioContext) window.webkitAudioContext = _PatchedAC;
+                            }
+                        } catch(e) { console.warn('[iOS] AudioContext pre-create error:', e); }
+                        
                         unlockIOSMedia();
                         overlay.style.display = 'none';
                         StartAR();
