@@ -256,22 +256,32 @@
             function unlockIOSMedia() {
                 console.log('[iOS] Unlocking audio and video...');
                 
-                // 1. Resume/create AudioContext
+                // 1. Resume/create AudioContext and play a silent oscillator to fully unlock WebAudio
                 try {
                     var AudioCtx = window.AudioContext || window.webkitAudioContext;
                     if (!window._iosAudioCtx && AudioCtx) {
                         window._iosAudioCtx = new AudioCtx();
                     }
-                    if (window._iosAudioCtx && window._iosAudioCtx.state === 'suspended') {
-                        window._iosAudioCtx.resume();
+                    if (window._iosAudioCtx) {
+                        if (window._iosAudioCtx.state === 'suspended') {
+                            window._iosAudioCtx.resume();
+                        }
+                        // Play a completely silent sound for 100ms. This permanently unlocks WebAudio for the page.
+                        var osc = window._iosAudioCtx.createOscillator();
+                        var gain = window._iosAudioCtx.createGain();
+                        gain.gain.value = 0; // Silent
+                        osc.connect(gain);
+                        gain.connect(window._iosAudioCtx.destination);
+                        osc.start(0);
+                        osc.stop(window._iosAudioCtx.currentTime + 0.1);
                     }
                 } catch(e) { console.warn('[iOS] AudioContext error:', e); }
-                // 2. Play + pause a silent video to unlock the video pipeline
+                // 2. Play + pause a silent UNMUTED video to unlock the HTMLMediaElement pipeline
                 try {
                     var sv = document.createElement('video');
                     sv.setAttribute('playsinline', '');
                     sv.setAttribute('webkit-playsinline', '');
-                    sv.muted = true;
+                    sv.muted = false; // MUST be false to unlock audio pipeline
                     sv.src = 'data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZnJlZQAAABltZGF0AAAB8AYF//+c3EXpvebZSLeWLNgg';
                     sv.style.cssText = 'width:1px;height:1px;position:absolute;opacity:0';
                     document.body.appendChild(sv);
@@ -282,7 +292,22 @@
                 document.querySelectorAll('video').forEach(function(v) {
                     v.setAttribute('playsinline', '');
                     v.setAttribute('webkit-playsinline', '');
+                    v.muted = false;
                 });
+                // 4. Set up an interval to auto-resume Unity's AudioContext as soon as it exists
+                if (!window._unityAudioResumer) {
+                    window._unityAudioResumer = setInterval(function() {
+                        if (typeof WEBAudio !== 'undefined' && WEBAudio.audioContext) {
+                            if (WEBAudio.audioContext.state === 'suspended') {
+                                WEBAudio.audioContext.resume().then(function() {
+                                    console.log('[iOS] Unity WEBAudio auto-resumed successfully!');
+                                });
+                            } else if (WEBAudio.audioContext.state === 'running') {
+                                clearInterval(window._unityAudioResumer);
+                            }
+                        }
+                    }, 500);
+                }
                 console.log('[iOS] Media unlock complete.');
             }
             // ─── Global iOS touch fallback ───
