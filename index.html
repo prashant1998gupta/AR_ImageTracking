@@ -276,35 +276,52 @@
                         osc.stop(window._iosAudioCtx.currentTime + 0.1);
                     }
                 } catch(e) { console.warn('[iOS] AudioContext error:', e); }
-                // 2. Play + pause a silent UNMUTED video to unlock the HTMLMediaElement pipeline
+                // 2. Resume Unity's WEBAudio.audioContext if it already exists
                 try {
-                    var sv = document.createElement('video');
-                    sv.setAttribute('playsinline', '');
-                    sv.setAttribute('webkit-playsinline', '');
-                    sv.muted = false; // MUST be false to unlock audio pipeline
-                    sv.src = 'data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZnJlZQAAABltZGF0AAAB8AYF//+c3EXpvebZSLeWLNgg';
-                    sv.style.cssText = 'width:1px;height:1px;position:absolute;opacity:0';
-                    document.body.appendChild(sv);
-                    var p = sv.play();
-                    if (p) p.then(function(){ sv.pause(); sv.remove(); }).catch(function(){ sv.remove(); });
-                } catch(e) { console.warn('[iOS] Silent video unlock error:', e); }
-                // 3. Patch all existing video elements with playsinline
+                    if (typeof WEBAudio !== 'undefined' && WEBAudio.audioContext) {
+                        if (WEBAudio.audioContext.state === 'suspended') {
+                            WEBAudio.audioContext.resume().then(function() {
+                                console.log('[iOS] Unity WEBAudio resumed directly!');
+                            });
+                        }
+                    }
+                } catch(e) {}
+                // 3. Patch all existing video elements with playsinline and unmute
                 document.querySelectorAll('video').forEach(function(v) {
                     v.setAttribute('playsinline', '');
                     v.setAttribute('webkit-playsinline', '');
                     v.muted = false;
                 });
-                // 4. Set up an interval to auto-resume Unity's AudioContext as soon as it exists
+                // 4. Set up a persistent poller to auto-resume Unity's AudioContext.
+                //    Unity's WEBAudio may not exist yet when this runs (it's created
+                //    during createUnityInstance). The poller keeps retrying until
+                //    it successfully resumes AND confirms 'running' state.
                 if (!window._unityAudioResumer) {
+                    var resumeAttempts = 0;
                     window._unityAudioResumer = setInterval(function() {
-                        if (typeof WEBAudio !== 'undefined' && WEBAudio.audioContext) {
-                            if (WEBAudio.audioContext.state === 'suspended') {
-                                WEBAudio.audioContext.resume().then(function() {
-                                    console.log('[iOS] Unity WEBAudio auto-resumed successfully!');
-                                });
-                            } else if (WEBAudio.audioContext.state === 'running') {
-                                clearInterval(window._unityAudioResumer);
+                        resumeAttempts++;
+                        try {
+                            if (typeof WEBAudio !== 'undefined' && WEBAudio.audioContext) {
+                                if (WEBAudio.audioContext.state === 'suspended') {
+                                    WEBAudio.audioContext.resume().then(function() {
+                                        console.log('[iOS] Unity WEBAudio auto-resumed (attempt ' + resumeAttempts + ')');
+                                    });
+                                }
+                                if (WEBAudio.audioContext.state === 'running') {
+                                    console.log('[iOS] Unity WEBAudio confirmed running. Stopping resumer.');
+                                    clearInterval(window._unityAudioResumer);
+                                    window._unityAudioResumer = null;
+                                }
                             }
+                            // Also continuously unmute any video elements Unity creates
+                            document.querySelectorAll('video').forEach(function(v) {
+                                v.muted = false;
+                            });
+                        } catch(e) {}
+                        // Safety: stop after 60 seconds
+                        if (resumeAttempts > 120) {
+                            clearInterval(window._unityAudioResumer);
+                            window._unityAudioResumer = null;
                         }
                     }, 500);
                 }
@@ -406,6 +423,16 @@
                     loadingBar.style.display = "none";
                     var advLoader = document.getElementById('advanced-loader');
                     if (advLoader) advLoader.style.display = "none";
+                    // --- iOS: Resume Unity's AudioContext NOW that it exists ---
+                    // Unity just created WEBAudio.audioContext during init.
+                    // It starts suspended on iOS. We must resume it here.
+                    if (isIOSSafari) {
+                        unlockIOSMedia();
+                        // Also unmute all video elements Unity may have created
+                        document.querySelectorAll('video').forEach(function(v) {
+                            v.muted = false;
+                        });
+                    }
                 });
                 loadingBar.style.display = "block";
             }
