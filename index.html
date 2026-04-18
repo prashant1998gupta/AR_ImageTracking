@@ -30,6 +30,56 @@
             background: #fffa;
             z-index: 99;
         }
+        /* ---- iOS TAP-TO-START OVERLAY ---- */
+        #ios-tap-overlay {
+            display: none; /* Hidden by default, shown only on iOS */
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(-45deg, #0f0c29, #302b63, #24243e, #0e1a38);
+            background-size: 400% 400%;
+            animation: gradientShift 15s ease infinite;
+            z-index: 10000;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+        #ios-tap-overlay .tap-icon {
+            width: 80px;
+            height: 80px;
+            border: 3px solid rgba(255,255,255,0.6);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 24px;
+            animation: tapPulse 2s infinite ease-in-out;
+        }
+        #ios-tap-overlay .tap-icon svg {
+            width: 36px;
+            height: 36px;
+            fill: white;
+        }
+        #ios-tap-overlay .tap-text {
+            color: #ffffff;
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            text-align: center;
+            margin-bottom: 12px;
+        }
+        #ios-tap-overlay .tap-subtext {
+            color: rgba(255,255,255,0.5);
+            font-size: 13px;
+            text-align: center;
+        }
+        @keyframes tapPulse {
+            0%, 100% { transform: scale(1); border-color: rgba(255,255,255,0.6); }
+            50% { transform: scale(1.1); border-color: rgba(0,210,255,0.9); box-shadow: 0 0 30px rgba(0,210,255,0.4); }
+        }
         /* ---- ADVANCED LOADING SCREEN STYLES ---- */
         @keyframes gradientShift {
             0% { background-position: 0% 50%; }
@@ -145,7 +195,15 @@
             <div id="advanced-progress-bar"></div>
         </div>
     </div>
-    <video id="webcam-video" muted autoplay playsinline style="width:1px;position:absolute"></video>
+    <!-- iOS Tap-to-Start Overlay (only shown on iOS Safari) -->
+    <div id="ios-tap-overlay">
+        <div class="tap-icon">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9 11.24V7.5a2.5 2.5 0 0 1 5 0v3.74c1.21-.81 2-2.18 2-3.74C16 5.01 13.99 3 11.5 3S7 5.01 7 7.5c0 1.56.79 2.93 2 3.74zm9.84 4.63l-4.54-2.26c-.17-.07-.35-.11-.54-.11H13v-6a1 1 0 0 0-2 0v8.61l-2.49-.37c-.19-.03-.39 0-.55.1l-.99.71 4.24 4.24c.26.26.62.41.99.41h5.18c.72 0 1.33-.52 1.45-1.23l.56-3.39c.09-.52-.11-1.05-.54-1.3z"/></svg>
+        </div>
+        <div class="tap-text">Tap to Start</div>
+        <div class="tap-subtext">Required for video & sound on iOS</div>
+    </div>
+    <video id="webcam-video" muted autoplay playsinline webkit-playsinline style="width:1px;position:absolute"></video>
     <!-- <video id="webcam-video" muted autoplay playsinline style="width:100%; height:100%; object-fit:cover; position:absolute"></video> -->
     <canvas id="video-canvas" style="width:100%; height:100%; object-fit:cover; position:absolute"></canvas>
     <div id="startARDiv" class="ctaDiv" style="display: none;">
@@ -187,6 +245,58 @@
     <script src="itracker.js" type="text/javascript"></script>
     <script src="Build/AR_Build.loader.js"></script>
     <script>
+            // ─── iOS Safari Detection ───
+            var isIOSSafari = (function() {
+                var ua = navigator.userAgent;
+                var isIOS = /iPad|iPhone|iPod/.test(ua) || 
+                            (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+                return isIOS;
+            })();
+            // ─── iOS Audio/Video Unlock (called on first user tap) ───
+            function unlockIOSMedia() {
+                console.log('[iOS] Unlocking audio and video...');
+                
+                // 1. Resume/create AudioContext
+                try {
+                    var AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (!window._iosAudioCtx && AudioCtx) {
+                        window._iosAudioCtx = new AudioCtx();
+                    }
+                    if (window._iosAudioCtx && window._iosAudioCtx.state === 'suspended') {
+                        window._iosAudioCtx.resume();
+                    }
+                } catch(e) { console.warn('[iOS] AudioContext error:', e); }
+                // 2. Play + pause a silent video to unlock the video pipeline
+                try {
+                    var sv = document.createElement('video');
+                    sv.setAttribute('playsinline', '');
+                    sv.setAttribute('webkit-playsinline', '');
+                    sv.muted = true;
+                    sv.src = 'data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZnJlZQAAABltZGF0AAAB8AYF//+c3EXpvebZSLeWLNgg';
+                    sv.style.cssText = 'width:1px;height:1px;position:absolute;opacity:0';
+                    document.body.appendChild(sv);
+                    var p = sv.play();
+                    if (p) p.then(function(){ sv.pause(); sv.remove(); }).catch(function(){ sv.remove(); });
+                } catch(e) { console.warn('[iOS] Silent video unlock error:', e); }
+                // 3. Patch all existing video elements with playsinline
+                document.querySelectorAll('video').forEach(function(v) {
+                    v.setAttribute('playsinline', '');
+                    v.setAttribute('webkit-playsinline', '');
+                });
+                console.log('[iOS] Media unlock complete.');
+            }
+            // ─── Global iOS touch fallback ───
+            if (isIOSSafari) {
+                document.addEventListener('touchstart', function iosGlobalUnlock() {
+                    unlockIOSMedia();
+                    try {
+                        if (typeof WEBAudio !== 'undefined' && WEBAudio.audioContext && WEBAudio.audioContext.state === 'suspended') {
+                            WEBAudio.audioContext.resume();
+                            console.log('[iOS] Unity WEBAudio resumed on touch');
+                        }
+                    } catch(e) {}
+                }, { passive: true });
+            }
             var initialize = async() =>{
                 var unityCanvas = document.querySelector("#unity-canvas");
                 var videoCanvas = document.querySelector("#video-canvas");
@@ -203,7 +313,23 @@
                 }
                 
                 await LoadWebcams();
-                StartAR(); // Automatically called instead of waiting for user click
+                // ─── iOS: Show tap overlay instead of auto-starting ───
+                if (isIOSSafari) {
+                    var overlay = document.getElementById('ios-tap-overlay');
+                    overlay.style.display = 'flex';
+                    // Hide the loading spinner behind the overlay
+                    var advLoader = document.getElementById('advanced-loader');
+                    if (advLoader) advLoader.style.display = 'none';
+                    overlay.addEventListener('click', function onTap() {
+                        overlay.removeEventListener('click', onTap);
+                        // This click IS the user gesture that iOS requires!
+                        unlockIOSMedia();
+                        overlay.style.display = 'none';
+                        StartAR();
+                    });
+                } else {
+                    StartAR(); // Android: auto-start as before
+                }
             }
             initialize();
             var container = document.querySelector("#unity-container");
