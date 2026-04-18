@@ -378,17 +378,24 @@
                             var OrigAC = window._OriginalAudioContext || window.AudioContext || window.webkitAudioContext;
                             var ctx = new OrigAC();
                             ctx.resume();
+                            
+                            // CRITICAL: Play CONTINUOUS silent oscillator to keep AudioContext alive!
+                            // iOS re-suspends idle AudioContexts after a few seconds.
+                            // Loading takes 5-30+ seconds, so we keep it running until Unity loads.
                             var osc = ctx.createOscillator();
                             var gain = ctx.createGain();
-                            gain.gain.value = 0;
+                            gain.gain.value = 0.001;
                             osc.connect(gain);
                             gain.connect(ctx.destination);
                             osc.start(0);
-                            osc.stop(ctx.currentTime + 0.1);
+                            // DON'T call osc.stop()!
+                            window._keepAliveOsc = osc;
+                            window._keepAliveGain = gain;
+                            
                             window._readyAudioCtx = ctx;
                             window._preCreatedCtx = ctx;
                             _preCreatedCtx = ctx;
-                            console.log('[iOS] Created AudioContext during tap (state: ' + ctx.state + ')');
+                            console.log('[iOS] Created AudioContext with keep-alive oscillator (state: ' + ctx.state + ')');
                         } catch(e) { console.warn('[iOS] AudioContext tap error:', e); }
                         
                         unlockIOSMedia();
@@ -449,15 +456,27 @@
                     loadingBar.style.display = "none";
                     var advLoader = document.getElementById('advanced-loader');
                     if (advLoader) advLoader.style.display = "none";
-                    // --- iOS: Swap Unity's AudioContext with our pre-created running one ---
+                    // --- iOS: Stop keep-alive & ensure AudioContext is running ---
                     if (isIOSSafari) {
                         try {
+                            if (window._keepAliveOsc) {
+                                window._keepAliveOsc.stop();
+                                window._keepAliveOsc = null;
+                            }
+                        } catch(e) {}
+                        
+                        try {
                             if (typeof WEBAudio !== 'undefined' && WEBAudio.audioContext) {
+                                console.log('[iOS] Post-init: WEBAudio.audioContext.state = ' + WEBAudio.audioContext.state);
                                 if (WEBAudio.audioContext.state === 'suspended' && _preCreatedCtx && _preCreatedCtx.state === 'running') {
                                     WEBAudio.audioContext = _preCreatedCtx;
                                     console.log('[iOS] Post-init: Swapped Unity AudioContext with pre-created running one!');
                                 } else if (WEBAudio.audioContext.state === 'running') {
-                                    console.log('[iOS] Post-init: Unity AudioContext already running (monkey-patch worked!)');
+                                    console.log('[iOS] Post-init: AudioContext already running!');
+                                } else if (_preCreatedCtx && _preCreatedCtx.state === 'suspended') {
+                                    console.warn('[iOS] Post-init: Pre-created context also suspended! Attempting resume...');
+                                    _preCreatedCtx.resume();
+                                    WEBAudio.audioContext = _preCreatedCtx;
                                 }
                             }
                         } catch(e) {}
