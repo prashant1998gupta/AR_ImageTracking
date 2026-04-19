@@ -370,44 +370,51 @@
                     // Hide the loading spinner behind the overlay
                     var advLoader = document.getElementById('advanced-loader');
                     if (advLoader) advLoader.style.display = 'none';
-                    // IMPORTANT: Use 'touchend' not 'click'.
-                    // On iOS Safari, only touchstart/touchend reliably count as a
-                    // "user gesture" that allows AudioContext.resume() to succeed.
-                    // A synthetic 'click' event is blocked by iOS's autoplay policy.
                     overlay.addEventListener('touchend', function onTap(e) {
                         e.preventDefault();
                         overlay.removeEventListener('touchend', onTap);
-                        
-                        // Create & activate AudioContext during this user gesture
+                        // ── Step 1: Unlock AudioContext (for Unity's own audio/sfx) ──
                         try {
-                            // MUST use _OriginalAudioContext — the interceptor patched
-                            // window.AudioContext so Unity gets this ctx at init time.
                             var OrigAC = window._OriginalAudioContext || window.AudioContext || window.webkitAudioContext;
                             var ctx = new OrigAC();
                             ctx.resume();
-                            
-                            // CRITICAL: Play CONTINUOUS silent oscillator to keep AudioContext alive!
-                            // iOS re-suspends idle AudioContexts after a few seconds.
-                            // Loading takes 5-30+ seconds, so we keep it running forever.
-                            // (A gain of 0.001 is inaudible but counts as 'active'.)
                             var osc = ctx.createOscillator();
                             var gain = ctx.createGain();
-                            gain.gain.value = 0.001;
+                            gain.gain.value = 0.001; // Inaudible but keeps context alive
                             osc.connect(gain);
                             gain.connect(ctx.destination);
                             osc.start(0);
-                            // NEVER call osc.stop() — iOS will re-suspend the context!
                             window._keepAliveOsc = osc;
-                            window._keepAliveGain = gain;
-                            
-                            // Store for the interceptor — Unity's AudioContext() call will
-                            // return this pre-activated context (see interceptor above).
                             window._readyAudioCtx = ctx;
                             window._preCreatedCtx = ctx;
                             _preCreatedCtx = ctx;
-                            console.log('[iOS] Created AudioContext with keep-alive oscillator (state: ' + ctx.state + ')');
-                        } catch(e) { console.warn('[iOS] AudioContext tap error:', e); }
-                        
+                            console.log('[iOS] AudioContext activated (state: ' + ctx.state + ')');
+                        } catch(e) { console.warn('[iOS] AudioContext error:', e); }
+                        // ── Step 2: Create and PRE-UNLOCK the HTML <video> element ──
+                        // This is the ONLY reliable way to get unmuted video on iOS.
+                        // We create the element and call .play() RIGHT NOW, inside
+                        // this touchend gesture. iOS marks the element as user-activated.
+                        // The jslib (WebGLInitVideoOverlay) will find it by ID later.
+                        try {
+                            var container = document.createElement('div');
+                            container.id = 'ar-video-container';
+                            container.style.cssText = 'display:none;position:fixed;top:0;left:0;pointer-events:none;z-index:500;overflow:hidden;';
+                            var vid = document.createElement('video');
+                            vid.id = 'ar-html-video';
+                            vid.setAttribute('playsinline', '');
+                            vid.setAttribute('webkit-playsinline', '');
+                            vid.muted = false;
+                            vid.volume = 1.0;
+                            container.appendChild(vid);
+                            document.body.appendChild(container);
+                            // Call play() NOW — inside the gesture — to pre-activate the element.
+                            // The call will fail (no src yet) but iOS records the activation.
+                            vid.play().catch(function() {
+                                console.log('[iOS] HTML video pre-activation complete (expected error - no src yet)');
+                            });
+                            window._arHtmlVideo = vid;
+                            console.log('[iOS] HTML video element created and pre-unlocked.');
+                        } catch(ve) { console.warn('[iOS] HTML video creation error:', ve); }
                         unlockIOSMedia();
                         overlay.style.display = 'none';
                         StartAR();
@@ -466,36 +473,14 @@
                     loadingBar.style.display = "none";
                     var advLoader = document.getElementById('advanced-loader');
                     if (advLoader) advLoader.style.display = "none";
-                    // --- iOS: Unity has loaded — verify AudioContext state ---
+                    // --- iOS post-load: ensure AudioContext is running ---
                     if (isIOSSafari) {
-                        // DO NOT stop the keep-alive oscillator here!
-                        // iOS re-suspends AudioContext if it becomes 'idle' (no active nodes).
-                        // Stopping the oscillator = silence on next video play.
-                        // The 0.001 gain makes it inaudible but keeps the context alive.
-                        
                         try {
-                            if (typeof WEBAudio !== 'undefined' && WEBAudio.audioContext) {
-                                console.log('[iOS] Post-init: WEBAudio.audioContext.state = ' + WEBAudio.audioContext.state);
-                                // The AudioContext interceptor above should have given Unity
-                                // our pre-activated _preCreatedCtx at construction time.
-                                // If WEBAudio.audioContext IS _preCreatedCtx, its graph is intact — DO NOT swap.
-                                // Only attempt a resume if somehow the context ended up suspended.
-                                if (WEBAudio.audioContext.state === 'suspended') {
-                                    console.warn('[iOS] Post-init: AudioContext suspended — attempting resume...');
-                                    WEBAudio.audioContext.resume().then(function() {
-                                        console.log('[iOS] Post-init: AudioContext resumed!');
-                                    });
-                                } else {
-                                    console.log('[iOS] Post-init: AudioContext already running — ');
-                                }
+                            if (typeof WEBAudio !== 'undefined' && WEBAudio.audioContext &&
+                                WEBAudio.audioContext.state === 'suspended') {
+                                WEBAudio.audioContext.resume();
                             }
                         } catch(e) {}
-                        
-                        // Ensure video elements are not muted
-                        document.querySelectorAll('video').forEach(function(v) {
-                            v.muted = false;
-                            v.volume = 1;
-                        });
                     }
                 });
                 loadingBar.style.display = "block";
