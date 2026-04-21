@@ -153,6 +153,10 @@
         <p id="startARText" style="text-align: center; width:60vw;">This augmented reality experience requires access to your device's camera</p>
         <button id="startARButton" onclick="OnUserTapStart()" style="display:none">ALLOW ACCESS</button>
     </div>
+    <div id="soundUnlockDiv" class="ctaDiv" style="display: none; background: rgba(0, 0, 0, 0.82);">
+        <p id="soundUnlockText" style="text-align: center; width:60vw; color:white;">Tap to enable sound for this AR video on iPhone/iPad.</p>
+        <button id="soundUnlockButton" onclick="OnUserTapEnableSound()" style="display:block">TAP FOR SOUND</button>
+    </div>
     <div id="screenshotDiv" style="display: none;" class="ctaDiv">
         <div style="position:relative; background-color:white; padding:10px; box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.3), 0 6px 20px 0 rgba(0, 0, 0, 0.25);">
             <img id="screenshotImg" src="" alt="screenshot" style="width:80vw; height:80vh">
@@ -216,14 +220,23 @@
             var startArDiv = document.getElementById("startARDiv");
             var startArButton = document.getElementById("startARButton");
             var startArText = document.getElementById("startARText");
+            var soundUnlockDiv = document.getElementById("soundUnlockDiv");
+            var soundUnlockButton = document.getElementById("soundUnlockButton");
             var requiresTapToStart = IsAppleMobileBrowser();
             var arExperienceStarted = false;
             var mediaUnlockAudioContext = null;
+            var trackedContentVideos = [];
+            var currentSoundUnlockVideo = null;
+            window.__AR_SOUND_UNLOCKED = !requiresTapToStart;
             EnsureInlineVideoPlayback(document.querySelector("#webcam-video"));
             WatchVideoElementsForInlinePlayback();
+            document.querySelectorAll("video").forEach(RegisterContentVideo);
             function IsAppleMobileBrowser() {
                 return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
                     (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+            }
+            function IsContentVideo(videoElement) {
+                return !!videoElement && videoElement.tagName === "VIDEO" && videoElement.id !== "webcam-video";
             }
             function EnsureInlineVideoPlayback(videoElement) {
                 if (!videoElement) {
@@ -233,6 +246,25 @@
                 videoElement.setAttribute("webkit-playsinline", "");
                 videoElement.playsInline = true;
             }
+            function RegisterContentVideo(videoElement) {
+                if (!IsContentVideo(videoElement)) {
+                    return;
+                }
+                EnsureInlineVideoPlayback(videoElement);
+                if (trackedContentVideos.indexOf(videoElement) === -1) {
+                    trackedContentVideos.push(videoElement);
+                }
+                if (videoElement.__arContentVideoRegistered) {
+                    return;
+                }
+                videoElement.__arContentVideoRegistered = true;
+                videoElement.addEventListener("playing", function() {
+                    if (!window.__AR_SOUND_UNLOCKED) {
+                        currentSoundUnlockVideo = videoElement;
+                        ShowSoundUnlockPrompt();
+                    }
+                });
+            }
             function WatchVideoElementsForInlinePlayback() {
                 if (!window.MutationObserver || !document.body) {
                     return;
@@ -241,22 +273,39 @@
                     mutations.forEach(function(mutation) {
                         mutation.addedNodes.forEach(function(node) {
                             if (node.tagName === "VIDEO") {
-                                EnsureInlineVideoPlayback(node);
+                                RegisterContentVideo(node);
                                 return;
                             }
                             if (node.querySelectorAll) {
-                                node.querySelectorAll("video").forEach(EnsureInlineVideoPlayback);
+                                node.querySelectorAll("video").forEach(RegisterContentVideo);
                             }
                         });
                     });
                 });
                 observer.observe(document.body, { childList: true, subtree: true });
             }
+            if (!window.__AR_MEDIA_PLAY_PATCHED) {
+                window.__AR_MEDIA_PLAY_PATCHED = true;
+                var originalMediaPlay = HTMLMediaElement.prototype.play;
+                HTMLMediaElement.prototype.play = function() {
+                    if (this.tagName === "VIDEO") {
+                        RegisterContentVideo(this);
+                        if (IsContentVideo(this) && requiresTapToStart && !window.__AR_SOUND_UNLOCKED) {
+                            currentSoundUnlockVideo = this;
+                            this.muted = true;
+                            this.defaultMuted = true;
+                            ShowSoundUnlockPrompt();
+                        }
+                    }
+                    return originalMediaPlay.apply(this, arguments);
+                };
+            }
             function ShowTapToStart() {
                 var advLoader = document.getElementById("advanced-loader");
                 if (advLoader) {
                     advLoader.style.display = "none";
                 }
+                HideSoundUnlockPrompt();
                 if (startArText) {
                     startArText.innerText = "Tap to start the AR experience. This unlocks video and sound playback on iPhone and iPad.";
                 }
@@ -267,6 +316,20 @@
                 }
                 if (startArDiv) {
                     startArDiv.style.display = "flex";
+                }
+            }
+            function ShowSoundUnlockPrompt() {
+                if (!requiresTapToStart || window.__AR_SOUND_UNLOCKED || !soundUnlockDiv) {
+                    return;
+                }
+                if (soundUnlockButton) {
+                    soundUnlockButton.disabled = false;
+                }
+                soundUnlockDiv.style.display = "flex";
+            }
+            function HideSoundUnlockPrompt() {
+                if (soundUnlockDiv) {
+                    soundUnlockDiv.style.display = "none";
                 }
             }
             async function UnlockMediaPlayback() {
@@ -300,6 +363,42 @@
                 }
                 StartAR();
             }
+            async function OnUserTapEnableSound() {
+                if (soundUnlockButton) {
+                    soundUnlockButton.disabled = true;
+                }
+                window.__AR_SOUND_UNLOCKED = true;
+                try {
+                    await UnlockMediaPlayback();
+                } catch (error) {
+                    console.warn("[AR] Sound unlock failed:", error);
+                }
+                var videosToUnlock = trackedContentVideos.slice();
+                if (currentSoundUnlockVideo && videosToUnlock.indexOf(currentSoundUnlockVideo) === -1) {
+                    videosToUnlock.push(currentSoundUnlockVideo);
+                }
+                for (var i = 0; i < videosToUnlock.length; i++) {
+                    var video = videosToUnlock[i];
+                    if (!video || !video.isConnected) {
+                        continue;
+                    }
+                    try {
+                        EnsureInlineVideoPlayback(video);
+                        video.muted = false;
+                        video.defaultMuted = false;
+                        video.volume = 1;
+                        var playPromise = video.play();
+                        if (playPromise && playPromise.catch) {
+                            await playPromise.catch(function(error) {
+                                console.warn("[AR] Video replay with sound failed:", error);
+                            });
+                        }
+                    } catch (error) {
+                        console.warn("[AR] Unable to enable sound on video:", error);
+                    }
+                }
+                HideSoundUnlockPrompt();
+            }
             function StartAR() {
                 if (arExperienceStarted) {
                     return;
@@ -315,6 +414,7 @@
                 if (startArDiv) {
                     startArDiv.style.display = "none";
                 }
+                HideSoundUnlockPrompt();
                 createUnityInstance(document.querySelector("#unity-canvas"), {
                     dataUrl: "Build/AR_Build.data.unityweb",
                     frameworkUrl: "Build/AR_Build.framework.js.unityweb",
@@ -488,6 +588,7 @@
                 if (startArDiv) {
                     startArDiv.style.display = "none";
                 }
+                HideSoundUnlockPrompt();
                 document.getElementById("errorDiv").style.display = "flex";
                 document.getElementById("errorText").innerHTML = error;
             }
