@@ -257,14 +257,18 @@
         window._readyAudioCtx = null;
         
         function _InterceptedAC() {
-            if (window._readyAudioCtx) {
+            if (window._readyAudioCtx && window._readyAudioCtx.state !== 'closed') {
                 var ctx = window._readyAudioCtx;
-                window._readyAudioCtx = null;
-                console.log('[iOS-Interceptor] Gave Unity pre-activated AudioContext (state: ' + ctx.state + ')');
+                // Keep returning the same pre-activated context — Unity may create
+                // multiple AudioContexts (for audio + video). All should use this one.
+                if (ctx.state === 'suspended') { try { ctx.resume(); } catch(e) {} }
+                console.log('[iOS-Interceptor] Returning pre-activated AudioContext (state: ' + ctx.state + ')');
                 return ctx;
             }
+            // Fallback: create a new one and try to resume immediately
             var ctx = new _OrigAC();
-            console.log('[iOS-Interceptor] Created new AudioContext (state: ' + ctx.state + ')');
+            try { ctx.resume(); } catch(e) {}
+            console.log('[iOS-Interceptor] Created fallback AudioContext (state: ' + ctx.state + ')');
             return ctx;
         }
         _InterceptedAC.prototype = _OrigAC.prototype;
@@ -292,9 +296,9 @@
             var _OriginalAudioContext = null;
             var _preCreatedCtx = null; window._preCreatedCtx = null;
             function unlockIOSMedia() {
-                console.log('[iOS] Unlocking audio and video...');
+                console.log('[iOS] Unlocking audio...');
                 
-                // 1. Resume the pre-created AudioContext (if it exists from the tap handler)
+                // 1. Resume the pre-created AudioContext
                 try {
                     if (_preCreatedCtx && _preCreatedCtx.state === 'suspended') {
                         _preCreatedCtx.resume();
@@ -304,47 +308,45 @@
                 try {
                     if (typeof WEBAudio !== 'undefined' && WEBAudio.audioContext) {
                         if (WEBAudio.audioContext.state === 'suspended') {
-                            if (_preCreatedCtx && _preCreatedCtx.state === 'running') {
-                                WEBAudio.audioContext = _preCreatedCtx;
-                                console.log('[iOS] Swapped Unity AudioContext with pre-created running one!');
-                            } else {
-                                WEBAudio.audioContext.resume().then(function() {
-                                    console.log('[iOS] Unity WEBAudio resumed!');
-                                });
-                            }
+                            WEBAudio.audioContext.resume();
                         }
                     }
                 } catch(e) {}
-                // 3. Patch all existing video elements with playsinline and unmute
+                // 3. Ensure all video elements have playsinline attributes
+                // NOTE: Do NOT unmute videos here — the AR video must start muted
+                // for iOS autoplay to work. Audio is unlocked via the global touch handler.
                 document.querySelectorAll('video').forEach(function(v) {
                     v.setAttribute('playsinline', '');
                     v.setAttribute('webkit-playsinline', '');
-                    v.muted = false;
-                    v.volume = 1;
                 });
-                console.log('[iOS] Media unlock complete.');
+                console.log('[iOS] Audio unlock complete.');
             }
-            // ─── Global iOS touch fallback ───
-            // Every touch on the page tries to resume audio + unmute videos.
-            // This is the ONLY reliable way on iOS (touches ARE user gestures).
+            // ─── Global iOS touch handler ───
+            // Handles two things on each touch (user gestures on iOS):
+            //  1. Resumes Unity's AudioContext if suspended
+            //  2. Unmutes the AR video element (one-time, after video starts playing)
             if (isIOSSafari) {
-                document.addEventListener('touchstart', function iosGlobalUnlock() {
+                document.addEventListener('touchstart', function iosMediaHandler() {
+                    // 1. Resume Unity AudioContext
                     try {
-                        if (typeof WEBAudio !== 'undefined' && WEBAudio.audioContext) {
-                            if (WEBAudio.audioContext.state === 'suspended') {
-                                if (_preCreatedCtx && _preCreatedCtx.state === 'running') {
-                                    WEBAudio.audioContext = _preCreatedCtx;
-                                    console.log('[iOS] Swapped AudioContext on touch!');
-                                } else {
-                                    WEBAudio.audioContext.resume();
-                                }
-                            }
+                        if (typeof WEBAudio !== 'undefined' && WEBAudio.audioContext &&
+                            WEBAudio.audioContext.state === 'suspended') {
+                            WEBAudio.audioContext.resume();
+                            console.log('[iOS] Resumed Unity AudioContext on touch');
                         }
                     } catch(e) {}
-                    document.querySelectorAll('video').forEach(function(v) {
-                        v.muted = false;
-                        v.volume = 1;
-                    });
+                    // 2. Unmute the AR video (only once, only when it's actively playing)
+                    if (!window._arAudioUnlocked) {
+                        var vid = window._arVideoEl;
+                        if (vid && !vid.paused && vid.readyState >= 2) {
+                            vid.muted = false;
+                            vid.volume = 1.0;
+                            window._arAudioUnlocked = true;
+                            console.log('[iOS] AR video audio unlocked via touch');
+                            var ind = document.getElementById('ar-unmute-indicator');
+                            if (ind) ind.style.display = 'none';
+                        }
+                    }
                 }, { passive: true });
             }
             var initialize = async() =>{
@@ -390,11 +392,10 @@
                             _preCreatedCtx = ctx;
                             console.log('[iOS] AudioContext activated (state: ' + ctx.state + ')');
                         } catch(e) { console.warn('[iOS] AudioContext error:', e); }
-                        // ── Step 2: Create and PRE-UNLOCK the HTML <video> element ──
-                        // This is the ONLY reliable way to get unmuted video on iOS.
-                        // We create the element and call .play() RIGHT NOW, inside
-                        // this touchend gesture. iOS marks the element as user-activated.
-                        // The jslib (WebGLInitVideoOverlay) will find it by ID later.
+                        // ── Step 2: Create HTML <video> element for later use ──
+                        // The jslib (WebGLInitVideoOverlay) will find this by ID.
+                        // Video starts muted (iOS autoplay policy). Audio is enabled
+                        // on first screen touch via the global unmute handler.
                         try {
                             var container = document.createElement('div');
                             container.id = 'ar-video-container';
@@ -403,17 +404,11 @@
                             vid.id = 'ar-html-video';
                             vid.setAttribute('playsinline', '');
                             vid.setAttribute('webkit-playsinline', '');
-                            vid.muted = false;
-                            vid.volume = 1.0;
+                            vid.muted = true;
                             container.appendChild(vid);
                             document.body.appendChild(container);
-                            // Call play() NOW — inside the gesture — to pre-activate the element.
-                            // The call will fail (no src yet) but iOS records the activation.
-                            vid.play().catch(function() {
-                                console.log('[iOS] HTML video pre-activation complete (expected error - no src yet)');
-                            });
                             window._arHtmlVideo = vid;
-                            console.log('[iOS] HTML video element created and pre-unlocked.');
+                            console.log('[iOS] HTML video element created (audio activates on touch).');
                         } catch(ve) { console.warn('[iOS] HTML video creation error:', ve); }
                         unlockIOSMedia();
                         overlay.style.display = 'none';
@@ -476,9 +471,17 @@
                     // --- iOS post-load: ensure AudioContext is running ---
                     if (isIOSSafari) {
                         try {
-                            if (typeof WEBAudio !== 'undefined' && WEBAudio.audioContext &&
-                                WEBAudio.audioContext.state === 'suspended') {
-                                WEBAudio.audioContext.resume();
+                            if (typeof WEBAudio !== 'undefined' && WEBAudio.audioContext) {
+                                if (WEBAudio.audioContext.state === 'suspended') {
+                                    // Try to resume first
+                                    WEBAudio.audioContext.resume();
+                                }
+                                // If still suspended and we have a running context, swap it
+                                if (WEBAudio.audioContext.state === 'suspended' &&
+                                    _preCreatedCtx && _preCreatedCtx.state === 'running') {
+                                    WEBAudio.audioContext = _preCreatedCtx;
+                                    console.log('[iOS] Swapped Unity AudioContext with pre-activated one');
+                                }
                             }
                         } catch(e) {}
                     }
