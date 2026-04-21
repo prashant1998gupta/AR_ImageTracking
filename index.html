@@ -259,7 +259,7 @@
                 }
                 videoElement.__arContentVideoRegistered = true;
                 videoElement.addEventListener("playing", function() {
-                    if (!window.__AR_SOUND_UNLOCKED) {
+                    if (!videoElement.__arSoundUnlocked) {
                         currentSoundUnlockVideo = videoElement;
                         ShowSoundUnlockPrompt();
                     }
@@ -290,7 +290,7 @@
                 HTMLMediaElement.prototype.play = function() {
                     if (this.tagName === "VIDEO") {
                         RegisterContentVideo(this);
-                        if (IsContentVideo(this) && requiresTapToStart && !window.__AR_SOUND_UNLOCKED) {
+                        if (IsContentVideo(this) && requiresTapToStart && !this.__arSoundUnlocked) {
                             currentSoundUnlockVideo = this;
                             this.muted = true;
                             this.defaultMuted = true;
@@ -319,7 +319,7 @@
                 }
             }
             function ShowSoundUnlockPrompt() {
-                if (!requiresTapToStart || window.__AR_SOUND_UNLOCKED || !soundUnlockDiv) {
+                if (!requiresTapToStart || !soundUnlockDiv || !currentSoundUnlockVideo || currentSoundUnlockVideo.__arSoundUnlocked) {
                     return;
                 }
                 if (soundUnlockButton) {
@@ -387,6 +387,7 @@
                         video.muted = false;
                         video.defaultMuted = false;
                         video.volume = 1;
+                        video.__arSoundUnlocked = true;
                         var playPromise = video.play();
                         if (playPromise && playPromise.catch) {
                             await playPromise.catch(function(error) {
@@ -397,6 +398,7 @@
                         console.warn("[AR] Unable to enable sound on video:", error);
                     }
                 }
+                currentSoundUnlockVideo = null;
                 HideSoundUnlockPrompt();
             }
             function StartAR() {
