@@ -231,6 +231,8 @@
             EnsureInlineVideoPlayback(document.querySelector("#webcam-video"));
             WatchVideoElementsForInlinePlayback();
             document.querySelectorAll("video").forEach(RegisterContentVideo);
+            document.addEventListener("touchend", HandleGlobalMediaUnlockGesture, { passive: true });
+            document.addEventListener("click", HandleGlobalMediaUnlockGesture, true);
             function IsAppleMobileBrowser() {
                 return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
                     (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
@@ -331,6 +333,18 @@
                 if (soundUnlockDiv) {
                     soundUnlockDiv.style.display = "none";
                 }
+            }
+            function HasPendingSoundUnlock() {
+                return !!currentSoundUnlockVideo && !currentSoundUnlockVideo.__arSoundUnlocked;
+            }
+            function HandleGlobalMediaUnlockGesture(event) {
+                if (!requiresTapToStart || !HasPendingSoundUnlock()) {
+                    return;
+                }
+                if (event && event.target && (event.target === startArButton || event.target === soundUnlockButton)) {
+                    return;
+                }
+                OnUserTapEnableSound();
             }
             async function UnlockMediaPlayback() {
                 var AudioContext = window.AudioContext || window.webkitAudioContext;
