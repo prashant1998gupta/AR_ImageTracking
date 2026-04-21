@@ -30,56 +30,6 @@
             background: #fffa;
             z-index: 99;
         }
-        /* ---- iOS TAP-TO-START OVERLAY ---- */
-        #ios-tap-overlay {
-            display: none; /* Hidden by default, shown only on iOS */
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: linear-gradient(-45deg, #0f0c29, #302b63, #24243e, #0e1a38);
-            background-size: 400% 400%;
-            animation: gradientShift 15s ease infinite;
-            z-index: 10000;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            cursor: pointer;
-            -webkit-tap-highlight-color: transparent;
-        }
-        #ios-tap-overlay .tap-icon {
-            width: 80px;
-            height: 80px;
-            border: 3px solid rgba(255,255,255,0.6);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 24px;
-            animation: tapPulse 2s infinite ease-in-out;
-        }
-        #ios-tap-overlay .tap-icon svg {
-            width: 36px;
-            height: 36px;
-            fill: white;
-        }
-        #ios-tap-overlay .tap-text {
-            color: #ffffff;
-            font-size: 22px;
-            font-weight: 700;
-            letter-spacing: 3px;
-            text-transform: uppercase;
-            text-align: center;
-            margin-bottom: 12px;
-        }
-        #ios-tap-overlay .tap-subtext {
-            color: rgba(255,255,255,0.5);
-            font-size: 13px;
-            text-align: center;
-        }
-        @keyframes tapPulse {
-            0%, 100% { transform: scale(1); border-color: rgba(255,255,255,0.6); }
-            50% { transform: scale(1.1); border-color: rgba(0,210,255,0.9); box-shadow: 0 0 30px rgba(0,210,255,0.4); }
-        }
         /* ---- ADVANCED LOADING SCREEN STYLES ---- */
         @keyframes gradientShift {
             0% { background-position: 0% 50%; }
@@ -195,15 +145,7 @@
             <div id="advanced-progress-bar"></div>
         </div>
     </div>
-    <!-- iOS Tap-to-Start Overlay (only shown on iOS Safari) -->
-    <div id="ios-tap-overlay">
-        <div class="tap-icon">
-            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9 11.24V7.5a2.5 2.5 0 0 1 5 0v3.74c1.21-.81 2-2.18 2-3.74C16 5.01 13.99 3 11.5 3S7 5.01 7 7.5c0 1.56.79 2.93 2 3.74zm9.84 4.63l-4.54-2.26c-.17-.07-.35-.11-.54-.11H13v-6a1 1 0 0 0-2 0v8.61l-2.49-.37c-.19-.03-.39 0-.55.1l-.99.71 4.24 4.24c.26.26.62.41.99.41h5.18c.72 0 1.33-.52 1.45-1.23l.56-3.39c.09-.52-.11-1.05-.54-1.3z"/></svg>
-        </div>
-        <div class="tap-text">Tap to Start</div>
-        <div class="tap-subtext">Required for video & sound on iOS</div>
-    </div>
-    <video id="webcam-video" muted autoplay playsinline webkit-playsinline style="width:1px;position:absolute"></video>
+    <video id="webcam-video" muted autoplay playsinline style="width:1px;position:absolute"></video>
     <!-- <video id="webcam-video" muted autoplay playsinline style="width:100%; height:100%; object-fit:cover; position:absolute"></video> -->
     <canvas id="video-canvas" style="width:100%; height:100%; object-fit:cover; position:absolute"></canvas>
     <div id="startARDiv" class="ctaDiv" style="display: none;">
@@ -243,112 +185,8 @@
     <script src="https://dashboard.rionick.com/tracker/ar-analytics.js" data-project="e4cfcb9cfd6d120305bb7c268a981b8e8a65c32d0d5062563c8e2c1980ae769c"></script>
     <script src="arcamera.js" type="text/javascript"></script>
     <script src="itracker.js" type="text/javascript"></script>
-    <!-- iOS AudioContext Interceptor: MUST be before Unity loader! -->
-    <!-- Unity's loader.js caches AudioContext at load time. If we patch after, Unity ignores our patch. -->
-    <script>
-    (function() {
-        var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
-                    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-        if (!isIOS) return;
-        
-        var _OrigAC = window.AudioContext || window.webkitAudioContext;
-        if (!_OrigAC) return;
-        
-        window._readyAudioCtx = null;
-        
-        function _InterceptedAC() {
-            if (window._readyAudioCtx && window._readyAudioCtx.state !== 'closed') {
-                var ctx = window._readyAudioCtx;
-                // Keep returning the same pre-activated context — Unity may create
-                // multiple AudioContexts (for audio + video). All should use this one.
-                if (ctx.state === 'suspended') { try { ctx.resume(); } catch(e) {} }
-                console.log('[iOS-Interceptor] Returning pre-activated AudioContext (state: ' + ctx.state + ')');
-                return ctx;
-            }
-            // Fallback: create a new one and try to resume immediately
-            var ctx = new _OrigAC();
-            try { ctx.resume(); } catch(e) {}
-            console.log('[iOS-Interceptor] Created fallback AudioContext (state: ' + ctx.state + ')');
-            return ctx;
-        }
-        _InterceptedAC.prototype = _OrigAC.prototype;
-        
-        window.AudioContext = _InterceptedAC;
-        if (window.webkitAudioContext) window.webkitAudioContext = _InterceptedAC;
-        
-        window._OriginalAudioContext = _OrigAC;
-        
-        console.log('[iOS-Interceptor] AudioContext patched before Unity loader');
-    })();
-    </script>
     <script src="Build/AR_Build.loader.js"></script>
     <script>
-            // ─── iOS Safari Detection ───
-            var isIOSSafari = (function() {
-                var ua = navigator.userAgent;
-                var isIOS = /iPad|iPhone|iPod/.test(ua) || 
-                            (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-                return isIOS;
-            })();
-            // ─── iOS Audio/Video Unlock (called on first user tap) ───
-            // IMPORTANT: _OriginalAudioContext is set during the tap handler BEFORE
-            // monkey-patching. unlockIOSMedia() must use it to avoid consuming the patch.
-            var _OriginalAudioContext = null;
-            var _preCreatedCtx = null; window._preCreatedCtx = null;
-            function unlockIOSMedia() {
-                console.log('[iOS] Unlocking audio...');
-                
-                // 1. Resume the pre-created AudioContext
-                try {
-                    if (_preCreatedCtx && _preCreatedCtx.state === 'suspended') {
-                        _preCreatedCtx.resume();
-                    }
-                } catch(e) {}
-                // 2. Resume Unity's WEBAudio.audioContext if it already exists
-                try {
-                    if (typeof WEBAudio !== 'undefined' && WEBAudio.audioContext) {
-                        if (WEBAudio.audioContext.state === 'suspended') {
-                            WEBAudio.audioContext.resume();
-                        }
-                    }
-                } catch(e) {}
-                // 3. Ensure all video elements have playsinline attributes
-                // NOTE: Do NOT unmute videos here — the AR video must start muted
-                // for iOS autoplay to work. Audio is unlocked via the global touch handler.
-                document.querySelectorAll('video').forEach(function(v) {
-                    v.setAttribute('playsinline', '');
-                    v.setAttribute('webkit-playsinline', '');
-                });
-                console.log('[iOS] Audio unlock complete.');
-            }
-            // ─── Global iOS touch handler ───
-            // Handles two things on each touch (user gestures on iOS):
-            //  1. Resumes Unity's AudioContext if suspended
-            //  2. Unmutes the AR video element (one-time, after video starts playing)
-            if (isIOSSafari) {
-                document.addEventListener('touchstart', function iosMediaHandler() {
-                    // 1. Resume Unity AudioContext
-                    try {
-                        if (typeof WEBAudio !== 'undefined' && WEBAudio.audioContext &&
-                            WEBAudio.audioContext.state === 'suspended') {
-                            WEBAudio.audioContext.resume();
-                            console.log('[iOS] Resumed Unity AudioContext on touch');
-                        }
-                    } catch(e) {}
-                    // 2. Unmute the AR video (only once, only when it's actively playing)
-                    if (!window._arAudioUnlocked) {
-                        var vid = window._arVideoEl;
-                        if (vid && !vid.paused && vid.readyState >= 2) {
-                            vid.muted = false;
-                            vid.volume = 1.0;
-                            window._arAudioUnlocked = true;
-                            console.log('[iOS] AR video audio unlocked via touch');
-                            var ind = document.getElementById('ar-unmute-indicator');
-                            if (ind) ind.style.display = 'none';
-                        }
-                    }
-                }, { passive: true });
-            }
             var initialize = async() =>{
                 var unityCanvas = document.querySelector("#unity-canvas");
                 var videoCanvas = document.querySelector("#video-canvas");
@@ -365,58 +203,7 @@
                 }
                 
                 await LoadWebcams();
-                // ─── iOS: Show tap overlay instead of auto-starting ───
-                if (isIOSSafari) {
-                    var overlay = document.getElementById('ios-tap-overlay');
-                    overlay.style.display = 'flex';
-                    // Hide the loading spinner behind the overlay
-                    var advLoader = document.getElementById('advanced-loader');
-                    if (advLoader) advLoader.style.display = 'none';
-                    overlay.addEventListener('touchend', function onTap(e) {
-                        e.preventDefault();
-                        overlay.removeEventListener('touchend', onTap);
-                        // ── Step 1: Unlock AudioContext (for Unity's own audio/sfx) ──
-                        try {
-                            var OrigAC = window._OriginalAudioContext || window.AudioContext || window.webkitAudioContext;
-                            var ctx = new OrigAC();
-                            ctx.resume();
-                            var osc = ctx.createOscillator();
-                            var gain = ctx.createGain();
-                            gain.gain.value = 0.001; // Inaudible but keeps context alive
-                            osc.connect(gain);
-                            gain.connect(ctx.destination);
-                            osc.start(0);
-                            window._keepAliveOsc = osc;
-                            window._readyAudioCtx = ctx;
-                            window._preCreatedCtx = ctx;
-                            _preCreatedCtx = ctx;
-                            console.log('[iOS] AudioContext activated (state: ' + ctx.state + ')');
-                        } catch(e) { console.warn('[iOS] AudioContext error:', e); }
-                        // ── Step 2: Create HTML <video> element for later use ──
-                        // The jslib (WebGLInitVideoOverlay) will find this by ID.
-                        // Video starts muted (iOS autoplay policy). Audio is enabled
-                        // on first screen touch via the global unmute handler.
-                        try {
-                            var container = document.createElement('div');
-                            container.id = 'ar-video-container';
-                            container.style.cssText = 'display:none;position:fixed;top:0;left:0;pointer-events:none;z-index:500;overflow:hidden;';
-                            var vid = document.createElement('video');
-                            vid.id = 'ar-html-video';
-                            vid.setAttribute('playsinline', '');
-                            vid.setAttribute('webkit-playsinline', '');
-                            vid.muted = true;
-                            container.appendChild(vid);
-                            document.body.appendChild(container);
-                            window._arHtmlVideo = vid;
-                            console.log('[iOS] HTML video element created (audio activates on touch).');
-                        } catch(ve) { console.warn('[iOS] HTML video creation error:', ve); }
-                        unlockIOSMedia();
-                        overlay.style.display = 'none';
-                        StartAR();
-                    });
-                } else {
-                    StartAR(); // Android: auto-start as before
-                }
+                StartAR(); // Automatically called instead of waiting for user click
             }
             initialize();
             var container = document.querySelector("#unity-container");
@@ -468,23 +255,6 @@
                     loadingBar.style.display = "none";
                     var advLoader = document.getElementById('advanced-loader');
                     if (advLoader) advLoader.style.display = "none";
-                    // --- iOS post-load: ensure AudioContext is running ---
-                    if (isIOSSafari) {
-                        try {
-                            if (typeof WEBAudio !== 'undefined' && WEBAudio.audioContext) {
-                                if (WEBAudio.audioContext.state === 'suspended') {
-                                    // Try to resume first
-                                    WEBAudio.audioContext.resume();
-                                }
-                                // If still suspended and we have a running context, swap it
-                                if (WEBAudio.audioContext.state === 'suspended' &&
-                                    _preCreatedCtx && _preCreatedCtx.state === 'running') {
-                                    WEBAudio.audioContext = _preCreatedCtx;
-                                    console.log('[iOS] Swapped Unity AudioContext with pre-activated one');
-                                }
-                            }
-                        } catch(e) {}
-                    }
                 });
                 loadingBar.style.display = "block";
             }
