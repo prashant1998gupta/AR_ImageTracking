@@ -150,8 +150,8 @@
     <canvas id="video-canvas" style="width:100%; height:100%; object-fit:cover; position:absolute"></canvas>
     <div id="startARDiv" class="ctaDiv" style="display: none;">
         <select id="chooseCamSel" style="display: none;" onchange="SelectCam()"></select>
-        <p style="text-align: center; width:60vw;">This augmented reality experience requires access to your device's camera</p>
-        <button id="startARButton" onclick="StartAR()" style="display:none">ALLOW ACCESS</button>
+        <p id="startARText" style="text-align: center; width:60vw;">This augmented reality experience requires access to your device's camera</p>
+        <button id="startARButton" onclick="OnUserTapStart()" style="display:none">ALLOW ACCESS</button>
     </div>
     <div id="screenshotDiv" style="display: none;" class="ctaDiv">
         <div style="position:relative; background-color:white; padding:10px; box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.3), 0 6px 20px 0 rgba(0, 0, 0, 0.25);">
@@ -203,18 +203,118 @@
                 }
                 
                 await LoadWebcams();
-                StartAR(); // Automatically called instead of waiting for user click
+                if (requiresTapToStart) {
+                    ShowTapToStart();
+                    return;
+                }
+                StartAR();
             }
-            initialize();
             var container = document.querySelector("#unity-container");
             var canvas = document.querySelector("#unity-canvas");
             var loadingBar = document.querySelector("#unity-loading-bar");
             var progressBarFull = document.querySelector("#unity-progress-bar-full");
+            var startArDiv = document.getElementById("startARDiv");
+            var startArButton = document.getElementById("startARButton");
+            var startArText = document.getElementById("startARText");
+            var requiresTapToStart = IsAppleMobileBrowser();
+            var arExperienceStarted = false;
+            var mediaUnlockAudioContext = null;
+            EnsureInlineVideoPlayback(document.querySelector("#webcam-video"));
+            WatchVideoElementsForInlinePlayback();
+            function IsAppleMobileBrowser() {
+                return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+                    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+            }
+            function EnsureInlineVideoPlayback(videoElement) {
+                if (!videoElement) {
+                    return;
+                }
+                videoElement.setAttribute("playsinline", "");
+                videoElement.setAttribute("webkit-playsinline", "");
+                videoElement.playsInline = true;
+            }
+            function WatchVideoElementsForInlinePlayback() {
+                if (!window.MutationObserver || !document.body) {
+                    return;
+                }
+                var observer = new MutationObserver(function(mutations) {
+                    mutations.forEach(function(mutation) {
+                        mutation.addedNodes.forEach(function(node) {
+                            if (node.tagName === "VIDEO") {
+                                EnsureInlineVideoPlayback(node);
+                                return;
+                            }
+                            if (node.querySelectorAll) {
+                                node.querySelectorAll("video").forEach(EnsureInlineVideoPlayback);
+                            }
+                        });
+                    });
+                });
+                observer.observe(document.body, { childList: true, subtree: true });
+            }
+            function ShowTapToStart() {
+                var advLoader = document.getElementById("advanced-loader");
+                if (advLoader) {
+                    advLoader.style.display = "none";
+                }
+                if (startArText) {
+                    startArText.innerText = "Tap to start the AR experience. This unlocks video and sound playback on iPhone and iPad.";
+                }
+                if (startArButton) {
+                    startArButton.innerText = "TAP TO START";
+                    startArButton.style.display = "block";
+                    startArButton.disabled = false;
+                }
+                if (startArDiv) {
+                    startArDiv.style.display = "flex";
+                }
+            }
+            async function UnlockMediaPlayback() {
+                var AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContext) {
+                    return;
+                }
+                if (!mediaUnlockAudioContext) {
+                    mediaUnlockAudioContext = new AudioContext();
+                }
+                if (mediaUnlockAudioContext.state === "suspended") {
+                    await mediaUnlockAudioContext.resume();
+                }
+                var buffer = mediaUnlockAudioContext.createBuffer(1, 1, 22050);
+                var source = mediaUnlockAudioContext.createBufferSource();
+                source.buffer = buffer;
+                source.connect(mediaUnlockAudioContext.destination);
+                source.start(0);
+            }
+            async function OnUserTapStart() {
+                if (arExperienceStarted) {
+                    return;
+                }
+                if (startArButton) {
+                    startArButton.disabled = true;
+                }
+                try {
+                    await UnlockMediaPlayback();
+                } catch (error) {
+                    console.warn("[AR] Media unlock fallback failed:", error);
+                }
+                StartAR();
+            }
             function StartAR() {
+                if (arExperienceStarted) {
+                    return;
+                }
+                arExperienceStarted = true;
                 canvas.style.width = window.innerWidth + "px";
                 canvas.style.height = window.innerHeight + "px";
+                var advLoader = document.getElementById("advanced-loader");
+                if (advLoader) {
+                    advLoader.style.display = "flex";
+                }
                 
-                document.getElementById("startARDiv").style.display = "none";
+                if (startArDiv) {
+                    startArDiv.style.display = "none";
+                }
                 createUnityInstance(document.querySelector("#unity-canvas"), {
                     dataUrl: "Build/AR_Build.data.unityweb",
                     frameworkUrl: "Build/AR_Build.framework.js.unityweb",
@@ -255,6 +355,10 @@
                     loadingBar.style.display = "none";
                     var advLoader = document.getElementById('advanced-loader');
                     if (advLoader) advLoader.style.display = "none";
+                }).catch((error) => {
+                    arExperienceStarted = false;
+                    console.error("Failed to create Unity instance:", error);
+                    ShowError("Failed to load the experience.");
                 });
                 loadingBar.style.display = "block";
             }
@@ -292,6 +396,7 @@
                 if(window.webcamStream)
                 {
                     const video = document.querySelector("#webcam-video");
+                    EnsureInlineVideoPlayback(video);
                     video.srcObject = webcamStream;
                     try {
                         await arCamera.startWebcam(video);
@@ -371,10 +476,18 @@
                 }
                 window.webcamStream = await navigator.mediaDevices.getUserMedia(window.WEBCAM_SETTINGS);
                 const video = document.querySelector("#webcam-video");
+                EnsureInlineVideoPlayback(video);
                 video.srcObject = webcamStream;
                 await arCamera.startWebcam(video);
             }
             function ShowError(error){
+                var advLoader = document.getElementById("advanced-loader");
+                if (advLoader) {
+                    advLoader.style.display = "none";
+                }
+                if (startArDiv) {
+                    startArDiv.style.display = "none";
+                }
                 document.getElementById("errorDiv").style.display = "flex";
                 document.getElementById("errorText").innerHTML = error;
             }
@@ -387,6 +500,7 @@
             function ShowConfirmUrl(url){
                 window.location.assign(url);                
             }
+            initialize();
             window.ITRACKER_GLOBALS = {
                 //place global settings here
                 INTERNAL_SMOOTHFACTOR_POS: .075,
