@@ -418,9 +418,6 @@
                     soundUnlockButton.disabled = true;
                 }
                 window.__AR_SOUND_UNLOCK_SERIAL += 1;
-                if (targetKey) {
-                    window.__AR_TARGET_SOUND_UNLOCKS[targetKey] = true;
-                }
                 try {
                     await UnlockMediaPlayback();
                 } catch (error) {
@@ -428,6 +425,7 @@
                 }
                 try {
                     EnsureInlineVideoPlayback(video);
+                    video.pause();
                     video.__arAllowNextPlayWithSound = true;
                     video.muted = false;
                     video.defaultMuted = false;
@@ -437,6 +435,9 @@
                         await playPromise.catch(function(error) {
                             console.warn("[AR] Video replay with sound failed:", error);
                         });
+                    }
+                    if (targetKey) {
+                        window.__AR_TARGET_SOUND_UNLOCKS[targetKey] = true;
                     }
                 } catch (error) {
                     video.__arAllowNextPlayWithSound = false;
