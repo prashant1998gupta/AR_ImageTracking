@@ -227,7 +227,8 @@
             var mediaUnlockAudioContext = null;
             var trackedContentVideos = [];
             var currentSoundUnlockVideo = null;
-            window.__AR_SOUND_UNLOCKED = !requiresTapToStart;
+            window.__AR_REQUIRE_SOUND_GESTURE = requiresTapToStart;
+            window.__AR_SOUND_UNLOCK_SERIAL = window.__AR_SOUND_UNLOCK_SERIAL || 0;
             EnsureInlineVideoPlayback(document.querySelector("#webcam-video"));
             WatchVideoElementsForInlinePlayback();
             document.querySelectorAll("video").forEach(RegisterContentVideo);
@@ -261,7 +262,11 @@
                 }
                 videoElement.__arContentVideoRegistered = true;
                 videoElement.addEventListener("playing", function() {
-                    if (!videoElement.__arSoundUnlocked) {
+                    if (videoElement.__arAllowNextPlayWithSound) {
+                        videoElement.__arAllowNextPlayWithSound = false;
+                        return;
+                    }
+                    if (requiresTapToStart) {
                         currentSoundUnlockVideo = videoElement;
                         ShowSoundUnlockPrompt();
                     }
@@ -292,7 +297,7 @@
                 HTMLMediaElement.prototype.play = function() {
                     if (this.tagName === "VIDEO") {
                         RegisterContentVideo(this);
-                        if (IsContentVideo(this) && requiresTapToStart && !this.__arSoundUnlocked) {
+                        if (IsContentVideo(this) && requiresTapToStart && !this.__arAllowNextPlayWithSound) {
                             currentSoundUnlockVideo = this;
                             this.muted = true;
                             this.defaultMuted = true;
@@ -321,7 +326,7 @@
                 }
             }
             function ShowSoundUnlockPrompt() {
-                if (!requiresTapToStart || !soundUnlockDiv || !currentSoundUnlockVideo || currentSoundUnlockVideo.__arSoundUnlocked) {
+                if (!requiresTapToStart || !soundUnlockDiv || !currentSoundUnlockVideo) {
                     return;
                 }
                 if (soundUnlockButton) {
@@ -335,7 +340,7 @@
                 }
             }
             function HasPendingSoundUnlock() {
-                return !!currentSoundUnlockVideo && !currentSoundUnlockVideo.__arSoundUnlocked;
+                return !!currentSoundUnlockVideo;
             }
             function HandleGlobalMediaUnlockGesture(event) {
                 if (!requiresTapToStart || !HasPendingSoundUnlock()) {
@@ -378,39 +383,36 @@
                 StartAR();
             }
             async function OnUserTapEnableSound() {
+                var video = currentSoundUnlockVideo;
+                if (!video) {
+                    return;
+                }
                 if (soundUnlockButton) {
                     soundUnlockButton.disabled = true;
                 }
-                window.__AR_SOUND_UNLOCKED = true;
+                window.__AR_SOUND_UNLOCK_SERIAL += 1;
                 try {
                     await UnlockMediaPlayback();
                 } catch (error) {
                     console.warn("[AR] Sound unlock failed:", error);
                 }
-                var videosToUnlock = trackedContentVideos.slice();
-                if (currentSoundUnlockVideo && videosToUnlock.indexOf(currentSoundUnlockVideo) === -1) {
-                    videosToUnlock.push(currentSoundUnlockVideo);
-                }
-                for (var i = 0; i < videosToUnlock.length; i++) {
-                    var video = videosToUnlock[i];
-                    if (!video || !video.isConnected) {
-                        continue;
+                try {
+                    EnsureInlineVideoPlayback(video);
+                    video.__arAllowNextPlayWithSound = true;
+                    video.muted = false;
+                    video.defaultMuted = false;
+                    video.volume = 1;
+                    var playPromise = video.play();
+                    if (playPromise && playPromise.catch) {
+                        await playPromise.catch(function(error) {
+                            console.warn("[AR] Video replay with sound failed:", error);
+                        });
                     }
-                    try {
-                        EnsureInlineVideoPlayback(video);
-                        video.muted = false;
-                        video.defaultMuted = false;
-                        video.volume = 1;
-                        video.__arSoundUnlocked = true;
-                        var playPromise = video.play();
-                        if (playPromise && playPromise.catch) {
-                            await playPromise.catch(function(error) {
-                                console.warn("[AR] Video replay with sound failed:", error);
-                            });
-                        }
-                    } catch (error) {
-                        console.warn("[AR] Unable to enable sound on video:", error);
-                    }
+                } catch (error) {
+                    video.__arAllowNextPlayWithSound = false;
+                    currentSoundUnlockVideo = video;
+                    console.warn("[AR] Unable to enable sound on video:", error);
+                    return;
                 }
                 currentSoundUnlockVideo = null;
                 HideSoundUnlockPrompt();
