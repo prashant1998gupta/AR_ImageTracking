@@ -231,6 +231,7 @@
             window.__AR_SOUND_UNLOCK_SERIAL = window.__AR_SOUND_UNLOCK_SERIAL || 0;
             window.__AR_CURRENT_TARGET_KEY = window.__AR_CURRENT_TARGET_KEY || "";
             window.__AR_TARGET_SOUND_UNLOCKS = window.__AR_TARGET_SOUND_UNLOCKS || {};
+            PatchSafariColorWriteMaskQuery();
             EnsureInlineVideoPlayback(document.querySelector("#webcam-video"));
             WatchVideoElementsForInlinePlayback();
             document.querySelectorAll("video").forEach(RegisterContentVideo);
@@ -239,6 +240,31 @@
             function IsAppleMobileBrowser() {
                 return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
                     (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+            }
+            function PatchSafariColorWriteMaskQuery() {
+                if (!requiresTapToStart) {
+                    return;
+                }
+                PatchWebGLGetParameter(window.WebGLRenderingContext && window.WebGLRenderingContext.prototype);
+                PatchWebGLGetParameter(window.WebGL2RenderingContext && window.WebGL2RenderingContext.prototype);
+            }
+            function PatchWebGLGetParameter(glPrototype) {
+                if (!glPrototype || glPrototype.__arColorWriteMaskGuardPatched) {
+                    return;
+                }
+                glPrototype.__arColorWriteMaskGuardPatched = true;
+                var originalGetParameter = glPrototype.getParameter;
+                glPrototype.getParameter = function(parameterName) {
+                    var value = originalGetParameter.call(this, parameterName);
+                    if (value == null && parameterName === this.COLOR_WRITEMASK) {
+                        if (!window.__AR_COLOR_WRITEMASK_PATCH_HIT) {
+                            window.__AR_COLOR_WRITEMASK_PATCH_HIT = true;
+                            console.warn("[AR] Safari returned null for COLOR_WRITEMASK. Applying fallback to avoid Unity WebGL crash.");
+                        }
+                        return [true, true, true, true];
+                    }
+                    return value;
+                };
             }
             function IsContentVideo(videoElement) {
                 return !!videoElement && videoElement.tagName === "VIDEO" && videoElement.id !== "webcam-video";
