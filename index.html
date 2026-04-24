@@ -238,17 +238,15 @@
             document.addEventListener("touchend", HandleGlobalMediaUnlockGesture, { passive: true });
             document.addEventListener("click", HandleGlobalMediaUnlockGesture, true);
             function IsAppleMobileBrowser() {
-                var ua = navigator.userAgent || "";
-                if (/iPad|iPhone|iPod/.test(ua)) return true;
-                if (navigator.maxTouchPoints > 1 &&
-                    (navigator.platform === "MacIntel" ||
-                     (navigator.userAgentData && navigator.userAgentData.platform === "macOS"))) {
-                    return true;
-                }
-                return false;
+                return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+                    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
             }
             function IsContentVideo(videoElement) {
-                return !!videoElement && videoElement.tagName === "VIDEO" && videoElement.id !== "webcam-video";
+                if (!videoElement || videoElement.tagName !== "VIDEO" || videoElement.id === "webcam-video") return false;
+                if (trackedContentVideos) {
+                    return trackedContentVideos.has(videoElement);
+                }
+                return true;
             }
             function EnsureInlineVideoPlayback(videoElement) {
                 if (!videoElement) {
@@ -328,12 +326,6 @@
                             this.muted = true;
                             this.defaultMuted = true;
                             ShowSoundUnlockPrompt();
-                        } else if (IsContentVideo(this) && requiresTapToStart && IsTargetSoundUnlocked(targetKey)) {
-                            // Target was previously unlocked — ensure this (possibly new) <video>
-                            // element is unmuted. Unity WebGL creates new elements as muted for
-                            // autoplay compliance; we must override since sound is already allowed.
-                            this.muted = false;
-                            this.defaultMuted = false;
                         }
                     }
                     return originalMediaPlay.apply(this, arguments);
@@ -379,15 +371,8 @@
                 if (!requiresTapToStart || !HasPendingSoundUnlock()) {
                     return;
                 }
-                if (event && event.target) {
-                    var startArButton = document.getElementById("startARButton");
-                    var soundUnlockButton = document.getElementById("soundUnlockButton");
-                    if (event.target === startArButton || event.target === soundUnlockButton) {
-                        return;
-                    }
-                    if (event.target.closest && event.target.closest('#screenshotDiv, #confirmUrlDiv, #errorDiv')) {
-                        return;
-                    }
+                if (event && event.target && (event.target === startArButton || event.target === soundUnlockButton)) {
+                    return;
                 }
                 OnUserTapEnableSound();
             }
@@ -418,7 +403,7 @@
                 try {
                     await UnlockMediaPlayback();
                 } catch (error) {
-                    console.warn("[AR] Media unlock fallback failed:", error);
+                    console.warn("[AR Sound] Media unlock fallback failed:", error);
                 }
                 StartAR();
             }
@@ -438,7 +423,7 @@
                 try {
                     await UnlockMediaPlayback();
                 } catch (error) {
-                    console.warn("[AR Sound] AudioContext unlock failed:", error);
+                    console.warn("[AR Sound] Sound unlock failed:", error);
                 }
                 try {
                     EnsureInlineVideoPlayback(video);
@@ -448,24 +433,19 @@
                     video.defaultMuted = false;
                     video.volume = 1;
                     var playPromise = video.play();
-                    if (playPromise) {
-                        try {
-                            await playPromise;
-                            // Only mark unlocked AFTER replay succeeds
-                            if (targetKey) {
-                                window.__AR_TARGET_SOUND_UNLOCKS[targetKey] = true;
-                            }
-                        } catch (playError) {
-                            console.warn("[AR Sound] Video replay with sound failed:", playError);
-                            video.__arAllowNextPlayWithSound = false;
-                            currentSoundUnlockVideo = video;
-                            isSoundUnlockInProgress = false;
-                            return;
-                        }
+                    if (playPromise && playPromise.catch) {
+                        await playPromise.catch(function(error) {
+                            console.warn("[AR Sound] Video replay with sound failed:", error);
+                            throw error; // Re-throw to avoid marking as unlocked
+                        });
+                    }
+                    if (targetKey) {
+                        window.__AR_TARGET_SOUND_UNLOCKS[targetKey] = true;
                     }
                 } catch (error) {
                     video.__arAllowNextPlayWithSound = false;
                     currentSoundUnlockVideo = video;
+                    if (soundUnlockButton) soundUnlockButton.disabled = false;
                     console.warn("[AR Sound] Unable to enable sound on video:", error);
                     isSoundUnlockInProgress = false;
                     return;
