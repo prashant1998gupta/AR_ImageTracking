@@ -148,11 +148,7 @@
     <video id="webcam-video" muted autoplay playsinline style="width:1px;position:absolute"></video>
     <!-- <video id="webcam-video" muted autoplay playsinline style="width:100%; height:100%; object-fit:cover; position:absolute"></video> -->
     <canvas id="video-canvas" style="width:100%; height:100%; object-fit:cover; position:absolute"></canvas>
-    <div id="startARDiv" class="ctaDiv" style="display: none;">
-        <select id="chooseCamSel" style="display: none;" onchange="SelectCam()"></select>
-        <p id="startARText" style="text-align: center; width:60vw;">This augmented reality experience requires access to your device's camera</p>
-        <button id="startARButton" onclick="OnUserTapStart()" style="display:none">ALLOW ACCESS</button>
-    </div>
+    <select id="chooseCamSel" style="display: none; position:absolute; z-index:-999;" onchange="SelectCam()"></select>
     <div id="soundUnlockDiv" class="ctaDiv" style="display: none; background: rgba(0, 0, 0, 0.82);">
         <p id="soundUnlockText" style="text-align: center; width:60vw; color:white;">Tap to enable sound for this AR video on iPhone/iPad.</p>
         <button id="soundUnlockButton" onclick="OnUserTapEnableSound()" style="display:block">TAP FOR SOUND</button>
@@ -207,19 +203,12 @@
                 }
                 
                 await LoadWebcams();
-                if (requiresTapToStart) {
-                    ShowTapToStart();
-                    return;
-                }
                 StartAR();
             }
             var container = document.querySelector("#unity-container");
             var canvas = document.querySelector("#unity-canvas");
             var loadingBar = document.querySelector("#unity-loading-bar");
             var progressBarFull = document.querySelector("#unity-progress-bar-full");
-            var startArDiv = document.getElementById("startARDiv");
-            var startArButton = document.getElementById("startARButton");
-            var startArText = document.getElementById("startARText");
             var soundUnlockDiv = document.getElementById("soundUnlockDiv");
             var soundUnlockButton = document.getElementById("soundUnlockButton");
             var requiresTapToStart = IsAppleMobileBrowser();
@@ -352,24 +341,6 @@
                     return originalMediaPlay.apply(this, arguments);
                 };
             }
-            function ShowTapToStart() {
-                var advLoader = document.getElementById("advanced-loader");
-                if (advLoader) {
-                    advLoader.style.display = "none";
-                }
-                HideSoundUnlockPrompt();
-                if (startArText) {
-                    startArText.innerText = "Tap to start the AR experience. This unlocks video and sound playback on iPhone and iPad.";
-                }
-                if (startArButton) {
-                    startArButton.innerText = "TAP TO START";
-                    startArButton.style.display = "block";
-                    startArButton.disabled = false;
-                }
-                if (startArDiv) {
-                    startArDiv.style.display = "flex";
-                }
-            }
             function ShowSoundUnlockPrompt() {
                 var targetKey = currentSoundUnlockVideo ? GetVideoTargetKey(currentSoundUnlockVideo) : "";
                 if (!requiresTapToStart || !soundUnlockDiv || !currentSoundUnlockVideo || IsTargetSoundUnlocked(targetKey)) {
@@ -392,7 +363,7 @@
                 if (!requiresTapToStart || !HasPendingSoundUnlock()) {
                     return;
                 }
-                if (event && event.target && (event.target === startArButton || event.target === soundUnlockButton)) {
+                if (event && event.target && event.target === soundUnlockButton) {
                     return;
                 }
                 OnUserTapEnableSound();
@@ -413,20 +384,6 @@
                 source.buffer = buffer;
                 source.connect(mediaUnlockAudioContext.destination);
                 source.start(0);
-            }
-            async function OnUserTapStart() {
-                if (arExperienceStarted) {
-                    return;
-                }
-                if (startArButton) {
-                    startArButton.disabled = true;
-                }
-                try {
-                    await UnlockMediaPlayback();
-                } catch (error) {
-                    console.warn("[AR] Media unlock fallback failed:", error);
-                }
-                StartAR();
             }
             async function OnUserTapEnableSound() {
                 var video = currentSoundUnlockVideo;
@@ -478,10 +435,6 @@
                 var advLoader = document.getElementById("advanced-loader");
                 if (advLoader) {
                     advLoader.style.display = "flex";
-                }
-                
-                if (startArDiv) {
-                    startArDiv.style.display = "none";
                 }
                 HideSoundUnlockPrompt();
                 createUnityInstance(document.querySelector("#unity-canvas"), {
@@ -653,9 +606,6 @@
                 var advLoader = document.getElementById("advanced-loader");
                 if (advLoader) {
                     advLoader.style.display = "none";
-                }
-                if (startArDiv) {
-                    startArDiv.style.display = "none";
                 }
                 HideSoundUnlockPrompt();
                 document.getElementById("errorDiv").style.display = "flex";
