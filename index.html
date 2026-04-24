@@ -225,9 +225,8 @@
             var requiresTapToStart = IsAppleMobileBrowser();
             var arExperienceStarted = false;
             var mediaUnlockAudioContext = null;
-            var trackedContentVideos = typeof WeakSet !== 'undefined' ? new WeakSet() : null;
+            var trackedContentVideos = [];
             var currentSoundUnlockVideo = null;
-            var isSoundUnlockInProgress = false;
             window.__AR_REQUIRE_SOUND_GESTURE = requiresTapToStart;
             window.__AR_SOUND_UNLOCK_SERIAL = window.__AR_SOUND_UNLOCK_SERIAL || 0;
             window.__AR_CURRENT_TARGET_KEY = window.__AR_CURRENT_TARGET_KEY || "";
@@ -242,11 +241,7 @@
                     (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
             }
             function IsContentVideo(videoElement) {
-                if (!videoElement || videoElement.tagName !== "VIDEO" || videoElement.id === "webcam-video") return false;
-                if (trackedContentVideos) {
-                    return trackedContentVideos.has(videoElement);
-                }
-                return true;
+                return !!videoElement && videoElement.tagName === "VIDEO" && videoElement.id !== "webcam-video";
             }
             function EnsureInlineVideoPlayback(videoElement) {
                 if (!videoElement) {
@@ -274,8 +269,8 @@
                 }
                 EnsureInlineVideoPlayback(videoElement);
                 GetVideoTargetKey(videoElement);
-                if (trackedContentVideos) {
-                    trackedContentVideos.add(videoElement);
+                if (trackedContentVideos.indexOf(videoElement) === -1) {
+                    trackedContentVideos.push(videoElement);
                 }
                 if (videoElement.__arContentVideoRegistered) {
                     return;
@@ -403,16 +398,13 @@
                 try {
                     await UnlockMediaPlayback();
                 } catch (error) {
-                    console.warn("[AR Sound] Media unlock fallback failed:", error);
+                    console.warn("[AR] Media unlock fallback failed:", error);
                 }
                 StartAR();
             }
             async function OnUserTapEnableSound() {
-                if (isSoundUnlockInProgress) return;
-                isSoundUnlockInProgress = true;
                 var video = currentSoundUnlockVideo;
                 if (!video) {
-                    isSoundUnlockInProgress = false;
                     return;
                 }
                 var targetKey = GetVideoTargetKey(video);
@@ -423,7 +415,7 @@
                 try {
                     await UnlockMediaPlayback();
                 } catch (error) {
-                    console.warn("[AR Sound] Sound unlock failed:", error);
+                    console.warn("[AR] Sound unlock failed:", error);
                 }
                 try {
                     EnsureInlineVideoPlayback(video);
@@ -435,8 +427,7 @@
                     var playPromise = video.play();
                     if (playPromise && playPromise.catch) {
                         await playPromise.catch(function(error) {
-                            console.warn("[AR Sound] Video replay with sound failed:", error);
-                            throw error; // Re-throw to avoid marking as unlocked
+                            console.warn("[AR] Video replay with sound failed:", error);
                         });
                     }
                     if (targetKey) {
@@ -445,14 +436,11 @@
                 } catch (error) {
                     video.__arAllowNextPlayWithSound = false;
                     currentSoundUnlockVideo = video;
-                    if (soundUnlockButton) soundUnlockButton.disabled = false;
-                    console.warn("[AR Sound] Unable to enable sound on video:", error);
-                    isSoundUnlockInProgress = false;
+                    console.warn("[AR] Unable to enable sound on video:", error);
                     return;
                 }
                 currentSoundUnlockVideo = null;
                 HideSoundUnlockPrompt();
-                isSoundUnlockInProgress = false;
             }
             function StartAR() {
                 if (arExperienceStarted) {
