@@ -328,6 +328,12 @@
                             this.muted = true;
                             this.defaultMuted = true;
                             ShowSoundUnlockPrompt();
+                        } else if (IsContentVideo(this) && requiresTapToStart && IsTargetSoundUnlocked(targetKey)) {
+                            // Target was previously unlocked — ensure this (possibly new) <video>
+                            // element is unmuted. Unity WebGL creates new elements as muted for
+                            // autoplay compliance; we must override since sound is already allowed.
+                            this.muted = false;
+                            this.defaultMuted = false;
                         }
                     }
                     return originalMediaPlay.apply(this, arguments);
