@@ -278,17 +278,14 @@
                 videoElement.__arContentVideoRegistered = true;
                 videoElement.addEventListener("playing", function() {
                     var targetKey = GetVideoTargetKey(videoElement);
+                    var needsUnlock = requiresTapToStart && !IsTargetSoundUnlocked(targetKey);
                     if (videoElement.__arAllowNextPlayWithSound) {
                         videoElement.__arAllowNextPlayWithSound = false;
                         return;
                     }
-                    if (requiresTapToStart) {
+                    if (needsUnlock) {
                         currentSoundUnlockVideo = videoElement;
-                        if (!IsTargetSoundUnlocked(targetKey)) {
-                            ShowSoundUnlockPrompt();
-                        } else {
-                            HideSoundUnlockPrompt();
-                        }
+                        ShowSoundUnlockPrompt();
                     }
                 });
             }
@@ -318,15 +315,12 @@
                     if (this.tagName === "VIDEO") {
                         RegisterContentVideo(this);
                         var targetKey = GetVideoTargetKey(this);
-                        if (IsContentVideo(this) && requiresTapToStart && !this.__arAllowNextPlayWithSound) {
+                        var needsUnlock = IsContentVideo(this) && requiresTapToStart && !IsTargetSoundUnlocked(targetKey);
+                        if (needsUnlock && !this.__arAllowNextPlayWithSound) {
                             currentSoundUnlockVideo = this;
                             this.muted = true;
                             this.defaultMuted = true;
-                            if (!IsTargetSoundUnlocked(targetKey)) {
-                                ShowSoundUnlockPrompt();
-                            } else {
-                                HideSoundUnlockPrompt();
-                            }
+                            ShowSoundUnlockPrompt();
                         }
                     }
                     return originalMediaPlay.apply(this, arguments);
