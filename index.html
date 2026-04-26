@@ -66,9 +66,9 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 16px;
-            width: min(84vw, 420px);
-            padding: 28px 24px 32px;
+            gap: 14px;
+            width: min(82vw, 400px);
+            padding: 24px 22px 28px;
             border-radius: 32px;
             border: 1px solid rgba(255, 255, 255, 0.08);
             background: linear-gradient(180deg, rgba(38, 12, 55, 0.88), rgba(17, 7, 28, 0.95));
@@ -81,8 +81,8 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 132px;
-            height: 132px;
+            width: 108px;
+            height: 108px;
             border: 0;
             padding: 0;
             border-radius: 999px;
@@ -99,7 +99,7 @@
         .soundUnlockGlyph {
             position: relative;
             z-index: 3;
-            font-size: 34px;
+            font-size: 28px;
             font-weight: 700;
             line-height: 1;
         }
@@ -110,7 +110,9 @@
             width: 100%;
             height: 100%;
             border-radius: 999px;
-            border: 18px solid rgba(190, 110, 174, 0.18);
+            border: 14px solid rgba(190, 110, 174, 0.18);
+            transform: translate(-50%, -50%) scale(0.72);
+            opacity: 0.58;
             animation: soundWaveExpand 2.8s ease-out infinite;
         }
         .soundUnlockRing.ring2 {
@@ -121,16 +123,16 @@
         }
         .soundUnlockTitle {
             margin: 0;
-            font-size: 28px;
+            font-size: 24px;
             font-weight: 800;
             letter-spacing: 0.08em;
             text-transform: uppercase;
         }
         .soundUnlockCopy {
             margin: 0;
-            width: min(68vw, 320px);
+            width: min(66vw, 300px);
             color: rgba(255, 255, 255, 0.84);
-            font-size: 15px;
+            font-size: 14px;
             line-height: 1.55;
         }
         #advanced-loader {
