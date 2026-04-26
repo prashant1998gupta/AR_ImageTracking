@@ -48,6 +48,91 @@
             0%, 100% { box-shadow: 0 0 10px #00d2ff; }
             50% { box-shadow: 0 0 25px #00d2ff, 0 0 40px #3a7bd5; }
         }
+        @keyframes soundOrbPulse {
+            0%, 100% { transform: scale(0.92); opacity: 0.72; }
+            50% { transform: scale(1.06); opacity: 1; }
+        }
+        @keyframes soundWaveExpand {
+            0% { transform: translate(-50%, -50%) scale(0.72); opacity: 0.58; }
+            100% { transform: translate(-50%, -50%) scale(1.26); opacity: 0; }
+        }
+        .soundUnlockOverlay {
+            background:
+                radial-gradient(circle at center, rgba(174, 88, 154, 0.24) 0%, rgba(51, 13, 64, 0.16) 24%, rgba(11, 4, 20, 0.94) 72%),
+                rgba(10, 4, 18, 0.96);
+            backdrop-filter: blur(4px);
+        }
+        .soundUnlockCard {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+            width: min(84vw, 420px);
+            padding: 28px 24px 32px;
+            border-radius: 32px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: linear-gradient(180deg, rgba(38, 12, 55, 0.88), rgba(17, 7, 28, 0.95));
+            box-shadow: 0 24px 70px rgba(0, 0, 0, 0.35);
+            color: #fff;
+            text-align: center;
+        }
+        .soundUnlockPulse {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 132px;
+            height: 132px;
+            border: 0;
+            padding: 0;
+            border-radius: 999px;
+            background: radial-gradient(circle, rgba(255,255,255,0.24) 0%, rgba(193,116,178,0.96) 38%, rgba(120,54,116,0.96) 100%);
+            color: #fff;
+            cursor: pointer;
+            animation: soundOrbPulse 2.6s ease-in-out infinite;
+            box-shadow: 0 12px 40px rgba(154, 84, 142, 0.46);
+        }
+        .soundUnlockPulse:disabled {
+            cursor: default;
+            opacity: 0.7;
+        }
+        .soundUnlockGlyph {
+            position: relative;
+            z-index: 3;
+            font-size: 34px;
+            font-weight: 700;
+            line-height: 1;
+        }
+        .soundUnlockRing {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 100%;
+            height: 100%;
+            border-radius: 999px;
+            border: 18px solid rgba(190, 110, 174, 0.18);
+            animation: soundWaveExpand 2.8s ease-out infinite;
+        }
+        .soundUnlockRing.ring2 {
+            animation-delay: 0.6s;
+        }
+        .soundUnlockRing.ring3 {
+            animation-delay: 1.2s;
+        }
+        .soundUnlockTitle {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+        .soundUnlockCopy {
+            margin: 0;
+            width: min(68vw, 320px);
+            color: rgba(255, 255, 255, 0.84);
+            font-size: 15px;
+            line-height: 1.55;
+        }
         #advanced-loader {
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
@@ -149,9 +234,17 @@
     <!-- <video id="webcam-video" muted autoplay playsinline style="width:100%; height:100%; object-fit:cover; position:absolute"></video> -->
     <canvas id="video-canvas" style="width:100%; height:100%; object-fit:cover; position:absolute"></canvas>
     <select id="chooseCamSel" style="display: none; position:absolute; z-index:-999;" onchange="SelectCam()"></select>
-    <div id="soundUnlockDiv" class="ctaDiv" style="display: none; background: rgba(0, 0, 0, 0.82);">
-        <p id="soundUnlockText" style="text-align: center; width:60vw; color:white;">Tap to enable sound for this AR video on iPhone/iPad.</p>
-        <button id="soundUnlockButton" onclick="OnUserTapEnableSound()" style="display:block">TAP FOR SOUND</button>
+    <div id="soundUnlockDiv" class="ctaDiv soundUnlockOverlay" style="display: none;">
+        <div class="soundUnlockCard">
+            <button id="soundUnlockButton" class="soundUnlockPulse" onclick="OnUserTapEnableSound()">
+                <span class="soundUnlockRing ring1"></span>
+                <span class="soundUnlockRing ring2"></span>
+                <span class="soundUnlockRing ring3"></span>
+                <span class="soundUnlockGlyph">♪</span>
+            </button>
+            <p class="soundUnlockTitle">Tap For Sound</p>
+            <p id="soundUnlockText" class="soundUnlockCopy">Enable audio for this AR video on iPhone and iPad.</p>
+        </div>
     </div>
     <div id="screenshotDiv" style="display: none;" class="ctaDiv">
         <div style="position:relative; background-color:white; padding:10px; box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.3), 0 6px 20px 0 rgba(0, 0, 0, 0.25);">
