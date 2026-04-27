@@ -520,11 +520,33 @@
                 currentSoundUnlockVideo = null;
                 HideSoundUnlockPrompt();
             }
+            // --- WakeLock and Visibility handling ---
+            var wakeLock = null;
+            async function requestWakeLock() {
+                try {
+                    if ('wakeLock' in navigator) {
+                        wakeLock = await navigator.wakeLock.request('screen');
+                        console.log('Wake Lock acquired!');
+                    }
+                } catch (err) {
+                    console.log('Wake Lock error: ' + err.name + ', ' + err.message);
+                }
+            }
+            document.addEventListener("visibilitychange", function() {
+                if (document.visibilityState === "visible") {
+                    requestWakeLock();
+                    var video = document.querySelector("#webcam-video");
+                    if (video && video.srcObject) {
+                        video.play().catch(function(e) { console.error("Could not resume webcam video", e); });
+                    }
+                }
+            });
             function StartAR() {
                 if (arExperienceStarted) {
                     return;
                 }
                 arExperienceStarted = true;
+                requestWakeLock();
                 canvas.style.width = window.innerWidth + "px";
                 canvas.style.height = window.innerHeight + "px";
                 var advLoader = document.getElementById("advanced-loader");
