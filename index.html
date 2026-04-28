@@ -31,24 +31,198 @@
             z-index: 99;
         }
         /* ---- ADVANCED LOADING SCREEN STYLES ---- */
-        @keyframes gradientShift {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
+        @keyframes loaderFadeIn {
+            0%   { opacity: 0; transform: translateY(20px); }
+            100% { opacity: 1; transform: translateY(0); }
         }
-        @keyframes textPulse {
-            0%, 100% { text-shadow: 0 0 10px #00d2ff, 0 0 20px #00d2ff; transform: scale(1); }
-            50% { text-shadow: 0 0 20px #00d2ff, 0 0 40px #00d2ff; transform: scale(1.05); }
+        @keyframes redPulse {
+            0%, 100% { opacity: 0.6; }
+            50%      { opacity: 1; }
         }
-        @keyframes ringSpin {
-            0% { transform: rotate(0deg); }
+        @keyframes ringRotate {
+            0%   { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        @keyframes barGlow {
-            0%, 100% { box-shadow: 0 0 10px #00d2ff; }
-            50% { box-shadow: 0 0 25px #00d2ff, 0 0 40px #3a7bd5; }
+        @keyframes particleFloat {
+            0%   { transform: translateY(0) scale(1); opacity: 0.7; }
+            50%  { transform: translateY(-30px) scale(1.2); opacity: 1; }
+            100% { transform: translateY(-60px) scale(0.6); opacity: 0; }
         }
-        /* ---- SOUND UNLOCK OVERLAY (reference-matched) ---- */
+        @keyframes barShimmer {
+            0%   { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+        @keyframes logoReveal {
+            0%   { clip-path: inset(0 100% 0 0); }
+            100% { clip-path: inset(0 0% 0 0); }
+        }
+        @keyframes subtitleFade {
+            0%   { opacity: 0; letter-spacing: 0.8em; }
+            100% { opacity: 0.5; letter-spacing: 0.35em; }
+        }
+        #advanced-loader {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: #0a0a0a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 999;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            overflow: hidden;
+        }
+        #advanced-loader::before {
+            content: '';
+            position: absolute;
+            width: 500px; height: 500px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(220,30,30,0.08) 0%, transparent 70%);
+            top: 50%; left: 50%;
+            transform: translate(-50%,-50%);
+            pointer-events: none;
+            animation: redPulse 4s ease-in-out infinite;
+        }
+        .loader-particles {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            pointer-events: none;
+            overflow: hidden;
+        }
+        .loader-particle {
+            position: absolute;
+            width: 3px; height: 3px;
+            background: rgba(220,40,40,0.5);
+            border-radius: 50%;
+            animation: particleFloat 3s ease-in-out infinite;
+        }
+        .loader-particle:nth-child(1)  { left: 15%; bottom: 20%; animation-delay: 0.0s; animation-duration: 3.2s; }
+        .loader-particle:nth-child(2)  { left: 30%; bottom: 10%; animation-delay: 0.5s; animation-duration: 2.8s; }
+        .loader-particle:nth-child(3)  { left: 50%; bottom: 25%; animation-delay: 1.0s; animation-duration: 3.5s; }
+        .loader-particle:nth-child(4)  { left: 70%; bottom: 15%; animation-delay: 0.3s; animation-duration: 2.6s; }
+        .loader-particle:nth-child(5)  { left: 85%; bottom: 30%; animation-delay: 0.8s; animation-duration: 3.0s; }
+        .loader-particle:nth-child(6)  { left: 25%; bottom: 35%; animation-delay: 1.5s; animation-duration: 3.8s; }
+        .loader-particle:nth-child(7)  { left: 60%; bottom: 5%;  animation-delay: 0.2s; animation-duration: 2.5s; }
+        .loader-particle:nth-child(8)  { left: 40%; bottom: 40%; animation-delay: 1.2s; animation-duration: 3.3s; }
+        .loader-brand {
+            display: flex;
+            align-items: center;
+            gap: 0;
+            margin-bottom: 40px;
+            animation: loaderFadeIn 0.8s ease-out;
+        }
+        .loader-brand-ar {
+            background: #dc1e1e;
+            color: #fff;
+            font-size: 22px;
+            font-weight: 900;
+            padding: 4px 8px;
+            line-height: 1;
+            letter-spacing: 0.02em;
+        }
+        .loader-brand-rise {
+            color: #ffffff;
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            padding-left: 4px;
+            animation: logoReveal 1s ease-out 0.3s both;
+        }
+        .loader-title {
+            color: rgba(255,255,255,0.45);
+            font-size: 11px;
+            letter-spacing: 0.35em;
+            margin-bottom: 40px;
+            text-transform: uppercase;
+            text-align: center;
+            font-weight: 500;
+            animation: subtitleFade 1.2s ease-out 0.5s both;
+            padding-left: 0.35em;
+        }
+        .loader-center-group {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 48px;
+            width: 140px;
+            height: 140px;
+            animation: loaderFadeIn 0.8s ease-out 0.2s both;
+        }
+        .loader-svg-ring {
+            position: absolute;
+            width: 100%; height: 100%;
+        }
+        .loader-ring-bg {
+            fill: none;
+            stroke: rgba(255,255,255,0.04);
+            stroke-width: 3;
+        }
+        .loader-ring-progress {
+            fill: none;
+            stroke: #dc1e1e;
+            stroke-width: 3;
+            stroke-linecap: round;
+            stroke-dasharray: 440;
+            stroke-dashoffset: 440;
+            transform-origin: center;
+            filter: drop-shadow(0 0 6px rgba(220,30,30,0.4));
+            transition: stroke-dashoffset 0.4s ease;
+        }
+        .loader-ring-outer {
+            position: absolute;
+            width: 100%; height: 100%;
+            animation: ringRotate 8s linear infinite;
+        }
+        .loader-ring-outer-circle {
+            fill: none;
+            stroke: rgba(220,30,30,0.08);
+            stroke-width: 1;
+            stroke-dasharray: 8 12;
+        }
+        #percentage-text {
+            color: #ffffff;
+            font-size: 36px;
+            font-weight: 200;
+            z-index: 2;
+            margin: 0;
+            letter-spacing: 0.05em;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        #percentage-text span {
+            font-size: 16px;
+            color: rgba(255,255,255,0.3);
+            font-weight: 400;
+        }
+        .progress-container {
+            width: 55%;
+            max-width: 320px;
+            height: 3px;
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+            animation: loaderFadeIn 0.8s ease-out 0.4s both;
+        }
+        #advanced-progress-bar {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, #dc1e1e, #ff4444, #dc1e1e);
+            background-size: 200% 100%;
+            border-radius: 4px;
+            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 0 12px rgba(220,30,30,0.5);
+            animation: barShimmer 2s linear infinite;
+        }
+        .loader-status {
+            margin-top: 16px;
+            font-size: 10px;
+            letter-spacing: 0.25em;
+            text-transform: uppercase;
+            color: rgba(255,255,255,0.2);
+            font-weight: 400;
+            animation: loaderFadeIn 0.8s ease-out 0.6s both;
+        }
         @keyframes suRingPulse {
             0%, 100% { box-shadow: 0 0 18px 4px rgba(128,40,120,0.25), inset 0 0 12px 2px rgba(128,40,120,0.10); }
             50%      { box-shadow: 0 0 32px 8px rgba(128,40,120,0.40), inset 0 0 18px 4px rgba(128,40,120,0.18); }
@@ -317,15 +491,36 @@
 
     <!-- ADVANCED LOADING UI -->
     <div id="advanced-loader">
-        <div class="loader-title">Loading AR Experience</div>
+        <div class="loader-particles">
+            <div class="loader-particle"></div>
+            <div class="loader-particle"></div>
+            <div class="loader-particle"></div>
+            <div class="loader-particle"></div>
+            <div class="loader-particle"></div>
+            <div class="loader-particle"></div>
+            <div class="loader-particle"></div>
+            <div class="loader-particle"></div>
+        </div>
+        <div class="loader-brand">
+            <span class="loader-brand-ar">AR</span>
+            <span class="loader-brand-rise">RISE</span>
+        </div>
+        <div class="loader-title">Loading Experience</div>
         
         <div class="loader-center-group">
-            <div class="spinner-ring"></div>
-            <div id="percentage-text">0%</div>
+            <svg class="loader-ring-outer" viewBox="0 0 150 150">
+                <circle class="loader-ring-outer-circle" cx="75" cy="75" r="70"/>
+            </svg>
+            <svg class="loader-svg-ring" viewBox="0 0 150 150">
+                <circle class="loader-ring-bg" cx="75" cy="75" r="60"/>
+                <circle id="loader-ring-fill" class="loader-ring-progress" cx="75" cy="75" r="60" transform="rotate(-90 75 75)"/>
+            </svg>
+            <div id="percentage-text">0<span>%</span></div>
         </div>
         <div class="progress-container">
             <div id="advanced-progress-bar"></div>
         </div>
+        <div class="loader-status">Preparing AR Engine</div>
     </div>
     <video id="webcam-video" muted autoplay playsinline style="width:1px;position:absolute"></video>
     <!-- <video id="webcam-video" muted autoplay playsinline style="width:100%; height:100%; object-fit:cover; position:absolute"></video> -->
@@ -685,24 +880,34 @@
                     // devicePixelRatio: 1, // Uncomment this to override low DPI rendering on high DPI displays.
                     },
                     (progress) => {
-                        // Unity progress goes from 0 to 0.9 during download, then jumps to 1.0 when starting.
-                        // Mapping 0-0.9 to 0-100% ensures the bar reaches the end smoothly.
                         var displayProgress = Math.min(1, progress / 0.9);
                         var percent = Math.round(displayProgress * 100);
                         
                         if (progressBarFull) progressBarFull.style.width = percent + "%";
                         
-                        // Advanced loader logic
                         var advBar = document.getElementById('advanced-progress-bar');
                         if (advBar) advBar.style.width = percent + "%";
                         
                         var pctText = document.getElementById('percentage-text');
-                        if (pctText) pctText.innerText = percent + "%";
-                        // Optional: Change title text when initializing
+                        if (pctText) pctText.innerHTML = percent + "<span>%</span>";
+                        var ringFill = document.getElementById('loader-ring-fill');
+                        if (ringFill) {
+                            var circumference = 2 * Math.PI * 60;
+                            var offset = circumference - (displayProgress * circumference);
+                            ringFill.style.strokeDasharray = circumference;
+                            ringFill.style.strokeDashoffset = offset;
+                        }
+                        var statusEl = document.querySelector('.loader-status');
+                        if (statusEl) {
+                            if (percent < 30) statusEl.innerText = "Preparing AR Engine";
+                            else if (percent < 60) statusEl.innerText = "Loading Assets";
+                            else if (percent < 90) statusEl.innerText = "Almost Ready";
+                            else statusEl.innerText = "Starting Experience";
+                        }
                         if (progress >= 0.9) {
                             var title = document.querySelector('.loader-title');
-                            if (title && title.innerText !== "Starting Experience...") {
-                                title.innerText = "Starting Experience...";
+                            if (title && title.innerText !== "Launching") {
+                                title.innerText = "Launching";
                             }
                         }
                     }
