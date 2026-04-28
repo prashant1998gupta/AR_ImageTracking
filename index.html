@@ -66,7 +66,7 @@
             100% { transform: translate(-50%,-50%) rotate(360deg); }
         }
         .soundUnlockOverlay {
-            background: rgba(255,255,255,0.97);
+            background: rgba(0,0,0,0.70);
         }
         .soundUnlockCard {
             display: flex;
@@ -135,7 +135,7 @@
             position: absolute;
             inset: 8px;
             border-radius: 50%;
-            background: #fff;
+            background: rgba(20,10,25,0.95);
         }
         /* Inner circle with note */
         .suInnerCircle {
@@ -143,8 +143,8 @@
             z-index: 2;
             width: 120px; height: 120px;
             border-radius: 50%;
-            background: radial-gradient(circle at 40% 35%, #fff 0%, #f3eaf2 100%);
-            border: 2px solid rgba(130,50,120,0.12);
+            background: radial-gradient(circle at 40% 35%, rgba(40,20,45,0.95) 0%, rgba(25,12,30,0.95) 100%);
+            border: 2px solid rgba(180,80,170,0.25);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -157,7 +157,7 @@
         }
         .suNoteIcon {
             font-size: 38px;
-            color: rgba(90,30,85,0.55);
+            color: rgba(220,180,215,0.75);
             animation: suNoteFloat 3s ease-in-out infinite;
             user-select: none;
             line-height: 1;
@@ -178,7 +178,7 @@
         .suWaveBar {
             width: 2.5px;
             border-radius: 2px;
-            background: rgba(110,40,100,0.35);
+            background: rgba(180,100,170,0.50);
             transform-origin: center;
             animation: suWaveBar 1.2s ease-in-out infinite;
         }
@@ -202,7 +202,7 @@
         /* Diamond accent dots at wave tips */
         .suWaveDot {
             width: 5px; height: 5px;
-            background: rgba(110,40,100,0.30);
+            background: rgba(180,100,170,0.45);
             transform: rotate(45deg);
             flex-shrink: 0;
         }
@@ -213,18 +213,18 @@
             font-weight: 300;
             letter-spacing: 0.38em;
             text-transform: uppercase;
-            color: rgba(100,60,90,0.55);
+            color: rgba(220,200,215,0.70);
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
         .soundUnlockTitle strong {
             font-weight: 700;
-            color: rgba(160,130,90,0.85);
+            color: rgba(220,190,130,0.90);
             letter-spacing: 0.22em;
         }
         .soundUnlockCopy {
             margin: 8px 0 0;
             width: min(72vw, 320px);
-            color: rgba(80,60,75,0.55);
+            color: rgba(200,190,200,0.55);
             font-size: 13px;
             line-height: 1.55;
             font-style: italic;
