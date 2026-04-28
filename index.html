@@ -66,7 +66,7 @@
             100% { transform: translate(-50%,-50%) rotate(360deg); }
         }
         .soundUnlockOverlay {
-            background: rgba(0,0,0,0.70);
+            background: rgba(0,0,0,0.30);
         }
         .soundUnlockCard {
             display: flex;
@@ -84,18 +84,18 @@
         /* --- Concentric circle group --- */
         .suCircleGroup {
             position: relative;
-            width: 200px;
-            height: 200px;
+            width: 140px;
+            height: 140px;
             display: flex;
             align-items: center;
             justify-content: center;
-            margin-bottom: 6px;
+            margin-bottom: 4px;
         }
         /* Outer thin ring */
         .suOuterRing {
             position: absolute;
             left: 50%; top: 50%;
-            width: 200px; height: 200px;
+            width: 140px; height: 140px;
             border-radius: 50%;
             border: 1px solid rgba(100,30,90,0.18);
             transform: translate(-50%,-50%);
@@ -106,7 +106,7 @@
             content: '';
             position: absolute;
             left: 50%; top: 50%;
-            width: 200px; height: 200px;
+            width: 140px; height: 140px;
             border-radius: 50%;
             border: 1.5px dashed rgba(100,30,90,0.08);
             animation: suOuterRingSpin 30s linear infinite;
@@ -116,7 +116,7 @@
         .suGlowRing {
             position: absolute;
             left: 50%; top: 50%;
-            width: 148px; height: 148px;
+            width: 104px; height: 104px;
             border-radius: 50%;
             transform: translate(-50%,-50%);
             background: conic-gradient(
@@ -133,7 +133,7 @@
         .suGlowRing::after {
             content: '';
             position: absolute;
-            inset: 8px;
+            inset: 6px;
             border-radius: 50%;
             background: rgba(20,10,25,0.95);
         }
@@ -141,7 +141,7 @@
         .suInnerCircle {
             position: relative;
             z-index: 2;
-            width: 120px; height: 120px;
+            width: 84px; height: 84px;
             border-radius: 50%;
             background: radial-gradient(circle at 40% 35%, rgba(40,20,45,0.95) 0%, rgba(25,12,30,0.95) 100%);
             border: 2px solid rgba(180,80,170,0.25);
@@ -156,7 +156,7 @@
             transform: scale(0.95);
         }
         .suNoteIcon {
-            font-size: 38px;
+            font-size: 26px;
             color: rgba(220,180,215,0.75);
             animation: suNoteFloat 3s ease-in-out infinite;
             user-select: none;
@@ -168,48 +168,48 @@
             top: 50%;
             display: flex;
             align-items: center;
-            gap: 3px;
-            height: 48px;
+            gap: 2px;
+            height: 34px;
             transform: translateY(-50%);
             pointer-events: none;
         }
-        .suWaveGroup.left  { right: calc(50% + 104px); flex-direction: row-reverse; }
-        .suWaveGroup.right { left: calc(50% + 104px); }
+        .suWaveGroup.left  { right: calc(50% + 74px); flex-direction: row-reverse; }
+        .suWaveGroup.right { left: calc(50% + 74px); }
         .suWaveBar {
-            width: 2.5px;
-            border-radius: 2px;
+            width: 2px;
+            border-radius: 1.5px;
             background: rgba(180,100,170,0.50);
             transform-origin: center;
             animation: suWaveBar 1.2s ease-in-out infinite;
         }
         /* individual bar heights & delays for organic feel */
-        .suWaveBar:nth-child(1)  { height: 8px;  animation-delay: 0.00s; }
-        .suWaveBar:nth-child(2)  { height: 14px; animation-delay: 0.08s; }
-        .suWaveBar:nth-child(3)  { height: 22px; animation-delay: 0.16s; }
-        .suWaveBar:nth-child(4)  { height: 32px; animation-delay: 0.22s; }
-        .suWaveBar:nth-child(5)  { height: 40px; animation-delay: 0.30s; }
-        .suWaveBar:nth-child(6)  { height: 46px; animation-delay: 0.36s; }
-        .suWaveBar:nth-child(7)  { height: 40px; animation-delay: 0.42s; }
-        .suWaveBar:nth-child(8)  { height: 30px; animation-delay: 0.48s; }
-        .suWaveBar:nth-child(9)  { height: 20px; animation-delay: 0.54s; }
-        .suWaveBar:nth-child(10) { height: 12px; animation-delay: 0.60s; }
-        .suWaveBar:nth-child(11) { height: 18px; animation-delay: 0.66s; }
-        .suWaveBar:nth-child(12) { height: 28px; animation-delay: 0.72s; }
-        .suWaveBar:nth-child(13) { height: 22px; animation-delay: 0.78s; }
-        .suWaveBar:nth-child(14) { height: 14px; animation-delay: 0.84s; }
-        .suWaveBar:nth-child(15) { height: 8px;  animation-delay: 0.90s; }
-        .suWaveBar:nth-child(16) { height: 5px;  animation-delay: 0.94s; }
+        .suWaveBar:nth-child(1)  { height: 5px;  animation-delay: 0.00s; }
+        .suWaveBar:nth-child(2)  { height: 10px; animation-delay: 0.08s; }
+        .suWaveBar:nth-child(3)  { height: 15px; animation-delay: 0.16s; }
+        .suWaveBar:nth-child(4)  { height: 22px; animation-delay: 0.22s; }
+        .suWaveBar:nth-child(5)  { height: 28px; animation-delay: 0.30s; }
+        .suWaveBar:nth-child(6)  { height: 32px; animation-delay: 0.36s; }
+        .suWaveBar:nth-child(7)  { height: 28px; animation-delay: 0.42s; }
+        .suWaveBar:nth-child(8)  { height: 21px; animation-delay: 0.48s; }
+        .suWaveBar:nth-child(9)  { height: 14px; animation-delay: 0.54s; }
+        .suWaveBar:nth-child(10) { height: 8px;  animation-delay: 0.60s; }
+        .suWaveBar:nth-child(11) { height: 13px; animation-delay: 0.66s; }
+        .suWaveBar:nth-child(12) { height: 20px; animation-delay: 0.72s; }
+        .suWaveBar:nth-child(13) { height: 15px; animation-delay: 0.78s; }
+        .suWaveBar:nth-child(14) { height: 10px; animation-delay: 0.84s; }
+        .suWaveBar:nth-child(15) { height: 5px;  animation-delay: 0.90s; }
+        .suWaveBar:nth-child(16) { height: 3px;  animation-delay: 0.94s; }
         /* Diamond accent dots at wave tips */
         .suWaveDot {
-            width: 5px; height: 5px;
+            width: 4px; height: 4px;
             background: rgba(180,100,170,0.45);
             transform: rotate(45deg);
             flex-shrink: 0;
         }
         /* --- Typography --- */
         .soundUnlockTitle {
-            margin: 22px 0 0;
-            font-size: 22px;
+            margin: 14px 0 0;
+            font-size: 16px;
             font-weight: 300;
             letter-spacing: 0.38em;
             text-transform: uppercase;
@@ -222,10 +222,10 @@
             letter-spacing: 0.22em;
         }
         .soundUnlockCopy {
-            margin: 8px 0 0;
-            width: min(72vw, 320px);
+            margin: 5px 0 0;
+            width: min(72vw, 280px);
             color: rgba(200,190,200,0.55);
-            font-size: 13px;
+            font-size: 11px;
             line-height: 1.55;
             font-style: italic;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
