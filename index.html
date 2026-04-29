@@ -85,11 +85,11 @@
         .loader-ring-deco-circle { fill:none; stroke:rgba(255,255,255,0.03); stroke-width:0.5; stroke-dasharray:3 15; }
         .loader-svg-ring { position:absolute; width:140px; height:140px; }
         .loader-ring-bg { fill:none; stroke:rgba(255,255,255,0.04); stroke-width:3; }
-        .loader-ring-progress { fill:none; stroke:url(#redGradient); stroke-width:3.5; stroke-linecap:round; stroke-dasharray:377; stroke-dashoffset:377; transform-origin:center; filter:drop-shadow(0 0 8px rgba(220,30,30,0.5)); transition:stroke-dashoffset 0.4s ease; }
+        .loader-ring-progress { fill:none; stroke:url(#redGradient); stroke-width:2; stroke-linecap:round; stroke-dasharray:377; stroke-dashoffset:377; transform-origin:center; filter:drop-shadow(0 0 6px rgba(220,30,30,0.35)); transition:stroke-dashoffset 0.4s ease; }
         #percentage-text { color:#fff; font-size:38px; font-weight:100; z-index:2; margin:0; letter-spacing:0.05em; animation:pctFlicker 4s linear infinite; }
         #percentage-text span { font-size:14px; color:rgba(220,30,30,0.6); font-weight:400; margin-left:1px; }
-        .progress-container { width:50%; max-width:280px; height:2px; background:rgba(255,255,255,0.05); border-radius:2px; overflow:hidden; position:relative; animation:loaderFadeIn 0.8s ease-out 0.4s both; z-index:5; }
-        #advanced-progress-bar { width:0%; height:100%; background:linear-gradient(90deg,#dc1e1e,#ff3333,#dc1e1e); background-size:200% 100%; border-radius:2px; transition:width 0.3s cubic-bezier(0.4,0,0.2,1); box-shadow:0 0 16px rgba(220,30,30,0.6),0 0 4px rgba(220,30,30,0.9); animation:barShimmer 1.5s linear infinite; }
+        .progress-container { width:50%; max-width:280px; height:1px; background:rgba(255,255,255,0.06); border-radius:1px; overflow:hidden; position:relative; animation:loaderFadeIn 0.8s ease-out 0.4s both; z-index:5; }
+        #advanced-progress-bar { width:0%; height:100%; background:linear-gradient(90deg,rgba(220,30,30,0.7),rgba(220,30,30,0.9),rgba(220,30,30,0.7)); background-size:200% 100%; border-radius:1px; transition:width 0.3s cubic-bezier(0.4,0,0.2,1); box-shadow:0 0 8px rgba(220,30,30,0.3); animation:barShimmer 1.5s linear infinite; }
         .loader-status { margin-top:20px; font-size:11px; letter-spacing:0.2em; text-transform:uppercase; color:rgba(220,30,30,0.65); font-weight:500; animation:loaderFadeIn 0.8s ease-out 0.6s both; z-index:5; }
         .loader-status-dots span { animation:dotBlink 1.5s infinite; font-size:14px; }
         .loader-status-dots span:nth-child(2) { animation-delay:0.33s; }
@@ -391,7 +391,7 @@
         </div>
         <div class="progress-container"><div id="advanced-progress-bar"></div></div>
         <div class="loader-status">Preparing AR Engine<span class="loader-status-dots"><span>.</span><span>.</span><span>.</span></span></div>
-        <div class="loader-powered">Powered by WebAR</div>
+        <div class="loader-powered">Powered by Presenting Tech</div>
     </div>
     <video id="webcam-video" muted autoplay playsinline style="width:1px;position:absolute"></video>
     <!-- <video id="webcam-video" muted autoplay playsinline style="width:100%; height:100%; object-fit:cover; position:absolute"></video> -->
