@@ -31,198 +31,70 @@
             z-index: 99;
         }
         /* ---- ADVANCED LOADING SCREEN STYLES ---- */
-        @keyframes loaderFadeIn {
-            0%   { opacity: 0; transform: translateY(20px); }
-            100% { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes redPulse {
-            0%, 100% { opacity: 0.6; }
-            50%      { opacity: 1; }
-        }
-        @keyframes ringRotate {
-            0%   { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        @keyframes particleFloat {
-            0%   { transform: translateY(0) scale(1); opacity: 0.7; }
-            50%  { transform: translateY(-30px) scale(1.2); opacity: 1; }
-            100% { transform: translateY(-60px) scale(0.6); opacity: 0; }
-        }
-        @keyframes barShimmer {
-            0%   { background-position: -200% 0; }
-            100% { background-position: 200% 0; }
-        }
-        @keyframes logoReveal {
-            0%   { clip-path: inset(0 100% 0 0); }
-            100% { clip-path: inset(0 0% 0 0); }
-        }
-        @keyframes subtitleFade {
-            0%   { opacity: 0; letter-spacing: 0.8em; }
-            100% { opacity: 0.5; letter-spacing: 0.35em; }
-        }
-        #advanced-loader {
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: #0a0a0a;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 999;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            overflow: hidden;
-        }
-        #advanced-loader::before {
-            content: '';
-            position: absolute;
-            width: 500px; height: 500px;
-            border-radius: 50%;
-            background: radial-gradient(circle, rgba(220,30,30,0.08) 0%, transparent 70%);
-            top: 50%; left: 50%;
-            transform: translate(-50%,-50%);
-            pointer-events: none;
-            animation: redPulse 4s ease-in-out infinite;
-        }
-        .loader-particles {
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            pointer-events: none;
-            overflow: hidden;
-        }
-        .loader-particle {
-            position: absolute;
-            width: 3px; height: 3px;
-            background: rgba(220,40,40,0.5);
-            border-radius: 50%;
-            animation: particleFloat 3s ease-in-out infinite;
-        }
-        .loader-particle:nth-child(1)  { left: 15%; bottom: 20%; animation-delay: 0.0s; animation-duration: 3.2s; }
-        .loader-particle:nth-child(2)  { left: 30%; bottom: 10%; animation-delay: 0.5s; animation-duration: 2.8s; }
-        .loader-particle:nth-child(3)  { left: 50%; bottom: 25%; animation-delay: 1.0s; animation-duration: 3.5s; }
-        .loader-particle:nth-child(4)  { left: 70%; bottom: 15%; animation-delay: 0.3s; animation-duration: 2.6s; }
-        .loader-particle:nth-child(5)  { left: 85%; bottom: 30%; animation-delay: 0.8s; animation-duration: 3.0s; }
-        .loader-particle:nth-child(6)  { left: 25%; bottom: 35%; animation-delay: 1.5s; animation-duration: 3.8s; }
-        .loader-particle:nth-child(7)  { left: 60%; bottom: 5%;  animation-delay: 0.2s; animation-duration: 2.5s; }
-        .loader-particle:nth-child(8)  { left: 40%; bottom: 40%; animation-delay: 1.2s; animation-duration: 3.3s; }
-        .loader-brand {
-            display: flex;
-            align-items: center;
-            gap: 0;
-            margin-bottom: 40px;
-            animation: loaderFadeIn 0.8s ease-out;
-        }
-        .loader-brand-ar {
-            background: #dc1e1e;
-            color: #fff;
-            font-size: 22px;
-            font-weight: 900;
-            padding: 4px 8px;
-            line-height: 1;
-            letter-spacing: 0.02em;
-        }
-        .loader-brand-rise {
-            color: #ffffff;
-            font-size: 22px;
-            font-weight: 800;
-            letter-spacing: 0.08em;
-            padding-left: 4px;
-            animation: logoReveal 1s ease-out 0.3s both;
-        }
-        .loader-title {
-            color: rgba(255,255,255,0.45);
-            font-size: 11px;
-            letter-spacing: 0.35em;
-            margin-bottom: 40px;
-            text-transform: uppercase;
-            text-align: center;
-            font-weight: 500;
-            animation: subtitleFade 1.2s ease-out 0.5s both;
-            padding-left: 0.35em;
-        }
-        .loader-center-group {
-            position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 48px;
-            width: 140px;
-            height: 140px;
-            animation: loaderFadeIn 0.8s ease-out 0.2s both;
-        }
-        .loader-svg-ring {
-            position: absolute;
-            width: 100%; height: 100%;
-        }
-        .loader-ring-bg {
-            fill: none;
-            stroke: rgba(255,255,255,0.04);
-            stroke-width: 3;
-        }
-        .loader-ring-progress {
-            fill: none;
-            stroke: #dc1e1e;
-            stroke-width: 3;
-            stroke-linecap: round;
-            stroke-dasharray: 440;
-            stroke-dashoffset: 440;
-            transform-origin: center;
-            filter: drop-shadow(0 0 6px rgba(220,30,30,0.4));
-            transition: stroke-dashoffset 0.4s ease;
-        }
-        .loader-ring-outer {
-            position: absolute;
-            width: 100%; height: 100%;
-            animation: ringRotate 8s linear infinite;
-        }
-        .loader-ring-outer-circle {
-            fill: none;
-            stroke: rgba(220,30,30,0.08);
-            stroke-width: 1;
-            stroke-dasharray: 8 12;
-        }
-        #percentage-text {
-            color: #ffffff;
-            font-size: 36px;
-            font-weight: 200;
-            z-index: 2;
-            margin: 0;
-            letter-spacing: 0.05em;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        }
-        #percentage-text span {
-            font-size: 16px;
-            color: rgba(255,255,255,0.3);
-            font-weight: 400;
-        }
-        .progress-container {
-            width: 55%;
-            max-width: 320px;
-            height: 3px;
-            background: rgba(255, 255, 255, 0.06);
-            border-radius: 4px;
-            overflow: hidden;
-            position: relative;
-            animation: loaderFadeIn 0.8s ease-out 0.4s both;
-        }
-        #advanced-progress-bar {
-            width: 0%;
-            height: 100%;
-            background: linear-gradient(90deg, #dc1e1e, #ff4444, #dc1e1e);
-            background-size: 200% 100%;
-            border-radius: 4px;
-            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 0 12px rgba(220,30,30,0.5);
-            animation: barShimmer 2s linear infinite;
-        }
-        .loader-status {
-            margin-top: 16px;
-            font-size: 10px;
-            letter-spacing: 0.25em;
-            text-transform: uppercase;
-            color: rgba(255,255,255,0.2);
-            font-weight: 400;
-            animation: loaderFadeIn 0.8s ease-out 0.6s both;
-        }
+        @keyframes loaderFadeIn { 0% { opacity:0; transform:translateY(18px); } 100% { opacity:1; transform:translateY(0); } }
+        @keyframes redPulse { 0%,100% { transform:translate(-50%,-50%) scale(0.95); opacity:0.5; } 50% { transform:translate(-50%,-50%) scale(1.05); opacity:1; } }
+        @keyframes ringRotate { 0% { transform:rotate(0deg); } 100% { transform:rotate(360deg); } }
+        @keyframes ringRotateR { 0% { transform:rotate(0deg); } 100% { transform:rotate(-360deg); } }
+        @keyframes particleRise { 0% { transform:translateY(0) translateX(0) scale(1); opacity:0; } 15% { opacity:0.8; } 100% { transform:translateY(-100vh) translateX(20px) scale(0.3); opacity:0; } }
+        @keyframes barShimmer { 0% { background-position:-200% 0; } 100% { background-position:200% 0; } }
+        @keyframes logoReveal { 0% { clip-path:inset(0 100% 0 0); } 100% { clip-path:inset(0 0% 0 0); } }
+        @keyframes scanLine { 0% { top:-2px; } 100% { top:100%; } }
+        @keyframes hStreak { 0% { transform:translateX(-100%) scaleX(0.5); opacity:0; } 30% { opacity:1; } 100% { transform:translateX(100vw) scaleX(1.5); opacity:0; } }
+        @keyframes glowPulse { 0%,100% { opacity:0.4; filter:blur(40px); } 50% { opacity:0.7; filter:blur(50px); } }
+        @keyframes pctFlicker { 0%,95%,100% { opacity:1; } 96% { opacity:0.7; } 98% { opacity:0.5; } }
+        @keyframes dotBlink { 0%,33% { opacity:1; } 34%,100% { opacity:0.3; } }
+        #advanced-loader { position:absolute; top:0;left:0;right:0;bottom:0; background:#080808; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:999; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; overflow:hidden; }
+        #advanced-loader::after { content:''; position:absolute; left:0;right:0; height:2px; background:linear-gradient(90deg,transparent,rgba(220,30,30,0.15),transparent); animation:scanLine 4s linear infinite; pointer-events:none; z-index:10; }
+        .loader-glow { position:absolute; border-radius:50%; pointer-events:none; }
+        .loader-glow-1 { width:400px;height:400px; background:radial-gradient(circle,rgba(200,20,20,0.15) 0%,rgba(200,20,20,0.05) 40%,transparent 70%); top:50%;left:50%; animation:redPulse 3.5s ease-in-out infinite; }
+        .loader-glow-2 { width:600px;height:600px; background:radial-gradient(circle,rgba(180,15,15,0.06) 0%,transparent 60%); top:50%;left:50%; transform:translate(-50%,-50%); animation:glowPulse 5s ease-in-out infinite; }
+        .loader-streak { position:absolute; height:1px; background:linear-gradient(90deg,transparent,rgba(220,40,40,0.6),rgba(255,80,80,0.8),rgba(220,40,40,0.6),transparent); animation:hStreak 6s ease-in-out infinite; pointer-events:none; }
+        .loader-streak:nth-child(4) { top:30%; width:180px; animation-delay:0s; }
+        .loader-streak:nth-child(5) { top:65%; width:120px; animation-delay:2s; }
+        .loader-streak:nth-child(6) { top:48%; width:160px; animation-delay:4s; }
+        .loader-corner { position:absolute; width:30px;height:30px; pointer-events:none; z-index:5; }
+        .loader-corner::before,.loader-corner::after { content:''; position:absolute; background:rgba(220,30,30,0.25); }
+        .loader-corner::before { width:12px; height:1px; } .loader-corner::after { width:1px; height:12px; }
+        .corner-tl { top:24px;left:24px; } .corner-tl::before { top:0;left:0; } .corner-tl::after { top:0;left:0; }
+        .corner-tr { top:24px;right:24px; } .corner-tr::before { top:0;right:0; } .corner-tr::after { top:0;right:0; }
+        .corner-bl { bottom:24px;left:24px; } .corner-bl::before { bottom:0;left:0; } .corner-bl::after { bottom:0;left:0; }
+        .corner-br { bottom:24px;right:24px; } .corner-br::before { bottom:0;right:0; } .corner-br::after { bottom:0;right:0; }
+        .loader-particles { position:absolute; top:0;left:0;right:0;bottom:0; pointer-events:none; overflow:hidden; }
+        .loader-particle { position:absolute; background:#dc1e1e; border-radius:50%; animation:particleRise linear infinite; }
+        .loader-particle:nth-child(1)  { left:8%;bottom:-10px;width:2px;height:2px;animation-duration:5.0s;animation-delay:0.0s; }
+        .loader-particle:nth-child(2)  { left:18%;bottom:-10px;width:3px;height:3px;animation-duration:4.2s;animation-delay:0.8s; }
+        .loader-particle:nth-child(3)  { left:30%;bottom:-10px;width:2px;height:2px;animation-duration:5.5s;animation-delay:1.2s; }
+        .loader-particle:nth-child(4)  { left:42%;bottom:-10px;width:1px;height:1px;animation-duration:4.8s;animation-delay:0.4s; }
+        .loader-particle:nth-child(5)  { left:55%;bottom:-10px;width:3px;height:3px;animation-duration:5.2s;animation-delay:2.0s; }
+        .loader-particle:nth-child(6)  { left:65%;bottom:-10px;width:2px;height:2px;animation-duration:4.5s;animation-delay:1.5s; }
+        .loader-particle:nth-child(7)  { left:75%;bottom:-10px;width:2px;height:2px;animation-duration:5.8s;animation-delay:0.6s; }
+        .loader-particle:nth-child(8)  { left:85%;bottom:-10px;width:1px;height:1px;animation-duration:4.0s;animation-delay:3.0s; }
+        .loader-particle:nth-child(9)  { left:92%;bottom:-10px;width:2px;height:2px;animation-duration:6.0s;animation-delay:1.8s; }
+        .loader-particle:nth-child(10) { left:38%;bottom:-10px;width:3px;height:3px;animation-duration:5.3s;animation-delay:2.5s; }
+        .loader-particle:nth-child(11) { left:50%;bottom:-10px;width:1px;height:1px;animation-duration:4.6s;animation-delay:0.2s; }
+        .loader-particle:nth-child(12) { left:22%;bottom:-10px;width:2px;height:2px;animation-duration:5.1s;animation-delay:3.5s; }
+        .loader-brand { display:flex; align-items:center; gap:0; margin-bottom:12px; animation:loaderFadeIn 0.8s ease-out; position:relative; z-index:5; }
+        .loader-brand-ar { background:#dc1e1e; color:#fff; font-size:28px; font-weight:900; padding:5px 10px; line-height:1; letter-spacing:0.02em; box-shadow:0 0 20px rgba(220,30,30,0.3); }
+        .loader-brand-rise { color:#fff; font-size:28px; font-weight:800; letter-spacing:0.08em; padding-left:6px; animation:logoReveal 1s ease-out 0.3s both; }
+        .loader-tagline { color:rgba(255,255,255,0.25); font-size:9px; letter-spacing:0.5em; text-transform:uppercase; margin-bottom:48px; animation:loaderFadeIn 0.8s ease-out 0.4s both; padding-left:0.5em; position:relative; z-index:5; }
+        .loader-title { color:rgba(255,255,255,0.55); font-size:12px; letter-spacing:0.3em; margin-bottom:36px; text-transform:uppercase; text-align:center; font-weight:500; animation:loaderFadeIn 1s ease-out 0.5s both; padding-left:0.3em; position:relative; z-index:5; }
+        .loader-center-group { position:relative; display:flex; align-items:center; justify-content:center; margin-bottom:44px; width:160px; height:160px; animation:loaderFadeIn 0.8s ease-out 0.2s both; z-index:5; }
+        .loader-ring-outer { position:absolute; width:160px; height:160px; animation:ringRotate 12s linear infinite; }
+        .loader-ring-outer-circle { fill:none; stroke:rgba(220,30,30,0.10); stroke-width:0.8; stroke-dasharray:6 10; }
+        .loader-ring-deco { position:absolute; width:152px; height:152px; animation:ringRotateR 20s linear infinite; }
+        .loader-ring-deco-circle { fill:none; stroke:rgba(255,255,255,0.03); stroke-width:0.5; stroke-dasharray:3 15; }
+        .loader-svg-ring { position:absolute; width:140px; height:140px; }
+        .loader-ring-bg { fill:none; stroke:rgba(255,255,255,0.04); stroke-width:3; }
+        .loader-ring-progress { fill:none; stroke:url(#redGradient); stroke-width:3.5; stroke-linecap:round; stroke-dasharray:377; stroke-dashoffset:377; transform-origin:center; filter:drop-shadow(0 0 8px rgba(220,30,30,0.5)); transition:stroke-dashoffset 0.4s ease; }
+        #percentage-text { color:#fff; font-size:38px; font-weight:100; z-index:2; margin:0; letter-spacing:0.05em; animation:pctFlicker 4s linear infinite; }
+        #percentage-text span { font-size:14px; color:rgba(220,30,30,0.6); font-weight:400; margin-left:1px; }
+        .progress-container { width:50%; max-width:280px; height:2px; background:rgba(255,255,255,0.05); border-radius:2px; overflow:hidden; position:relative; animation:loaderFadeIn 0.8s ease-out 0.4s both; z-index:5; }
+        #advanced-progress-bar { width:0%; height:100%; background:linear-gradient(90deg,#dc1e1e,#ff3333,#dc1e1e); background-size:200% 100%; border-radius:2px; transition:width 0.3s cubic-bezier(0.4,0,0.2,1); box-shadow:0 0 16px rgba(220,30,30,0.6),0 0 4px rgba(220,30,30,0.9); animation:barShimmer 1.5s linear infinite; }
+        .loader-status { margin-top:20px; font-size:11px; letter-spacing:0.2em; text-transform:uppercase; color:rgba(220,30,30,0.65); font-weight:500; animation:loaderFadeIn 0.8s ease-out 0.6s both; z-index:5; }
+        .loader-status-dots span { animation:dotBlink 1.5s infinite; font-size:14px; }
+        .loader-status-dots span:nth-child(2) { animation-delay:0.33s; }
+        .loader-status-dots span:nth-child(3) { animation-delay:0.66s; }
+        .loader-powered { position:absolute; bottom:20px; font-size:8px; letter-spacing:0.3em; color:rgba(255,255,255,0.12); text-transform:uppercase; z-index:5; }
         @keyframes suRingPulse {
             0%, 100% { box-shadow: 0 0 18px 4px rgba(128,40,120,0.25), inset 0 0 12px 2px rgba(128,40,120,0.10); }
             50%      { box-shadow: 0 0 32px 8px rgba(128,40,120,0.40), inset 0 0 18px 4px rgba(128,40,120,0.18); }
@@ -491,36 +363,35 @@
 
     <!-- ADVANCED LOADING UI -->
     <div id="advanced-loader">
+        <div class="loader-glow loader-glow-1"></div>
+        <div class="loader-glow loader-glow-2"></div>
+        <div class="loader-streak"></div><div class="loader-streak"></div><div class="loader-streak"></div>
+        <div class="loader-corner corner-tl"></div><div class="loader-corner corner-tr"></div>
+        <div class="loader-corner corner-bl"></div><div class="loader-corner corner-br"></div>
         <div class="loader-particles">
-            <div class="loader-particle"></div>
-            <div class="loader-particle"></div>
-            <div class="loader-particle"></div>
-            <div class="loader-particle"></div>
-            <div class="loader-particle"></div>
-            <div class="loader-particle"></div>
-            <div class="loader-particle"></div>
-            <div class="loader-particle"></div>
+            <div class="loader-particle"></div><div class="loader-particle"></div>
+            <div class="loader-particle"></div><div class="loader-particle"></div>
+            <div class="loader-particle"></div><div class="loader-particle"></div>
+            <div class="loader-particle"></div><div class="loader-particle"></div>
+            <div class="loader-particle"></div><div class="loader-particle"></div>
+            <div class="loader-particle"></div><div class="loader-particle"></div>
         </div>
-        <div class="loader-brand">
-            <span class="loader-brand-ar">AR</span>
-            <span class="loader-brand-rise">RISE</span>
-        </div>
+        <div class="loader-brand"><span class="loader-brand-ar">AR</span><span class="loader-brand-rise">RISE</span></div>
+        <div class="loader-tagline">By Rionick Studios</div>
         <div class="loader-title">Loading Experience</div>
-        
         <div class="loader-center-group">
-            <svg class="loader-ring-outer" viewBox="0 0 150 150">
-                <circle class="loader-ring-outer-circle" cx="75" cy="75" r="70"/>
-            </svg>
-            <svg class="loader-svg-ring" viewBox="0 0 150 150">
-                <circle class="loader-ring-bg" cx="75" cy="75" r="60"/>
-                <circle id="loader-ring-fill" class="loader-ring-progress" cx="75" cy="75" r="60" transform="rotate(-90 75 75)"/>
+            <svg class="loader-ring-outer" viewBox="0 0 160 160"><circle class="loader-ring-outer-circle" cx="80" cy="80" r="76"/></svg>
+            <svg class="loader-ring-deco" viewBox="0 0 152 152"><circle class="loader-ring-deco-circle" cx="76" cy="76" r="73"/></svg>
+            <svg class="loader-svg-ring" viewBox="0 0 140 140">
+                <defs><linearGradient id="redGradient" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#ff4444"/><stop offset="50%" stop-color="#dc1e1e"/><stop offset="100%" stop-color="#aa1111"/></linearGradient></defs>
+                <circle class="loader-ring-bg" cx="70" cy="70" r="60"/>
+                <circle id="loader-ring-fill" class="loader-ring-progress" cx="70" cy="70" r="60" transform="rotate(-90 70 70)"/>
             </svg>
             <div id="percentage-text">0<span>%</span></div>
         </div>
-        <div class="progress-container">
-            <div id="advanced-progress-bar"></div>
-        </div>
-        <div class="loader-status">Preparing AR Engine</div>
+        <div class="progress-container"><div id="advanced-progress-bar"></div></div>
+        <div class="loader-status">Preparing AR Engine<span class="loader-status-dots"><span>.</span><span>.</span><span>.</span></span></div>
+        <div class="loader-powered">Powered by WebAR</div>
     </div>
     <video id="webcam-video" muted autoplay playsinline style="width:1px;position:absolute"></video>
     <!-- <video id="webcam-video" muted autoplay playsinline style="width:100%; height:100%; object-fit:cover; position:absolute"></video> -->
@@ -898,11 +769,12 @@
                             ringFill.style.strokeDashoffset = offset;
                         }
                         var statusEl = document.querySelector('.loader-status');
+                        var dots = '<span class="loader-status-dots"><span>.</span><span>.</span><span>.</span></span>';
                         if (statusEl) {
-                            if (percent < 30) statusEl.innerText = "Preparing AR Engine";
-                            else if (percent < 60) statusEl.innerText = "Loading Assets";
-                            else if (percent < 90) statusEl.innerText = "Almost Ready";
-                            else statusEl.innerText = "Starting Experience";
+                            if (percent < 30) statusEl.innerHTML = "Preparing AR Engine" + dots;
+                            else if (percent < 60) statusEl.innerHTML = "Loading Assets" + dots;
+                            else if (percent < 90) statusEl.innerHTML = "Almost Ready" + dots;
+                            else statusEl.innerHTML = "Starting Experience" + dots;
                         }
                         if (progress >= 0.9) {
                             var title = document.querySelector('.loader-title');
