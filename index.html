@@ -112,7 +112,11 @@
             100% { transform: translate(-50%,-50%) rotate(360deg); }
         }
         .soundUnlockOverlay {
-            background: rgba(0,0,0,0.90);
+            background: rgba(8,8,8,0.92);
+            overflow: hidden;
+        }
+        .soundUnlockOverlay::after {
+            content:''; position:absolute; left:0;right:0; height:2px; background:linear-gradient(90deg,transparent,rgba(220,30,30,0.15),transparent); animation:scanLine 4s linear infinite; pointer-events:none; z-index:10;
         }
         .soundUnlockCard {
             display: flex;
@@ -202,12 +206,38 @@
             transform: scale(0.95);
         }
         .suNoteIcon {
-            font-size: 26px;
-            color: rgba(255,200,200,0.75);
-            animation: suNoteFloat 3s ease-in-out infinite;
-            user-select: none;
-            line-height: 1;
+            display: none; /* Keep for backwards compatibility if needed, but we use svg now */
         }
+        
+        /* Pulse Ripple Effect */
+        @keyframes suRippleAnim {
+            0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0.6; border-width: 4px; }
+            100% { transform: translate(-50%, -50%) scale(1.6); opacity: 0; border-width: 0px; }
+        }
+        .suRipple {
+            position: absolute;
+            left: 50%; top: 50%;
+            width: 84px; height: 84px;
+            border-radius: 50%;
+            border: solid #dc1e1e;
+            transform: translate(-50%, -50%);
+            animation: suRippleAnim 2s cubic-bezier(0.1, 0.8, 0.3, 1) infinite;
+            pointer-events: none;
+        }
+        /* SVG Speaker Icon */
+        .suSpeakerIcon {
+            width: 32px; height: 32px;
+            color: rgba(255,200,200,0.85);
+            animation: suNoteFloat 3s ease-in-out infinite;
+            filter: drop-shadow(0 0 4px rgba(220,30,30,0.6));
+            margin-left: -4px; /* visually center the triangle */
+        }
+        @keyframes suSpeakerWave {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; filter: drop-shadow(0 0 3px rgba(255,100,100,0.8)); }
+        }
+        .suSpeakerWave1 { animation: suSpeakerWave 2s infinite; animation-delay: 0.2s; }
+        .suSpeakerWave2 { animation: suSpeakerWave 2s infinite; animation-delay: 0.4s; }
         /* --- Sound wave bars --- */
         .suWaveGroup {
             position: absolute;
@@ -328,6 +358,12 @@
     <canvas id="video-canvas" style="width:100%; height:100%; object-fit:cover; position:absolute"></canvas>
     <select id="chooseCamSel" style="display: none; position:absolute; z-index:-999;" onchange="SelectCam()"></select>
     <div id="soundUnlockDiv" class="ctaDiv soundUnlockOverlay" style="display: none;">
+        <!-- ARRISE HUD Elements reused -->
+        <div class="loader-glow loader-glow-1"></div>
+        <div class="loader-glow loader-glow-2"></div>
+        <div class="loader-streak"></div><div class="loader-streak"></div><div class="loader-streak"></div>
+        <div class="loader-corner corner-tl"></div><div class="loader-corner corner-tr"></div>
+        <div class="loader-corner corner-bl"></div><div class="loader-corner corner-br"></div>
         <div class="soundUnlockCard">
             <!-- Sound-wave bars LEFT -->
             <div class="suWaveGroup left">
@@ -343,8 +379,13 @@
             <div class="suCircleGroup">
                 <div class="suOuterRing"></div>
                 <div class="suGlowRing"></div>
+                <div class="suRipple"></div>
                 <button id="soundUnlockButton" class="suInnerCircle" onclick="OnUserTapEnableSound()">
-                    <span class="suNoteIcon">♪</span>
+                    <svg class="suSpeakerIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                        <path class="suSpeakerWave1" d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                        <path class="suSpeakerWave2" d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+                    </svg>
                 </button>
             </div>
             <!-- Sound-wave bars RIGHT -->
