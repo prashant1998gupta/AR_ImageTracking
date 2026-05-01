@@ -709,6 +709,13 @@
                     advLoader.style.display = "flex";
                 }
                 HideSoundUnlockPrompt();
+                // PERFORMANCE OPTIMIZATION: Cache DOM queries outside the high-frequency progress callback
+                var _cachedAdvBar = document.getElementById('advanced-progress-bar');
+                var _cachedPctText = document.getElementById('percentage-text');
+                var _cachedRingFill = document.getElementById('loader-ring-fill');
+                var _cachedStatusEl = document.querySelector('.loader-status');
+                var _cachedTitleEl = document.querySelector('.loader-title');
+                var _lastPercent = -1;
                 createUnityInstance(document.querySelector("#unity-canvas"), {
                     dataUrl: "Build/AR_Build.data.unityweb",
                     frameworkUrl: "Build/AR_Build.framework.js.unityweb",
@@ -725,33 +732,28 @@
                         var displayProgress = Math.min(1, progress / 0.9);
                         var percent = Math.round(displayProgress * 100);
                         
+                        // Avoid DOM updates if percentage hasn't changed (reduces layout thrashing)
+                        if (percent === _lastPercent) return;
+                        _lastPercent = percent;
+                        
                         if (progressBarFull) progressBarFull.style.width = percent + "%";
-                        
-                        var advBar = document.getElementById('advanced-progress-bar');
-                        if (advBar) advBar.style.width = percent + "%";
-                        
-                        var pctText = document.getElementById('percentage-text');
-                        if (pctText) pctText.innerHTML = percent + "<span>%</span>";
-                        var ringFill = document.getElementById('loader-ring-fill');
-                        if (ringFill) {
+                        if (_cachedAdvBar) _cachedAdvBar.style.width = percent + "%";
+                        if (_cachedPctText) _cachedPctText.innerHTML = percent + "<span>%</span>";
+                        if (_cachedRingFill) {
                             var circumference = 2 * Math.PI * 60;
                             var offset = circumference - (displayProgress * circumference);
-                            ringFill.style.strokeDasharray = circumference;
-                            ringFill.style.strokeDashoffset = offset;
+                            _cachedRingFill.style.strokeDasharray = circumference;
+                            _cachedRingFill.style.strokeDashoffset = offset;
                         }
-                        var statusEl = document.querySelector('.loader-status');
-                        var dots = '<span class="loader-status-dots"><span>.</span><span>.</span><span>.</span></span>';
-                        if (statusEl) {
-                            if (percent < 30) statusEl.innerHTML = "Preparing AR Engine" + dots;
-                            else if (percent < 60) statusEl.innerHTML = "Loading Assets" + dots;
-                            else if (percent < 90) statusEl.innerHTML = "Almost Ready" + dots;
-                            else statusEl.innerHTML = "Starting Experience" + dots;
+                        if (_cachedStatusEl) {
+                            var dots = '<span class="loader-status-dots"><span>.</span><span>.</span><span>.</span></span>';
+                            if (percent < 30) _cachedStatusEl.innerHTML = "Preparing AR Engine" + dots;
+                            else if (percent < 60) _cachedStatusEl.innerHTML = "Loading Assets" + dots;
+                            else if (percent < 90) _cachedStatusEl.innerHTML = "Almost Ready" + dots;
+                            else _cachedStatusEl.innerHTML = "Starting Experience" + dots;
                         }
-                        if (progress >= 0.9) {
-                            var title = document.querySelector('.loader-title');
-                            if (title && title.innerText !== "Launching") {
-                                title.innerText = "Launching";
-                            }
+                        if (progress >= 0.9 && _cachedTitleEl && _cachedTitleEl.innerText !== "Launching") {
+                            _cachedTitleEl.innerText = "Launching";
                         }
                     }
                 ).then((unityInstance) => {
