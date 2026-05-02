@@ -201,6 +201,13 @@
             cursor: pointer;
             box-shadow: 0 4px 24px rgba(220,30,30,0.10);
             transition: transform 0.18s ease;
+            padding: 0;
+            margin: 0;
+            outline: none;
+            box-sizing: border-box;
+            -webkit-appearance: none;
+            appearance: none;
+            -webkit-tap-highlight-color: transparent;
         }
         .suInnerCircle:active {
             transform: scale(0.95);
@@ -230,7 +237,7 @@
             color: rgba(255,200,200,0.85);
             animation: suNoteFloat 3s ease-in-out infinite;
             filter: drop-shadow(0 0 4px rgba(220,30,30,0.6));
-            margin-left: -4px; /* visually center the triangle */
+            margin-left: 2px; /* visually center the triangle */
         }
         @keyframes suSpeakerWave {
             0%, 100% { opacity: 0.3; }
@@ -365,18 +372,18 @@
         <div class="loader-corner corner-tl"></div><div class="loader-corner corner-tr"></div>
         <div class="loader-corner corner-bl"></div><div class="loader-corner corner-br"></div>
         <div class="soundUnlockCard">
-            <!-- Sound-wave bars LEFT -->
-            <div class="suWaveGroup left">
-                <span class="suWaveDot"></span>
-                <span class="suWaveBar"></span><span class="suWaveBar"></span><span class="suWaveBar"></span>
-                <span class="suWaveBar"></span><span class="suWaveBar"></span><span class="suWaveBar"></span>
-                <span class="suWaveBar"></span><span class="suWaveBar"></span><span class="suWaveBar"></span>
-                <span class="suWaveBar"></span><span class="suWaveBar"></span><span class="suWaveBar"></span>
-                <span class="suWaveBar"></span><span class="suWaveBar"></span><span class="suWaveBar"></span>
-                <span class="suWaveBar"></span>
-            </div>
-            <!-- Concentric circles -->
+            <!-- Concentric circles and waves -->
             <div class="suCircleGroup">
+                <!-- Sound-wave bars LEFT -->
+                <div class="suWaveGroup left">
+                    <span class="suWaveDot"></span>
+                    <span class="suWaveBar"></span><span class="suWaveBar"></span><span class="suWaveBar"></span>
+                    <span class="suWaveBar"></span><span class="suWaveBar"></span><span class="suWaveBar"></span>
+                    <span class="suWaveBar"></span><span class="suWaveBar"></span><span class="suWaveBar"></span>
+                    <span class="suWaveBar"></span><span class="suWaveBar"></span><span class="suWaveBar"></span>
+                    <span class="suWaveBar"></span><span class="suWaveBar"></span><span class="suWaveBar"></span>
+                    <span class="suWaveBar"></span>
+                </div>
                 <div class="suOuterRing"></div>
                 <div class="suGlowRing"></div>
                 <div class="suRipple"></div>
@@ -387,16 +394,16 @@
                         <path class="suSpeakerWave2" d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
                     </svg>
                 </button>
-            </div>
-            <!-- Sound-wave bars RIGHT -->
-            <div class="suWaveGroup right">
-                <span class="suWaveBar"></span><span class="suWaveBar"></span><span class="suWaveBar"></span>
-                <span class="suWaveBar"></span><span class="suWaveBar"></span><span class="suWaveBar"></span>
-                <span class="suWaveBar"></span><span class="suWaveBar"></span><span class="suWaveBar"></span>
-                <span class="suWaveBar"></span><span class="suWaveBar"></span><span class="suWaveBar"></span>
-                <span class="suWaveBar"></span><span class="suWaveBar"></span><span class="suWaveBar"></span>
-                <span class="suWaveBar"></span>
-                <span class="suWaveDot"></span>
+                <!-- Sound-wave bars RIGHT -->
+                <div class="suWaveGroup right">
+                    <span class="suWaveBar"></span><span class="suWaveBar"></span><span class="suWaveBar"></span>
+                    <span class="suWaveBar"></span><span class="suWaveBar"></span><span class="suWaveBar"></span>
+                    <span class="suWaveBar"></span><span class="suWaveBar"></span><span class="suWaveBar"></span>
+                    <span class="suWaveBar"></span><span class="suWaveBar"></span><span class="suWaveBar"></span>
+                    <span class="suWaveBar"></span><span class="suWaveBar"></span><span class="suWaveBar"></span>
+                    <span class="suWaveBar"></span>
+                    <span class="suWaveDot"></span>
+                </div>
             </div>
             <!-- Text -->
             <p class="soundUnlockTitle">Enable <strong>Sound</strong></p>
