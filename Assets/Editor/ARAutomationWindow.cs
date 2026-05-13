@@ -19,6 +19,7 @@ public class ARAutomationWindow : EditorWindow
     private string targetId       = "NewTarget";
     private Texture2D imageTexture;
     private string cdnVideoUrl    = "https://";
+    private float physicalWidth   = 1.0f; // Added physical width for mesh generation
 
     // ─── Tracking image mesh ─────────────────────────────────────────
     private bool overrideImageMesh = false;
@@ -31,6 +32,8 @@ public class ARAutomationWindow : EditorWindow
     // Video layer dimensions (pixels) – used to auto-generate a mesh
     private int videoWidthPx  = 1080;
     private int videoHeightPx = 1920;
+    private float videoScale  = 1.0f;     // Added scale tweak for varying green screen videos
+    private Vector2 videoOffset = Vector2.zero; // Added position offset tweak
     private bool overrideVideoMesh = false;
     private Mesh customVideoMesh;
 
@@ -69,10 +72,12 @@ public class ARAutomationWindow : EditorWindow
         if (imageTexture != null)
         {
             EditorGUI.BeginDisabledGroup(true);
-            EditorGUILayout.TextField("  Auto size",
+            EditorGUILayout.TextField("  Pixel size",
                 $"{imageTexture.width} × {imageTexture.height} px");
             EditorGUI.EndDisabledGroup();
         }
+
+        physicalWidth = EditorGUILayout.FloatField("  Physical Width (Units)", physicalWidth);
 
         overrideImageMesh = EditorGUILayout.Toggle("  Override with custom mesh", overrideImageMesh);
         if (overrideImageMesh)
@@ -92,12 +97,17 @@ public class ARAutomationWindow : EditorWindow
                 "  First Frame Image", firstFrameTexture, typeof(Texture2D), false);
 
             GUILayout.Space(4);
-            GUILayout.Label("  Video Layer Dimensions", EditorStyles.miniLabel);
-            videoWidthPx  = EditorGUILayout.IntField("    Width (px)",  videoWidthPx);
-            videoHeightPx = EditorGUILayout.IntField("    Height (px)", videoHeightPx);
+            GUILayout.Label("  Video Layer Settings", EditorStyles.miniLabel);
+            videoWidthPx  = EditorGUILayout.IntField("    Source Width (px)",  videoWidthPx);
+            videoHeightPx = EditorGUILayout.IntField("    Source Height (px)", videoHeightPx);
+            
+            GUILayout.Space(4);
+            videoScale  = EditorGUILayout.FloatField("    Video Scale", videoScale);
+            videoOffset = EditorGUILayout.Vector2Field("    Video Offset (X,Y)", videoOffset);
+
             EditorGUILayout.HelpBox(
-                "A plane mesh will be auto-generated from these dimensions and saved to " +
-                MeshFolder, MessageType.None);
+                "Plane meshes will be generated proportionally to Physical Width.\n" +
+                "Video Scale and Offset will be automatically applied to the video object to perfectly align varying green screen contents.", MessageType.None);
 
             overrideVideoMesh = EditorGUILayout.Toggle("  Override with custom mesh", overrideVideoMesh);
             if (overrideVideoMesh)
@@ -184,9 +194,12 @@ public class ARAutomationWindow : EditorWindow
             VideoPlayer vp = cdn.GetComponent<VideoPlayer>();
 
             // ── Build / assign parent (tracking image) mesh ──
+            float targetW = physicalWidth;
+            float targetH = physicalWidth * ((float)imageTexture.height / imageTexture.width);
+
             Mesh imgMesh = overrideImageMesh && customImageMesh != null
                 ? customImageMesh
-                : GetOrCreateMesh(imageTexture.width, imageTexture.height, targetId + "_TrackImg");
+                : GetOrCreateMesh(targetW, targetH, targetId + "_TrackImg");
 
             SetupParentObject(parentObj, imgMesh);
 
@@ -197,9 +210,12 @@ public class ARAutomationWindow : EditorWindow
             }
             else
             {
+                float vidW = physicalWidth;
+                float vidH = physicalWidth * ((float)videoHeightPx / videoWidthPx);
+
                 Mesh vidMesh = overrideVideoMesh && customVideoMesh != null
                     ? customVideoMesh
-                    : GetOrCreateMesh(videoWidthPx, videoHeightPx, targetId + "_Vid");
+                    : GetOrCreateMesh(vidW, vidH, targetId + "_Vid");
 
                 SetupGreenScreenVideo(parentObj, childObj, vp, vidMesh);
             }
@@ -270,21 +286,16 @@ public class ARAutomationWindow : EditorWindow
         so.ApplyModifiedProperties();
     }
 
-    // ─── Auto-generate or reuse a plane mesh from pixel dimensions ───
+    // ─── Auto-generate or reuse a plane mesh from physical dimensions ───
     /// <summary>
-    /// Creates a unit Quad scaled to pixel dimensions stored in centimetres
-    /// (1 px = 0.01 cm, matching the BookCover.mesh convention in this project).
+    /// Creates a Quad scaled to the physical dimensions provided.
     /// The mesh is saved as an asset so it appears in the project and can be reused.
     /// </summary>
-    private Mesh GetOrCreateMesh(int widthPx, int heightPx, string meshName)
+    private Mesh GetOrCreateMesh(float w, float h, string meshName)
     {
-        string path = $"{MeshFolder}/{meshName}_{widthPx}x{heightPx}.mesh";
+        string path = $"{MeshFolder}/{meshName}_{w:F2}x{h:F2}.mesh";
         Mesh existing = AssetDatabase.LoadAssetAtPath<Mesh>(path);
         if (existing != null) return existing;
-
-        // Scale: treat pixels as centimetres ÷ 100  →  1080px = 10.80 units
-        float w = widthPx  / 100f;
-        float h = heightPx / 100f;
 
         Mesh mesh = new Mesh { name = meshName };
         mesh.vertices = new Vector3[]
@@ -381,10 +392,11 @@ public class ARAutomationWindow : EditorWindow
         MeshRenderer childRend = childObj.GetComponent<MeshRenderer>() ?? childObj.AddComponent<MeshRenderer>();
         childRend.sharedMaterial = chromaMat;
 
-        // Keep child at same local origin; slightly in front to avoid Z-fighting
-        childObj.transform.localPosition = new Vector3(0, 0, -0.001f);
+        // Apply user-defined offset and scale for varying green screen videos,
+        // and keep slightly in front (Z=-0.001) to avoid Z-fighting.
+        childObj.transform.localPosition = new Vector3(videoOffset.x, videoOffset.y, -0.001f);
         childObj.transform.localRotation = Quaternion.identity;
-        childObj.transform.localScale    = Vector3.one;  // mesh is already dimensionally correct
+        childObj.transform.localScale    = new Vector3(videoScale, videoScale, 1f);
 
         if (vp != null) vp.targetMaterialRenderer = childRend;
     }
