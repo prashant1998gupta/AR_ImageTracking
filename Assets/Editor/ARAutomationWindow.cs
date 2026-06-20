@@ -41,6 +41,7 @@ public class ARAutomationWindow : EditorWindow
     private int videoWidthPx  = 1080;
     private int videoHeightPx = 1920;
     private float videoScale  = 1.0f;
+    private bool alignToBottom = true;
     private Vector2 videoOffset = Vector2.zero;
     private bool overrideVideoMesh = false;
     private Mesh customVideoMesh;
@@ -392,8 +393,16 @@ public class ARAutomationWindow : EditorWindow
                         "  1.2  = 20 % larger  (if subject looks too small)\n" +
                         "  0.8  = 20 % smaller"),
                     videoScale);
+                
+                alignToBottom = EditorGUILayout.Toggle(
+                    new GUIContent("Align to Bottom Edge",
+                        "Automatically calculates the Y offset so the bottom of the video " +
+                        "aligns perfectly with the bottom of the tracking image.\n\n" +
+                        "Ideal when the green screen subject is standing on the target."),
+                    alignToBottom);
+
                 videoOffset = EditorGUILayout.Vector2Field(
-                    new GUIContent("Video Offset (X, Y)",
+                    new GUIContent(alignToBottom ? "Extra Offset (X, Y)" : "Video Offset (X, Y)",
                         "Shifts the video layer relative to the background.\n" +
                         "  +X = right,  +Y = up"),
                     videoOffset);
@@ -743,6 +752,7 @@ public class ARAutomationWindow : EditorWindow
         videoWidthPx      = 1080;
         videoHeightPx     = 1920;
         videoScale        = 1f;
+        alignToBottom     = true;
         videoOffset       = Vector2.zero;
         overrideVideoMesh = false;
         customVideoMesh   = null;
@@ -852,11 +862,18 @@ public class ARAutomationWindow : EditorWindow
                     float vidW = physicalWidth;
                     float vidH = physicalWidth * ((float)videoHeightPx / videoWidthPx);
 
+                    float finalYOffset = videoOffset.y;
+                    if (alignToBottom && imageTexture != null)
+                    {
+                        float bgH = physicalWidth * ((float)imageTexture.height / imageTexture.width);
+                        finalYOffset = (vidH * videoScale - bgH) / 2f + videoOffset.y;
+                    }
+
                     Mesh vidMesh = overrideVideoMesh && customVideoMesh != null
                         ? customVideoMesh
                         : GetOrCreateMesh(vidW, vidH, targetId + "_Vid");
 
-                    SetupGreenScreenVideo(parentObj, childObj, vp, vidMesh);
+                    SetupGreenScreenVideo(parentObj, childObj, vp, vidMesh, finalYOffset);
                     meshInfo += $"  • Video mesh: {vidW:F2} × {vidH:F2} units\n";
                     meshInfo += "  • Mode: green-screen (chroma key)\n";
                 }
@@ -1025,7 +1042,7 @@ public class ARAutomationWindow : EditorWindow
 
     /// <summary>Green screen: 2 materials, 2 meshes (background + chroma-keyed video).</summary>
     private void SetupGreenScreenVideo(GameObject parentObj, GameObject childObj,
-                                       VideoPlayer vp, Mesh vidMesh)
+                                       VideoPlayer vp, Mesh vidMesh, float finalYOffset)
     {
         // Material 1: background (target image, Unlit)
         Material bgMat = new Material(Shader.Find("Unlit/Texture"))
@@ -1062,7 +1079,7 @@ public class ARAutomationWindow : EditorWindow
 
         // Apply user-defined offset and scale for varying green screen videos,
         // and keep slightly in front (Z=-0.001) to avoid Z-fighting.
-        childObj.transform.localPosition = new Vector3(videoOffset.x, videoOffset.y, -0.001f);
+        childObj.transform.localPosition = new Vector3(videoOffset.x, finalYOffset, -0.001f);
         childObj.transform.localRotation = Quaternion.identity;
         childObj.transform.localScale    = new Vector3(videoScale, videoScale, 1f);
 
