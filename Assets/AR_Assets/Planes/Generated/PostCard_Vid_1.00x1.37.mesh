@@ -6,7 +6,7 @@ Mesh:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: Post  Card_Vid_1.00x1.78
+  m_Name: PostCard_Vid_1.00x1.37
   serializedVersion: 12
   m_SubMeshes:
   - serializedVersion: 2
@@ -18,7 +18,7 @@ Mesh:
     vertexCount: 4
     localAABB:
       m_Center: {x: 0, y: 0, z: 0}
-      m_Extent: {x: 0.5, y: 0.8888889, z: 0}
+      m_Extent: {x: 0.5, y: 0.6863271, z: 0}
   m_Shapes:
     vertices: []
     shapes: []
@@ -97,7 +97,7 @@ Mesh:
       format: 0
       dimension: 0
     m_DataSize: 128
-    _typelessdata: 000000bf398e63bf000000000000000000000000000080bf00000000000000000000003f398e63bf000000000000000000000000000080bf0000803f00000000000000bf398e633f000000000000000000000000000080bf000000000000803f0000003f398e633f000000000000000000000000000080bf0000803f0000803f
+    _typelessdata: 000000bf22b32fbf000000000000000000000000000080bf00000000000000000000003f22b32fbf000000000000000000000000000080bf0000803f00000000000000bf22b32f3f000000000000000000000000000080bf000000000000803f0000003f22b32f3f000000000000000000000000000080bf0000803f0000803f
   m_CompressedMesh:
     m_Vertices:
       m_NumItems: 0
@@ -152,7 +152,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 0.5, y: 0.8888889, z: 0}
+    m_Extent: {x: 0.5, y: 0.6863271, z: 0}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
