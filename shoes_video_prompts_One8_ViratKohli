@@ -1,0 +1,339 @@
+# 👟 one8 — 18 REAL Shoe AR Video Prompts (Veo 3) & Tracking Images
+
+> [!NOTE]
+> All shoe models below are **real products from [one8.com](https://one8.com)** — Virat Kohli's independent sports brand by **One8 Sports Pvt Ltd**, powered by **Agilitas Brands Private Limited** (Bangalore). Brand color: **Cyan (#00FFFF)**, fonts: **Outfit** (primary), **Reddit Mono** (secondary).
+
+> [!IMPORTANT]
+> All prompts use **green (#00FF00) chroma key background** for your `ChromaKeyCutout` shader in the AR project.
+
+---
+
+## 🎬 Veo 3 Master Prompt Formula
+
+```
+[Camera angle], a [exact shoe model name] by one8 in [exact colorway], 
+[detailed design features from product description], [action/animation], 
+on a perfectly uniform bright green (#00FF00) chroma key background. 
+Studio lighting, photorealistic, product photography quality, 4K, 60fps. 
+Clean edges, no shadows on the green background.
+```
+
+---
+
+## 👟 18 Real one8 Shoe Video Prompts
+
+---
+
+### 1. 🏏 Cover Drive 18 Pro — High Performance Cricket Spike (₹13,999)
+```
+Front-centered view, a one8 Cover Drive 18 Pro cricket batting spike in white with 
+synthetic overlays on the toe for protection, breathable mono mesh upper, and PWR+LC 
+midsole visible on the side. The shoe slowly rotates 360 degrees revealing the 
+full-spike outsole pattern designed for match-grade traction, on a perfectly uniform 
+bright green (#00FF00) chroma key background. Studio softbox lighting highlighting 
+the mesh texture and reinforced toe overlay. Photorealistic, product photography 
+quality, 4K, 60fps. Clean edges, no shadows on the green background.
+```
+
+### 2. 🏏 Cover Drive 18 X — High Performance Cricket Spike (₹13,999)
+```
+Three-quarter angle, a one8 Cover Drive 18 X cricket spike with breathable mono mesh 
+upper, synthetic reinforced overlays for toe protection, PWR+LC midsole technology, 
+slowly rising from below frame and rotating dramatically to showcase the spike stud 
+sole pattern, on a perfectly uniform bright green (#00FF00) chroma key background. 
+Stadium floodlight-style studio lighting creating crisp highlights on the technical 
+construction. Photorealistic, product photography quality, 4K, 60fps. Clean edges, 
+no shadows on the green background.
+```
+
+### 3. 🔴 Seam XVIII Signature — Men's Red / Test Red - Pitch Brown (₹9,230)
+```
+Cinematic three-quarter angle, a one8 Seam XVIII Signature in Test Red with Pitch 
+Brown accents, featuring the cricket-ball-inspired season-ball finish with six-row 
+stitched seam detail on the tongue and logo, low-profile silhouette with premium 
+leather upper, finished with Virat's signature debossed on the shoe. The shoe slowly 
+emerges from below frame and rotates dramatically revealing the seam stitching 
+craftsmanship, on a perfectly uniform bright green (#00FF00) chroma key background. 
+Rich warm studio lighting highlighting the deep red leather grain and brown accent 
+details. Photorealistic, luxury product photography quality, 4K, 60fps. Clean edges, 
+no shadows on the green background.
+```
+
+### 4. 🔴 Seam XVIII Signature — Women's Red (₹9,230)
+```
+Side profile view, a women's one8 Seam XVIII Signature in Test Red with the iconic 
+cricket-ball-inspired finish, six-row seam stitching running along the logo and 
+tongue, low-profile silhouette with premium construction, slowly sliding into frame 
+from the right and rotating elegantly to reveal the stitched seam details and 
+Virat's signature, on a perfectly uniform bright green (#00FF00) chroma key 
+background. Warm elegant studio lighting with soft red reflections on the leather. 
+Photorealistic, premium product photography quality, 4K, 60fps. Clean edges, 
+no shadows on the green background.
+```
+
+### 5. 🔴 Seam XVIII OG — Men's Red / Brown (₹6,999)
+```
+Dynamic angle, a one8 Seam XVIII OG in red-ball inspired finish with brown accents, 
+low-profile silhouette featuring the signature stitched seam detail inspired by a 
+red cricket ball, rotating slowly and tilting to reveal the textured sole and seam 
+stitching on the side panels, on a perfectly uniform bright green (#00FF00) chroma 
+key background. Strong directional studio lighting emphasizing the red leather texture 
+and contrast with brown details. Photorealistic, product photography quality, 4K, 
+60fps. Clean edges, no shadows on the green background.
+```
+
+### 6. ⚪ Seam XVIII OG — Women's White (₹6,999)
+```
+Front view, a one8 Seam XVIII OG in pristine white with a white-ball-inspired finish, 
+stitched seam detail along the side, low-profile silhouette with every detail crafted 
+as a nod to cricket, slowly rotating 360 degrees with a gentle float animation, on a 
+perfectly uniform bright green (#00FF00) chroma key background. Clean bright studio 
+lighting highlighting the white leather and subtle seam stitch contrast. 
+Photorealistic, product photography quality, 4K, 60fps. Clean edges, no shadows 
+on the green background.
+```
+
+### 7. ⚪🟤 Seam XVIII OG — Women's White / Brown (₹6,999)
+```
+Three-quarter view, a one8 Seam XVIII OG in white with brown accents, white-ball 
+inspired finish with stitched seam detail, low-profile silhouette, slowly tilting 
+forward then rotating to reveal the brown accent details and craftsmanship, on a 
+perfectly uniform bright green (#00FF00) chroma key background. Warm-toned studio 
+lighting highlighting the contrast between white leather and brown accents. 
+Photorealistic, product photography quality, 4K, 60fps. Clean edges, no shadows 
+on the green background.
+```
+
+### 8. 🔵 Seam XVIII X — Men's Blue / Century Blue - Jersey White (₹6,999)
+```
+Side profile view, a one8 Seam XVIII X in Century Blue with Jersey White accents, 
+inspired by the cricket shoes of the 1970s and 80s — the low-slung toe-capped 
+silhouette of the era that reshaped the game, with season-ball inspired detailing, 
+slowly rotating to showcase the retro silhouette and toe cap construction, on a 
+perfectly uniform bright green (#00FF00) chroma key background. Cool-toned studio 
+lighting with blue reflections highlighting the vintage cricket-inspired design. 
+Photorealistic, product photography quality, 4K, 60fps. Clean edges, no shadows 
+on the green background.
+```
+
+### 9. ⚪ Seam XVIII X — Men's White / Classic White - Pitch Brown (₹6,999)
+```
+Front-centered view, a one8 Seam XVIII X in Classic White with Pitch Brown accents, 
+featuring the 1970s-80s cricket shoe inspired low-slung toe-capped silhouette with 
+season-ball detailing, slowly rotating 360 degrees with subtle bounce animation, on 
+a perfectly uniform bright green (#00FF00) chroma key background. Clean crisp studio 
+lighting emphasizing the white leather and brown accent contrasts. Photorealistic, 
+product photography quality, 4K, 60fps. Clean edges, no shadows on the green 
+background.
+```
+
+### 10. 🖤 Seam XVIII X — Men's Black / Classic Black - Jersey White (₹6,999)
+```
+Low angle view looking up, a one8 Seam XVIII X in Classic Black with Jersey White 
+accents, the retro cricket-inspired low-slung toe-capped silhouette with season-ball 
+detailing, spinning slowly then settling to show the full side profile and toe cap 
+construction, on a perfectly uniform bright green (#00FF00) chroma key background. 
+Moody studio lighting with sharp rim light creating a dramatic black silhouette. 
+Photorealistic, product photography quality, 4K, 60fps. Clean edges, no shadows 
+on the green background.
+```
+
+### 11. ⚪ Seam XVIII X — Women's White / Classic White - Dawn Blue (₹6,999)
+```
+Three-quarter front view, a women's one8 Seam XVIII X in Classic White with Dawn 
+Blue accents, the retro 1970s cricket-inspired silhouette with toe cap and season-ball 
+detailing, gently rocking side to side then settling at center frame with a slow 
+rotation, on a perfectly uniform bright green (#00FF00) chroma key background. Soft 
+bright studio lighting highlighting the white and light blue color combination. 
+Photorealistic, product photography quality, 4K, 60fps. Clean edges, no shadows 
+on the green background.
+```
+
+### 12. 🖤 Seam Pavilion — Women's Black (₹6,999)
+```
+Side view, a one8 Seam Pavilion in black, a modern classic laceless slip-on inspired 
+by retro cricket shoes of the 70s and 80s, refined in finish with a clean minimal 
+silhouette, slowly sliding into frame and rotating to showcase the laceless entry 
+and premium finish, on a perfectly uniform bright green (#00FF00) chroma key 
+background. Elegant studio lighting with subtle highlights on the black leather 
+surface. Photorealistic, product photography quality, 4K, 60fps. Clean edges, 
+no shadows on the green background.
+```
+
+### 13. ⚪ Seam Pavilion — Men's Off White / Cream Blue (₹6,999)
+```
+Three-quarter angle, a one8 Seam Pavilion in off-white cream with blue accents, 
+the modern classic laceless slip-on inspired by retro cricket shoes, refined finish 
+for effortlessly stepping in and out of your everyday, slowly rising from bottom 
+of frame and rotating to reveal the clean construction, on a perfectly uniform 
+bright green (#00FF00) chroma key background. Warm bright studio lighting 
+highlighting the cream leather and blue accent contrast. Photorealistic, product 
+photography quality, 4K, 60fps. Clean edges, no shadows on the green background.
+```
+
+### 14. 🏃 Boom Rush — Men's Beige / Track Sand - Classic White (₹9,999)
+```
+Dynamic three-quarter view, a one8 Boom Rush multi-activity trainer in Track Sand 
+beige with Classic White accents, featuring the highly responsive Boom Foam midsole 
+visible on the side, engineered for both running and workouts. The shoe flexes and 
+bends to showcase the Boom Foam cushioning compressing and rebounding, then rotates 
+to show the full profile, on a perfectly uniform bright green (#00FF00) chroma key 
+background. Energetic studio lighting with warm sand-tone reflections. Photorealistic, 
+product photography quality, 4K, 60fps. Clean edges, no shadows on the green 
+background.
+```
+
+### 15. 🏃 Boom Rush — Men's Grey Blue / Classic Grey - Sonic Blue (₹9,999)
+```
+Side profile, a one8 Boom Rush trainer in Classic Grey with Sonic Blue accents, 
+the multi-activity shoe with responsive Boom Foam midsole technology, the shoe 
+appears to bounce lightly showcasing the midsole energy return, then rotates to 
+reveal the full design, on a perfectly uniform bright green (#00FF00) chroma key 
+background. Cool-toned studio lighting with blue accent reflections highlighting 
+the technical construction. Photorealistic, product photography quality, 4K, 60fps. 
+Clean edges, no shadows on the green background.
+```
+
+### 16. 🏃 Boom Rush — Women's Green / Mint Green - Classic White (₹9,999)
+```
+Front view, a women's one8 Boom Rush in Mint Green with Classic White accents, 
+featuring the responsive Boom Foam midsole for multi-activity performance, slowly 
+rotating with a gentle floating animation and tilting to reveal the sole construction, 
+on a perfectly uniform bright green (#00FF00) chroma key background. Fresh bright 
+studio lighting with green tint reflections highlighting the mint colorway. 
+Photorealistic, product photography quality, 4K, 60fps. Clean edges, no shadows 
+on the green background.
+```
+
+### 17. ⚪ Mach Pro — Cricket Helmet White (₹1,999)
+```
+Cinematic slow-motion, a one8 Mach Pro cricket helmet in white with laser-perforated 
+panels for ventilation, antimicrobial sweatband, and quick-dry inner lining, slowly 
+rotating to show the ventilation holes, adjustable fit system, and protective shell 
+from every angle, on a perfectly uniform bright green (#00FF00) chroma key background. 
+Clean stadium-style studio lighting highlighting the perforated panel detail and 
+protective construction. Photorealistic, product photography quality, 4K, 60fps. 
+Clean edges, no shadows on the green background.
+```
+
+### 18. 🏏 Cover Drive 18 Pro — Sole Detail Reveal (₹13,999)
+```
+Cinematic reveal, a one8 Cover Drive 18 Pro cricket spike starting with a top-down 
+view of the shoe, then smoothly transitioning to a bottom-up view revealing the 
+full spike pattern on the outsole designed for maximum pitch grip, rotating back to 
+three-quarter angle showing the complete shoe with PWR+LC midsole, mono mesh upper, 
+and synthetic toe reinforcement, on a perfectly uniform bright green (#00FF00) chroma 
+key background. Premium studio lighting with dramatic rim light outlining the shoe 
+silhouette. Photorealistic, ultra-premium product photography quality, 4K, 60fps. 
+Clean edges, no shadows on the green background.
+```
+
+---
+
+## 🎯 All 18 Shoes — Quick Reference (from one8.com)
+
+| # | Model | Colorway | Category | Price |
+|---|-------|----------|----------|-------|
+| 1 | Cover Drive 18 Pro | White | 🏏 Cricket Spike | ₹13,999 |
+| 2 | Cover Drive 18 X | White | 🏏 Cricket Spike | ₹13,999 |
+| 3 | Seam XVIII Signature (Men's) | Test Red / Pitch Brown | 🏏 Limited | ₹9,230 |
+| 4 | Seam XVIII Signature (Women's) | Test Red | 🏏 Limited | ₹9,230 |
+| 5 | Seam XVIII OG (Men's) | Red / Brown | 👟 Lifestyle | ₹6,999 |
+| 6 | Seam XVIII OG (Women's) | White | 👟 Lifestyle | ₹6,999 |
+| 7 | Seam XVIII OG (Women's) | White / Brown | 👟 Lifestyle | ₹6,999 |
+| 8 | Seam XVIII X (Men's) | Century Blue / Jersey White | 👟 Lifestyle | ₹6,999 |
+| 9 | Seam XVIII X (Men's) | Classic White / Pitch Brown | 👟 Lifestyle | ₹6,999 |
+| 10 | Seam XVIII X (Men's) | Classic Black / Jersey White | 👟 Lifestyle | ₹6,999 |
+| 11 | Seam XVIII X (Women's) | Classic White / Dawn Blue | 👟 Lifestyle | ₹6,999 |
+| 12 | Seam Pavilion (Women's) | Black | 👟 Slip-On | ₹6,999 |
+| 13 | Seam Pavilion (Men's) | Off White / Cream Blue | 👟 Slip-On | ₹6,999 |
+| 14 | Boom Rush (Men's) | Track Sand / Classic White | 🏃 Trainer | ₹9,999 |
+| 15 | Boom Rush (Men's) | Classic Grey / Sonic Blue | 🏃 Trainer | ₹9,999 |
+| 16 | Boom Rush (Women's) | Mint Green / Classic White | 🏃 Trainer | ₹9,999 |
+| 17 | Mach Pro | White (Cricket Helmet) | 🏏 Accessory | ₹1,999 |
+| 18 | Cover Drive 18 Pro (Sole Reveal) | White | 🏏 Cricket Spike | ₹13,999 |
+
+---
+
+## 🖼️ Tracking Images — Use Product Images from one8.com
+
+> [!TIP]
+> The **best tracking images** for your AR project are the actual product photos from one8.com! They have high contrast, unique detail, and are professionally shot. Download them directly.
+
+### Product Image URLs from one8.com CDN
+
+| # | Shoe | Direct Image URL |
+|---|------|-----------------|
+| 1 | Cover Drive 18 Pro | `https://one8.com/cdn/shop/files/V10015001_03_6d97ac06-93e4-46c0-b7ee-12a9ae14bd22.jpg` |
+| 2 | Cover Drive 18 X | `https://one8.com/cdn/shop/files/V10032402_02_756f038f-3639-4cd3-9cf9-45eb76905d92.jpg` |
+| 3 | Seam XVIII Sig (M) | `https://one8.com/cdn/shop/files/V10018201_03_2f0eb140-a784-451d-9138-e7436aebf7a0.jpg` |
+| 4 | Seam XVIII Sig (W) | `https://one8.com/cdn/shop/files/V10018401_03_584334b3-39d7-4b9f-a406-06513a16829b.jpg` |
+| 5 | Seam XVIII OG Red | `https://one8.com/cdn/shop/files/V10018601_03_1b41e591-f7e2-499b-ba87-8cf4013bdd79.jpg` |
+| 6 | Seam XVIII OG White | `https://one8.com/cdn/shop/files/V10018802_03_bdfc66b5-74d0-4b30-8b07-e5b409bc9264.jpg` |
+| 7 | Seam XVIII OG W/Brn | `https://one8.com/cdn/shop/files/V10018803_03_f7d3ac8c-1a63-46f0-89cc-7d5d714ec713.jpg` |
+| 8 | Seam XVIII X Blue | `https://one8.com/cdn/shop/files/V10020703_01.jpg` |
+| 9 | Seam XVIII X White | `https://one8.com/cdn/shop/files/V10020701_01.jpg` |
+| 10 | Seam XVIII X Black | `https://one8.com/cdn/shop/files/V10020702_01.jpg` |
+| 11 | Seam XVIII X W-White | `https://one8.com/cdn/shop/files/V10021401_01.jpg` |
+| 12 | Seam Pavilion Black | `https://one8.com/cdn/shop/files/V10021605_03_8f72b291-4841-4f96-b533-96c328ae14ae.jpg` |
+| 13 | Seam Pavilion Cream | `https://one8.com/cdn/shop/files/V10021003_03_38cbc9a3-5956-4b91-9365-ab5434e90e96.jpg` |
+| 14 | Boom Rush Beige | `https://one8.com/cdn/shop/files/V10012006_03_bd7675c8-32b3-4f66-ad8c-1b08584e5265.jpg` |
+| 15 | Boom Rush Grey Blue | `https://one8.com/cdn/shop/files/V10016101_03_5c2710d2-fe30-4062-976f-e7b0a9b828dc.jpg` |
+| 16 | Boom Rush Green | `https://one8.com/cdn/shop/files/V10012103_03_6ed3c120-1393-48c7-a8d5-d5ead9eb08eb.jpg` |
+| 17 | Mach Pro Helmet | `https://one8.com/cdn/shop/files/V31000103_01.jpg` |
+| 18 | Cover Drive 18 Pro | `https://one8.com/cdn/shop/files/V10015001_03_6d97ac06-93e4-46c0-b7ee-12a9ae14bd22.jpg` |
+
+> [!IMPORTANT]
+> **For AR tracking, don't use these white-background product photos directly.** Instead:
+> 1. Download the product images above
+> 2. Place them on a **one8 branded product card** with dark background, text, and logo
+> 3. The more unique visual elements, the better the tracking quality
+
+### one8 Brand Design System (for creating product cards)
+
+| Element | Value |
+|---------|-------|
+| Brand Color | **#00FFFF** (Cyan) |
+| Background | **#1A1A1A** (Near Black) |
+| Text Color | **#FFFFFF** (White) |
+| Grey | **#808080** |
+| Font Primary | **Outfit** (Regular 400, Medium 500, Bold 700) |
+| Font Secondary | **Reddit Mono** (Bold 700, monospace) |
+| Border Radius | 8px |
+
+---
+
+## 📋 Per-Shoe Setup Workflow
+
+| Step | Action | Tool |
+|------|--------|------|
+| 1 | Copy prompt from above → generate in Veo 3 | Veo 3 |
+| 2 | Extract first frame | `ffmpeg -i shoe.mp4 -vframes 1 first_frame.png` |
+| 3 | Download product image from one8.com CDN URLs above | Browser |
+| 4 | Create tracking card (product image + dark bg + one8 branding) | Photoshop/Figma |
+| 5 | Upload video to CDN | GitHub + jsDelivr / Firebase |
+| 6 | Import tracker + first frame into Unity | `Assets/AR_Assets/Images/` |
+| 7 | Run AR Setup Wizard | `Tools → AR Setup Automation` |
+
+### Video Specs
+
+| Setting | Value |
+|---------|-------|
+| Resolution | 1080×1920 (Portrait) |
+| Format | `.mp4` (H.264) |
+| Duration | 5–8 seconds |
+| FPS | 30 or 60 |
+| Background | **#00FF00** green screen |
+
+### File Naming
+
+```
+Videos:    one8_01_cover_drive_pro.mp4
+           one8_02_cover_drive_x.mp4  
+           one8_03_seam_sig_mens_red.mp4
+           ...
+Frames:    one8_01_cover_drive_pro_frame.png
+Trackers:  one8_01_cover_drive_pro_tracker.png
+Scenes:    one8_CoverDrivePro, one8_SeamSigRed, ...
+Target IDs: one8_cover_drive_pro, one8_seam_sig_red, ...
+```
