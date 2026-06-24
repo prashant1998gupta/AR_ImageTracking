@@ -20,5 +20,8 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes_1/FIFA.unity
     guid: 07fae307c47232c458acf461bab6a6d8
+  - enabled: 1
+    path: Assets/Scenes_1/One8.unity
+    guid: 7c8b802983364d642a19a8308f1c0766
   m_configObjects: {}
   m_UseUCBPForAssetBundles: 0
