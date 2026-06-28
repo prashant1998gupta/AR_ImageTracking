@@ -318,73 +318,99 @@ public class ARAutomationWindow : EditorWindow
                 EditorGUILayout.LabelField(
                     "Two-layer setup:   background = tracking image,   foreground = video with green removed.",
                     _hintStyle);
+            }
+            else
+            {
                 GUILayout.Space(4);
-
-                // ── First Frame ──
-                EditorGUI.BeginChangeCheck();
-                firstFrameTexture = (Texture2D)EditorGUILayout.ObjectField(
-                    new GUIContent("First Frame Image",
-                        "A screenshot of the first video frame (with green screen visible).\n" +
-                        "This acts as a placeholder texture while the video loads.\n\n" +
-                        "Quick way to extract it:\n" +
-                        "  ffmpeg -i video.mp4 -vframes 1 first_frame.png"),
-                    firstFrameTexture, typeof(Texture2D), false);
-                bool ffChanged = EditorGUI.EndChangeCheck();
-
-                if (firstFrameTexture != null)
-                {
-                    DrawReadWriteCheck(firstFrameTexture, "First Frame");
-
-                    // Auto-detect video dimensions when first frame is assigned
-                    if (ffChanged && firstFrameTexture != prevFirstFrame)
-                    {
-                        videoWidthPx  = firstFrameTexture.width;
-                        videoHeightPx = firstFrameTexture.height;
-                        Debug.Log($"[AR Wizard] Auto-detected video size from first frame: {videoWidthPx} × {videoHeightPx}");
-                    }
-                    prevFirstFrame = firstFrameTexture;
-
-                    GUILayout.Label(
-                        $"  ✓  First frame: {firstFrameTexture.width} × {firstFrameTexture.height} px",
-                        _okStyle);
-                }
-                else
-                {
-                    EditorGUILayout.HelpBox(
-                        "Drag the first frame of your video here.\n\n" +
-                        "To extract it, run:\n" +
-                        "  ffmpeg -i your_video.mp4 -vframes 1 first_frame.png",
-                        MessageType.Warning);
-                }
-
-                GUILayout.Space(6);
-                GUILayout.Label("Video Layer Settings", EditorStyles.boldLabel);
                 EditorGUILayout.LabelField(
-                    "Pixel dimensions of your source video. " +
-                    "Auto-filled when you assign the First Frame image above.",
+                    "Normal mode \u2014 the video plays directly on the tracking-image surface.\n" +
+                    "Provide your video dimensions below so the mesh is auto-sized correctly.",
                     _hintStyle);
-                GUILayout.Space(2);
+            }
 
-                videoWidthPx  = EditorGUILayout.IntField(
-                    new GUIContent("Source Width (px)",
-                        "Pixel width of the source video file."),
-                    videoWidthPx);
-                videoHeightPx = EditorGUILayout.IntField(
-                    new GUIContent("Source Height (px)",
-                        "Pixel height of the source video file."),
-                    videoHeightPx);
+            GUILayout.Space(4);
 
-                if (videoWidthPx <= 0 || videoHeightPx <= 0)
-                    EditorGUILayout.HelpBox("Width and Height must be greater than 0.", MessageType.Error);
-                else
+            // \u2500\u2500 First Frame (shared for both modes) \u2500\u2500
+            EditorGUI.BeginChangeCheck();
+            firstFrameTexture = (Texture2D)EditorGUILayout.ObjectField(
+                new GUIContent(isGreenScreen ? "First Frame Image" : "First Frame Image  (optional)",
+                    isGreenScreen
+                        ? "A screenshot of the first video frame (with green screen visible).\n" +
+                          "This acts as a placeholder texture while the video loads.\n\n" +
+                          "Quick way to extract it:\n" +
+                          "  ffmpeg -i video.mp4 -vframes 1 first_frame.png"
+                        : "Drag a screenshot of any video frame here to auto-detect the video resolution.\n\n" +
+                          "Quick way to extract it:\n" +
+                          "  ffmpeg -i video.mp4 -vframes 1 first_frame.png\n\n" +
+                          "Or simply enter the pixel dimensions manually below."),
+                firstFrameTexture, typeof(Texture2D), false);
+            bool ffChanged = EditorGUI.EndChangeCheck();
+
+            if (firstFrameTexture != null)
+            {
+                DrawReadWriteCheck(firstFrameTexture, "First Frame");
+
+                // Auto-detect video dimensions when first frame is assigned
+                if (ffChanged && firstFrameTexture != prevFirstFrame)
                 {
-                    float vW = physicalWidth;
-                    float vH = physicalWidth * ((float)videoHeightPx / videoWidthPx);
-                    EditorGUI.BeginDisabledGroup(true);
-                    EditorGUILayout.TextField("  → Video Mesh", $"{vW:F2} × {vH:F2} units");
-                    EditorGUI.EndDisabledGroup();
+                    videoWidthPx  = firstFrameTexture.width;
+                    videoHeightPx = firstFrameTexture.height;
+                    Debug.Log($"[AR Wizard] Auto-detected video size from first frame: {videoWidthPx} \u00d7 {videoHeightPx}");
                 }
+                prevFirstFrame = firstFrameTexture;
 
+                GUILayout.Label(
+                    $"  \u2713  First frame: {firstFrameTexture.width} \u00d7 {firstFrameTexture.height} px",
+                    _okStyle);
+            }
+            else if (isGreenScreen)
+            {
+                EditorGUILayout.HelpBox(
+                    "Drag the first frame of your video here.\n\n" +
+                    "To extract it, run:\n" +
+                    "  ffmpeg -i your_video.mp4 -vframes 1 first_frame.png",
+                    MessageType.Warning);
+            }
+            else
+            {
+                EditorGUILayout.HelpBox(
+                    "\ud83d\udca1  Optional: drag any frame from your video here to auto-fill the dimensions below.\n" +
+                    "Or just type the video's pixel width and height manually.",
+                    MessageType.None);
+            }
+
+            // \u2500\u2500 Video Dimensions (shared for both modes) \u2500\u2500
+            GUILayout.Space(6);
+            GUILayout.Label("Video Dimensions", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField(
+                "Pixel dimensions of your source video. " +
+                "Auto-filled when you assign the First Frame image above.",
+                _hintStyle);
+            GUILayout.Space(2);
+
+            videoWidthPx  = EditorGUILayout.IntField(
+                new GUIContent("Source Width (px)",
+                    "Pixel width of the source video file."),
+                videoWidthPx);
+            videoHeightPx = EditorGUILayout.IntField(
+                new GUIContent("Source Height (px)",
+                    "Pixel height of the source video file."),
+                videoHeightPx);
+
+            if (videoWidthPx <= 0 || videoHeightPx <= 0)
+                EditorGUILayout.HelpBox("Width and Height must be greater than 0.", MessageType.Error);
+            else
+            {
+                float vW = physicalWidth;
+                float vH = physicalWidth * ((float)videoHeightPx / videoWidthPx);
+                EditorGUI.BeginDisabledGroup(true);
+                EditorGUILayout.TextField("  \u2192 Video Mesh", $"{vW:F2} \u00d7 {vH:F2} units");
+                EditorGUI.EndDisabledGroup();
+            }
+
+            // \u2500\u2500 Green-screen-only settings \u2500\u2500
+            if (isGreenScreen)
+            {
                 GUILayout.Space(4);
                 videoScale = EditorGUILayout.FloatField(
                     new GUIContent("Video Scale",
@@ -408,13 +434,13 @@ public class ARAutomationWindow : EditorWindow
                     videoOffset);
 
                 EditorGUILayout.HelpBox(
-                    "💡  Tuning tips:\n" +
-                    "• If the person/object looks too small  →  increase Video Scale (try 1.2)\n" +
-                    "• If misaligned with the background  →  adjust Video Offset\n" +
-                    "• The video layer sits 0.001 units in front to avoid z-fighting",
+                    "\ud83d\udca1  Tuning tips:\n" +
+                    "\u2022 If the person/object looks too small  \u2192  increase Video Scale (try 1.2)\n" +
+                    "\u2022 If misaligned with the background  \u2192  adjust Video Offset\n" +
+                    "\u2022 The video layer sits 0.001 units in front to avoid z-fighting",
                     MessageType.None);
 
-                // ── Advanced (custom video mesh) ──
+                // \u2500\u2500 Advanced (custom video mesh) \u2500\u2500
                 showAdvancedVideo = EditorGUILayout.Foldout(showAdvancedVideo, "Advanced  (custom video mesh)");
                 if (showAdvancedVideo)
                 {
@@ -429,13 +455,6 @@ public class ARAutomationWindow : EditorWindow
                     }
                     EditorGUI.indentLevel--;
                 }
-            }
-            else
-            {
-                GUILayout.Space(2);
-                EditorGUILayout.LabelField(
-                    "Normal mode — the video plays directly on the tracking-image surface.",
-                    _hintStyle);
             }
         }
         EditorGUILayout.EndVertical();
@@ -621,6 +640,10 @@ public class ARAutomationWindow : EditorWindow
         CheckItem("Template scene exists  (Demo-Video.unity)",
             System.IO.File.Exists(TemplatePath));
 
+        // Video dimensions are required for both modes
+        CheckItem("Video dimensions > 0",
+            videoWidthPx > 0 && videoHeightPx > 0);
+
         if (isGreenScreen)
         {
             CheckItem("First Frame Image assigned",
@@ -628,12 +651,9 @@ public class ARAutomationWindow : EditorWindow
 
             if (firstFrameTexture != null)
             {
-                CheckItem("First Frame → Read/Write enabled",
+                CheckItem("First Frame \u2192 Read/Write enabled",
                     IsTextureReadable(firstFrameTexture));
             }
-
-            CheckItem("Video dimensions > 0",
-                videoWidthPx > 0 && videoHeightPx > 0);
 
             bool chromaOk = Shader.Find("Imagine/ChromaKeyCutout") != null;
             CheckItem("ChromaKeyCutout shader available", chromaOk);
@@ -689,11 +709,15 @@ public class ARAutomationWindow : EditorWindow
 
     private bool IsStep3Valid()
     {
-        if (!isGreenScreen) return true;
-        if (firstFrameTexture == null) return false;
-        if (!IsTextureReadable(firstFrameTexture)) return false;
+        // Video dimensions are required for both modes
         if (videoWidthPx <= 0 || videoHeightPx <= 0) return false;
-        if (overrideVideoMesh && customVideoMesh == null) return false;
+
+        if (isGreenScreen)
+        {
+            if (firstFrameTexture == null) return false;
+            if (!IsTextureReadable(firstFrameTexture)) return false;
+            if (overrideVideoMesh && customVideoMesh == null) return false;
+        }
         return true;
     }
 
@@ -854,8 +878,14 @@ public class ARAutomationWindow : EditorWindow
                 EditorUtility.DisplayProgressBar("AR Setup", "Creating materials…", 0.75f);
                 if (!isGreenScreen)
                 {
-                    SetupNormalVideo(parentObj, childObj, vp);
-                    meshInfo += "  • Mode: normal video overlay\n";
+                    float vidW = physicalWidth;
+                    float vidH = physicalWidth * ((float)videoHeightPx / videoWidthPx);
+
+                    Mesh vidMesh = GetOrCreateMesh(vidW, vidH, targetId + "_Vid");
+
+                    SetupNormalVideo(parentObj, childObj, vp, vidMesh);
+                    meshInfo += $"  \u2022 Video mesh: {vidW:F2} \u00d7 {vidH:F2} units\n";
+                    meshInfo += "  \u2022 Mode: normal video overlay\n";
                 }
                 else
                 {
@@ -1019,8 +1049,10 @@ public class ARAutomationWindow : EditorWindow
             parentObj.AddComponent<MeshRenderer>();
     }
 
-    /// <summary>Normal video: 1 material on parent, video → parent renderer.</summary>
-    private void SetupNormalVideo(GameObject parentObj, GameObject childObj, VideoPlayer vp)
+    /// <summary>Normal video: material on both parent & child, video \u2192 child renderer.
+    /// The child gets its own MeshFilter + MeshRenderer with a video-dimensioned mesh.
+    /// The VideoPlayer targets the child renderer for correct aspect-ratio playback.</summary>
+    private void SetupNormalVideo(GameObject parentObj, GameObject childObj, VideoPlayer vp, Mesh vidMesh)
     {
         // Material: Unlit/Texture + target image
         Material mat = new Material(Shader.Find("Unlit/Texture"))
@@ -1030,14 +1062,25 @@ public class ARAutomationWindow : EditorWindow
         };
         AssetDatabase.CreateAsset(mat, $"{MatFolder}/{mat.name}.mat");
 
+        // Assign material to the parent (background layer)
         var rend = parentObj.GetComponent<Renderer>();
         rend.sharedMaterial = mat;
 
-        // Remove any lingering mesh/renderer on child
-        Destroy<MeshRenderer>(childObj);
-        Destroy<MeshFilter>(childObj);
+        // --- Child video object: auto-add MeshFilter + MeshRenderer ---
+        // Use the VIDEO-dimensioned mesh so the aspect ratio is correct
+        MeshFilter childMf = childObj.GetComponent<MeshFilter>() ?? childObj.AddComponent<MeshFilter>();
+        childMf.sharedMesh = vidMesh;
 
-        if (vp != null) vp.targetMaterialRenderer = rend;
+        MeshRenderer childRend = childObj.GetComponent<MeshRenderer>() ?? childObj.AddComponent<MeshRenderer>();
+        childRend.sharedMaterial = mat;
+
+        // Position child slightly in front to avoid z-fighting with the parent
+        childObj.transform.localPosition = new Vector3(0, 0, -0.01f);
+        childObj.transform.localRotation = Quaternion.identity;
+        childObj.transform.localScale    = Vector3.one;
+
+        // Point VideoPlayer at the CHILD renderer (not the parent)
+        if (vp != null) vp.targetMaterialRenderer = childRend;
     }
 
     /// <summary>Green screen: 2 materials, 2 meshes (background + chroma-keyed video).</summary>
