@@ -370,6 +370,9 @@
 
   // ─── UI ─────────────────────────────────────────────────────────────
   var root, chipsEl, timerEl, toastEl, toastTimer, hintEl, gateEl, doneEl;
+  var peekEl, peekBackdrop, peekImg, peekLabel;
+  var posterImages = {};       // target id -> image URL (from <imagetarget> tags)
+  var currentPeekLabel = '';
 
   function buildUI() {
     root = document.createElement('div');
@@ -395,7 +398,15 @@
       '  #hunt-hint .ht { color:#fff; font-size:13px; line-height:1.55; }' +
       '  #hunt-hint button, #hunt-gate a, #hunt-gate button, #hunt-done a { pointer-events:auto; -webkit-tap-highlight-color:transparent; }' +
       '  #hunt-hint button { position:absolute; top:6px; right:6px; width:28px; height:28px; background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.6); border:none; border-radius:50%; font-size:13px; line-height:28px; padding:0; }' +
-      '  #hunt-gate, #hunt-done { position:absolute; top:0; right:0; bottom:0; left:0; background:rgba(8,8,8,0.94); display:none; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:30px 24px; pointer-events:auto; }' +
+      '  #hunt-gate, #hunt-done { position:absolute; top:0; right:0; bottom:0; left:0; background:rgba(8,8,8,0.94); display:none; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:30px 24px; pointer-events:auto; z-index:30; }' +
+      // Draggable "find this poster" preview thumbnail
+      '  #hunt-peek { position:absolute; width:82px; background:rgba(8,8,8,0.88); border:1px solid rgba(220,30,30,0.55); border-radius:12px; overflow:hidden; display:none; pointer-events:auto; touch-action:none; z-index:5; box-shadow:0 4px 14px rgba(0,0,0,0.4); }' +
+      '  #hunt-peek img { display:block; width:100%; height:82px; object-fit:cover; pointer-events:none; -webkit-user-drag:none; user-select:none; -webkit-user-select:none; }' +
+      '  #hunt-peek .pk { font-size:8.5px; letter-spacing:0.1em; text-transform:uppercase; color:#ff6666; font-weight:800; text-align:center; padding:4px 4px 5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }' +
+      '  #hunt-peek.big { left:50% !important; top:50% !important; transform:translate(-50%,-50%); width:min(80vw,320px); z-index:20; }' +
+      '  #hunt-peek.big img { height:auto; max-height:55vh; object-fit:contain; background:#000; }' +
+      '  #hunt-peek.big .pk { font-size:11px; padding:10px; white-space:normal; }' +
+      '  #hunt-peek-backdrop { position:absolute; top:0; right:0; bottom:0; left:0; background:rgba(0,0,0,0.65); display:none; pointer-events:auto; z-index:15; }' +
       '  .hunt-brand { letter-spacing:0.38em; font-weight:300; font-size:20px; text-transform:uppercase; color:#fff; }' +
       '  .hunt-brand b { color:#dc1e1e; font-weight:700; }' +
       '  .hunt-h { color:#fff; font-size:21px; font-weight:800; letter-spacing:0.06em; margin:16px 0 8px; }' +
@@ -407,6 +418,8 @@
       '</style>' +
       '<div id="hunt-top"><div id="hunt-count"><b>0</b>/5</div><div id="hunt-timer">00:00</div></div>' +
       '<div id="hunt-chips"></div>' +
+      '<div id="hunt-peek-backdrop"></div>' +
+      '<div id="hunt-peek"><img id="hunt-peek-img" alt="Next poster"><div class="pk" id="hunt-peek-label"></div></div>' +
       '<div id="hunt-toast"></div>' +
       '<div id="hunt-hint"><button id="hunt-hint-ok" aria-label="Close">✕</button><div class="hp" id="hunt-hint-p"></div><div class="ht" id="hunt-hint-t"></div></div>' +
       '<div id="hunt-gate">' +
@@ -433,6 +446,19 @@
     hintEl = document.getElementById('hunt-hint');
     gateEl = document.getElementById('hunt-gate');
     doneEl = document.getElementById('hunt-done');
+    peekEl = document.getElementById('hunt-peek');
+    peekBackdrop = document.getElementById('hunt-peek-backdrop');
+    peekImg = document.getElementById('hunt-peek-img');
+    peekLabel = document.getElementById('hunt-peek-label');
+
+    // Poster preview images ship in every build: PostProcessBuild injects
+    // <imagetarget id src> tags pointing at targets/<file>
+    document.querySelectorAll('imagetarget').forEach(function (t) {
+      var tid = t.getAttribute('id');
+      var src = t.getAttribute('src');
+      if (tid && src) { posterImages[tid] = src; }
+    });
+    initPeekInteractions();
 
     document.getElementById('hunt-hint-ok').addEventListener('click', hideHint);
     document.getElementById('hunt-gate-btn').setAttribute('href', CFG.landingUrl);
@@ -451,6 +477,95 @@
     });
   }
 
+  // ─── "Find this poster" preview: draggable thumb, tap to enlarge ────
+  var peekPos = null;
+  var peekDrag = null;
+  var suppressPeekClick = false;
+
+  function loadPeekPos() {
+    try { return JSON.parse(localStorage.getItem('hunt_peek_pos') || 'null'); } catch (e) { return null; }
+  }
+  function clampPeekPos() {
+    var w = peekEl.offsetWidth || 82;
+    var h = peekEl.offsetHeight || 104;
+    // Safe area: below the top HUD, above the chips row, inside the edges
+    peekPos.x = Math.min(Math.max(8, peekPos.x), Math.max(8, window.innerWidth - w - 8));
+    peekPos.y = Math.min(Math.max(64, peekPos.y), Math.max(64, window.innerHeight - h - 96));
+  }
+  function applyPeekPos() {
+    if (!peekPos) { peekPos = loadPeekPos() || { x: 10, y: 104 }; }
+    clampPeekPos();
+    peekEl.style.left = peekPos.x + 'px';
+    peekEl.style.top = peekPos.y + 'px';
+  }
+  function expandPeek() {
+    peekBackdrop.style.display = 'block';
+    peekEl.classList.add('big');
+    peekLabel.textContent = 'Find this poster: ' + currentPeekLabel + ' — tap anywhere to close';
+  }
+  function collapsePeek() {
+    peekBackdrop.style.display = 'none';
+    peekEl.classList.remove('big');
+    peekLabel.textContent = 'Find: ' + currentPeekLabel;
+    applyPeekPos();
+  }
+  function initPeekInteractions() {
+    peekEl.addEventListener('pointerdown', function (e) {
+      if (peekEl.classList.contains('big')) { return; }
+      peekDrag = { sx: e.clientX, sy: e.clientY, ox: peekPos ? peekPos.x : 10, oy: peekPos ? peekPos.y : 104, moved: false };
+      try { peekEl.setPointerCapture(e.pointerId); } catch (err) {}
+      e.preventDefault();
+    });
+    peekEl.addEventListener('pointermove', function (e) {
+      if (!peekDrag) { return; }
+      var dx = e.clientX - peekDrag.sx;
+      var dy = e.clientY - peekDrag.sy;
+      if (!peekDrag.moved && Math.abs(dx) + Math.abs(dy) > 8) { peekDrag.moved = true; }
+      if (peekDrag.moved) {
+        peekPos = { x: peekDrag.ox + dx, y: peekDrag.oy + dy };
+        applyPeekPos();
+      }
+    });
+    peekEl.addEventListener('pointerup', function () {
+      if (!peekDrag) { return; }
+      if (peekDrag.moved) {
+        suppressPeekClick = true;
+        try { localStorage.setItem('hunt_peek_pos', JSON.stringify(peekPos)); } catch (e) {}
+      }
+      peekDrag = null;
+    });
+    peekEl.addEventListener('pointercancel', function () { peekDrag = null; });
+    peekEl.addEventListener('click', function () {
+      if (suppressPeekClick) { suppressPeekClick = false; return; }
+      if (peekEl.classList.contains('big')) { collapsePeek(); } else { expandPeek(); }
+    });
+    peekBackdrop.addEventListener('click', collapsePeek);
+    window.addEventListener('resize', function () {
+      if (peekEl && peekEl.style.display !== 'none' && !peekEl.classList.contains('big')) { applyPeekPos(); }
+    });
+  }
+  function updatePeek() {
+    if (!peekEl) { return; }
+    var posters = state.posters.length ? state.posters : FALLBACK_POSTERS;
+    var nextP = null;
+    for (var i = 0; i < posters.length; i++) {
+      if (!state.scanned[posters[i].id]) { nextP = posters[i]; break; }
+    }
+    if (!state.active || state.completed || !nextP || !posterImages[nextP.id]) {
+      peekEl.style.display = 'none';
+      peekBackdrop.style.display = 'none';
+      peekEl.classList.remove('big');
+      return;
+    }
+    currentPeekLabel = nextP.label;
+    if (peekImg.getAttribute('src') !== posterImages[nextP.id]) {
+      peekImg.src = posterImages[nextP.id];
+    }
+    peekLabel.textContent = (peekEl.classList.contains('big') ? 'Find this poster: ' + nextP.label + ' — tap anywhere to close' : 'Find: ' + nextP.label);
+    peekEl.style.display = 'block';
+    if (!peekEl.classList.contains('big')) { applyPeekPos(); }
+  }
+
   function renderChips() {
     if (!chipsEl) { return; }
     var posters = state.posters.length ? state.posters : FALLBACK_POSTERS;
@@ -461,6 +576,7 @@
     });
     chipsEl.innerHTML = html;
     document.getElementById('hunt-count').innerHTML = '<b>' + state.count + '</b>/' + (state.total || posters.length);
+    updatePeek();
   }
 
   function toast(msg, ms) {
@@ -496,6 +612,11 @@
     clearTimeout(hintHideTimer);
     hintEl.classList.remove('show');
     hintEl.style.display = 'none';
+    if (peekEl) {
+      peekEl.style.display = 'none';
+      peekBackdrop.style.display = 'none';
+      peekEl.classList.remove('big');
+    }
     document.getElementById('hunt-done-time').textContent = data.time_formatted || '--:--';
     document.getElementById('hunt-done-rank').textContent = data.rank ? 'Leaderboard position: #' + data.rank : '';
     doneEl.style.display = 'flex';
