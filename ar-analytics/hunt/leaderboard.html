@@ -45,6 +45,7 @@
     <tbody id="rows"></tbody>
   </table>
   <div class="empty" id="empty" style="display:none">No one has completed the hunt yet.<br>Be the first — top 3 win prizes!</div>
+  <div id="moreNote" style="display:none; text-align:center; color:rgba(255,255,255,0.3); font-size:11px; padding:12px 0 0;"></div>
 
   <div class="cta">
     <h2>Want to Make Your Marketing Interactive Too?</h2>
@@ -81,6 +82,13 @@ function render(data) {
   var s = data.stats || {};
   document.getElementById('stats').innerHTML =
     '<span class="live">●</span> Live — ' + (s.total_completed || 0) + ' finished / ' + (s.total_participants || 0) + ' joined';
+  var moreNote = document.getElementById('moreNote');
+  if ((s.total_completed || 0) > board.length && board.length > 0) {
+    moreNote.textContent = 'Showing the top ' + board.length + ' fastest — ' + s.total_completed + ' hunters have finished in total';
+    moreNote.style.display = 'block';
+  } else {
+    moreNote.style.display = 'none';
+  }
 }
 
 function refresh() {

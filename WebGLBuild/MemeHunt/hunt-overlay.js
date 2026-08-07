@@ -21,7 +21,16 @@
     landingUrl: 'https://dashboard.rionick.com/hunt/',
     leaderboardUrl: 'https://dashboard.rionick.com/hunt/leaderboard.html',
     requireRegistration: true,
-    totalPosters: 5
+    totalPosters: 5,
+    // Reveal timing: the hint / completion screen appears when the meme video
+    // finishes its FIRST LOOP (primary trigger). Fallbacks: the participant
+    // looks away from the poster (tracking lost), or *MaxMs elapses. Never
+    // earlier than *MinMs after the scan (tracking-jitter protection).
+    hintMinMs: 2500,
+    hintMaxMs: 15000,
+    doneMinMs: 3000,
+    doneMaxMs: 15000,
+    hintAutoHideMs: 12000
   };
   var CFG = {};
   var userCfg = window.HUNT_CONFIG || {};
@@ -88,6 +97,11 @@
   window.arAnalytics.arImageFound = function (id) {
     try { onImageFound(String(id)); } catch (e) { console.error('[Hunt]', e); }
     return origFound(id);
+  };
+  var origLost = window.arAnalytics.arImageLost.bind(window.arAnalytics);
+  window.arAnalytics.arImageLost = function (id) {
+    try { onImageLost(String(id)); } catch (e) { console.error('[Hunt]', e); }
+    return origLost(id);
   };
 
   // ─── Networking ─────────────────────────────────────────────────────
@@ -206,6 +220,105 @@
     buffered.forEach(function (id) { onImageFound(id); });
   }
 
+  // ─── Deferred reveal: let the meme play its first loop ──────────────
+  // After a successful scan the hint (or completion screen) waits for the
+  // meme video to finish its FIRST loop. Fallbacks: tracking lost (looked
+  // away) or maxMs. Never earlier than minMs after the scan.
+
+  // Track the most recent content <video> Unity plays. Unity's video element
+  // may be detached from the DOM, so intercept play() — the same technique the
+  // template's iOS sound gate uses (patches compose: it wraps ours later).
+  var latestContentVideo = null;
+  (function () {
+    try {
+      var origPlay = HTMLMediaElement.prototype.play;
+      HTMLMediaElement.prototype.play = function () {
+        try {
+          if (this.tagName === 'VIDEO' && this.id !== 'webcam-video') {
+            latestContentVideo = this;
+          }
+        } catch (e) {}
+        return origPlay.apply(this, arguments);
+      };
+    } catch (e) {}
+  })();
+
+  function findContentVideo() {
+    if (latestContentVideo && !latestContentVideo.paused) { return latestContentVideo; }
+    var vids = document.querySelectorAll('video');
+    for (var i = 0; i < vids.length; i++) {
+      if (vids[i].id !== 'webcam-video' && !vids[i].paused && vids[i].currentTime > 0) {
+        return vids[i];
+      }
+    }
+    return null;
+  }
+
+  var pendingReveal = null;   // {fn, posterId, minAt, timerId, pollId, videoEl, onTime, onEnded}
+
+  function detachVideoWatch(reveal) {
+    if (reveal.pollId) { clearInterval(reveal.pollId); reveal.pollId = null; }
+    if (reveal.videoEl) {
+      reveal.videoEl.removeEventListener('timeupdate', reveal.onTime);
+      reveal.videoEl.removeEventListener('ended', reveal.onEnded);
+      reveal.videoEl = null;
+    }
+  }
+  function cancelReveal() {
+    if (pendingReveal) {
+      clearTimeout(pendingReveal.timerId);
+      detachVideoWatch(pendingReveal);
+      pendingReveal = null;
+    }
+  }
+  function fireReveal() {
+    if (!pendingReveal) { return; }
+    var fn = pendingReveal.fn;
+    cancelReveal();
+    fn();
+  }
+  // Move the reveal up to "now or minAt, whichever is later"
+  function revealSoon(reveal) {
+    if (pendingReveal !== reveal) { return; }
+    var wait = Math.max(0, reveal.minAt - Date.now());
+    clearTimeout(reveal.timerId);
+    reveal.timerId = setTimeout(fireReveal, wait);
+    detachVideoWatch(reveal);
+  }
+  // Primary trigger: the poster's video wraps back to the start (loop done)
+  // or ends. The video may start a moment after the scan (buffering), so poll
+  // briefly until it is playing before attaching listeners.
+  function watchVideoFirstLoop(reveal) {
+    var attempts = 0;
+    reveal.pollId = setInterval(function () {
+      var v = findContentVideo();
+      if (!v) {
+        if (++attempts > 12) { clearInterval(reveal.pollId); reveal.pollId = null; }
+        return;
+      }
+      clearInterval(reveal.pollId);
+      reveal.pollId = null;
+      reveal.videoEl = v;
+      var lastT = v.currentTime;
+      reveal.onTime = function () {
+        if (v.currentTime + 0.5 < lastT) { revealSoon(reveal); }   // wrapped -> first loop complete
+        else { lastT = Math.max(lastT, v.currentTime); }
+      };
+      reveal.onEnded = function () { revealSoon(reveal); };
+      v.addEventListener('timeupdate', reveal.onTime);
+      v.addEventListener('ended', reveal.onEnded);
+    }, 400);
+  }
+  function scheduleReveal(posterId, minMs, maxMs, fn) {
+    cancelReveal();
+    pendingReveal = { fn: fn, posterId: posterId, minAt: Date.now() + minMs };
+    pendingReveal.timerId = setTimeout(fireReveal, maxMs);
+    watchVideoFirstLoop(pendingReveal);
+  }
+  function onImageLost(id) {
+    if (pendingReveal && pendingReveal.posterId === id) { revealSoon(pendingReveal); }
+  }
+
   function labelOf(id) {
     for (var i = 0; i < state.posters.length; i++) {
       if (state.posters[i].id === id) { return state.posters[i].label; }
@@ -230,14 +343,27 @@
     renderChips();
 
     if (state.completed) {
-      showCompletion(data);
+      if (announce && !data.duplicate && data.poster_id) {
+        // 5th poster just scanned live: instant feedback, then let the final
+        // meme play before the completion screen takes over
+        toast('🎉 ' + data.total + '/' + data.total + ' — challenge complete!', 2600);
+        scheduleReveal(data.poster_id, CFG.doneMinMs, CFG.doneMaxMs, function () {
+          showCompletion(data);
+        });
+      } else {
+        showCompletion(data);
+      }
       return;
     }
     if (announce) {
       if (data.duplicate) {
         toast('✓ Already counted — next poster!', 2600);
       } else if (data.next) {
-        hintCard(data.count + '/' + data.total + ' completed', data.next.hint);
+        // Instant progress feedback; the full hint card waits for the video
+        toast('✓ ' + data.count + '/' + data.total + ' — enjoy the meme!', 2600);
+        scheduleReveal(data.poster_id, CFG.hintMinMs, CFG.hintMaxMs, function () {
+          hintCard(data.count + '/' + data.total + ' completed', data.next.hint);
+        });
       }
     }
   }
@@ -262,11 +388,13 @@
       '  .hunt-chip { background:rgba(8,8,8,0.72); border:1px solid rgba(255,255,255,0.18); color:rgba(255,255,255,0.55); border-radius:16px; padding:6px 11px; font-size:11px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; }' +
       '  .hunt-chip.done { border-color:rgba(95,208,106,0.7); color:#5fd06a; }' +
       '  #hunt-toast { position:absolute; top:calc(56px + env(safe-area-inset-top)); left:50%; transform:translateX(-50%); background:rgba(8,8,8,0.85); border:1px solid rgba(220,30,30,0.5); color:#fff; border-radius:12px; padding:10px 16px; font-size:12.5px; max-width:86vw; text-align:center; display:none; line-height:1.5; }' +
-      '  #hunt-hint { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:min(86vw,340px); background:rgba(8,8,8,0.93); border:1px solid rgba(220,30,30,0.55); border-radius:16px; padding:22px 20px; text-align:center; display:none; pointer-events:auto; }' +
-      '  #hunt-hint .hp { color:#ff5555; font-size:11px; font-weight:800; letter-spacing:0.22em; text-transform:uppercase; margin-bottom:10px; }' +
-      '  #hunt-hint .ht { color:#fff; font-size:14.5px; line-height:1.65; }' +
+      // Hint = compact bottom sheet above the chips — never covers the AR view
+      '  #hunt-hint { position:absolute; left:50%; bottom:calc(64px + env(safe-area-inset-bottom)); transform:translateX(-50%) translateY(16px); width:min(92vw,380px); background:rgba(8,8,8,0.9); border:1px solid rgba(220,30,30,0.55); border-radius:14px; padding:13px 40px 13px 16px; text-align:left; display:none; opacity:0; transition:opacity 0.3s ease, transform 0.3s ease; pointer-events:auto; }' +
+      '  #hunt-hint.show { opacity:1; transform:translateX(-50%) translateY(0); }' +
+      '  #hunt-hint .hp { color:#ff5555; font-size:10px; font-weight:800; letter-spacing:0.2em; text-transform:uppercase; margin-bottom:5px; }' +
+      '  #hunt-hint .ht { color:#fff; font-size:13px; line-height:1.55; }' +
       '  #hunt-hint button, #hunt-gate a, #hunt-gate button, #hunt-done a { pointer-events:auto; -webkit-tap-highlight-color:transparent; }' +
-      '  #hunt-hint button { margin-top:16px; background:linear-gradient(135deg,#ff4444,#aa1111); color:#fff; border:none; border-radius:10px; font-size:12px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; padding:12px 24px; }' +
+      '  #hunt-hint button { position:absolute; top:6px; right:6px; width:28px; height:28px; background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.6); border:none; border-radius:50%; font-size:13px; line-height:28px; padding:0; }' +
       '  #hunt-gate, #hunt-done { position:absolute; top:0; right:0; bottom:0; left:0; background:rgba(8,8,8,0.94); display:none; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:30px 24px; pointer-events:auto; }' +
       '  .hunt-brand { letter-spacing:0.38em; font-weight:300; font-size:20px; text-transform:uppercase; color:#fff; }' +
       '  .hunt-brand b { color:#dc1e1e; font-weight:700; }' +
@@ -280,7 +408,7 @@
       '<div id="hunt-top"><div id="hunt-count"><b>0</b>/5</div><div id="hunt-timer">00:00</div></div>' +
       '<div id="hunt-chips"></div>' +
       '<div id="hunt-toast"></div>' +
-      '<div id="hunt-hint"><div class="hp" id="hunt-hint-p"></div><div class="ht" id="hunt-hint-t"></div><button id="hunt-hint-ok">Got It</button></div>' +
+      '<div id="hunt-hint"><button id="hunt-hint-ok" aria-label="Close">✕</button><div class="hp" id="hunt-hint-p"></div><div class="ht" id="hunt-hint-t"></div></div>' +
       '<div id="hunt-gate">' +
       '  <div class="hunt-brand">AR<b>RISE</b></div>' +
       '  <div class="hunt-h">AR Meme Hunt</div>' +
@@ -306,9 +434,7 @@
     gateEl = document.getElementById('hunt-gate');
     doneEl = document.getElementById('hunt-done');
 
-    document.getElementById('hunt-hint-ok').addEventListener('click', function () {
-      hintEl.style.display = 'none';
-    });
+    document.getElementById('hunt-hint-ok').addEventListener('click', hideHint);
     document.getElementById('hunt-gate-btn').setAttribute('href', CFG.landingUrl);
     document.getElementById('hunt-gate-skip').addEventListener('click', function () {
       gateEl.style.display = 'none';
@@ -339,15 +465,30 @@
     toastTimer = setTimeout(function () { toastEl.style.display = 'none'; }, ms || 2500);
   }
 
+  var hintHideTimer = null;
   function hintCard(progressText, hint) {
     if (!hintEl) { return; }
     document.getElementById('hunt-hint-p').textContent = progressText;
     document.getElementById('hunt-hint-t').textContent = hint;
     hintEl.style.display = 'block';
+    // next frame so the slide-up transition runs
+    requestAnimationFrame(function () { hintEl.classList.add('show'); });
+    clearTimeout(hintHideTimer);
+    hintHideTimer = setTimeout(hideHint, CFG.hintAutoHideMs);
+  }
+  function hideHint() {
+    if (!hintEl) { return; }
+    clearTimeout(hintHideTimer);
+    hintEl.classList.remove('show');
+    setTimeout(function () {
+      if (!hintEl.classList.contains('show')) { hintEl.style.display = 'none'; }
+    }, 320);
   }
 
   function showCompletion(data) {
     if (!doneEl) { return; }
+    clearTimeout(hintHideTimer);
+    hintEl.classList.remove('show');
     hintEl.style.display = 'none';
     document.getElementById('hunt-done-time').textContent = data.time_formatted || '--:--';
     document.getElementById('hunt-done-rank').textContent = data.rank ? 'Leaderboard position: #' + data.rank : '';
