@@ -29,8 +29,7 @@
     hintMinMs: 2500,
     hintMaxMs: 15000,
     doneMinMs: 3000,
-    doneMaxMs: 15000,
-    hintAutoHideMs: 12000
+    doneMaxMs: 15000
   };
   var CFG = {};
   var userCfg = window.HUNT_CONFIG || {};
@@ -346,7 +345,7 @@
       if (announce && !data.duplicate && data.poster_id) {
         // 5th poster just scanned live: instant feedback, then let the final
         // meme play before the completion screen takes over
-        toast('🎉 ' + data.total + '/' + data.total + ' — challenge complete!', 2600);
+        hintCard('🎉 ' + data.total + '/' + data.total + ' completed', 'Challenge complete — enjoy the last meme! 🎬');
         scheduleReveal(data.poster_id, CFG.doneMinMs, CFG.doneMaxMs, function () {
           showCompletion(data);
         });
@@ -359,8 +358,10 @@
       if (data.duplicate) {
         toast('✓ Already counted — next poster!', 2600);
       } else if (data.next) {
-        // Instant progress feedback; the full hint card waits for the video
-        toast('✓ ' + data.count + '/' + data.total + ' — enjoy the meme!', 2600);
+        // Stage 1: the card celebrates the scan while the meme plays.
+        // Stage 2: same card swaps to the next-poster clue once the meme
+        // finishes its first loop. The card stays until ✕ is tapped.
+        hintCard('✓ ' + data.count + '/' + data.total + ' completed', 'Enjoy the meme! 🎬');
         scheduleReveal(data.poster_id, CFG.hintMinMs, CFG.hintMaxMs, function () {
           hintCard(data.count + '/' + data.total + ' completed', data.next.hint);
         });
@@ -383,7 +384,8 @@
       // (.ctaDiv 99: error/sound-unlock) and the boot loader (999), so template
       // errors are never hidden behind hunt overlays. top/right/bottom/left
       // instead of inset: iOS Safari < 14.5 does not support inset.
-      '  #hunt-root { position:fixed; top:0; right:0; bottom:0; left:0; pointer-events:none; z-index:90; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }' +
+      // overflow:hidden — no overlay element may ever paint outside the screen box
+      '  #hunt-root { position:fixed; top:0; right:0; bottom:0; left:0; pointer-events:none; z-index:90; overflow:hidden; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }' +
       '  #hunt-top { position:absolute; top:calc(10px + env(safe-area-inset-top)); left:0; right:0; display:none; justify-content:center; gap:10px; align-items:center; }' +
       '  #hunt-timer, #hunt-count { background:rgba(8,8,8,0.72); border:1px solid rgba(220,30,30,0.45); color:#fff; border-radius:20px; padding:6px 14px; font-size:12.5px; font-weight:700; letter-spacing:0.08em; font-variant-numeric:tabular-nums; }' +
       '  #hunt-count b { color:#ff5555; }' +
@@ -392,8 +394,11 @@
       '  .hunt-chip.done { border-color:rgba(95,208,106,0.7); color:#5fd06a; }' +
       '  #hunt-toast { position:absolute; top:calc(56px + env(safe-area-inset-top)); left:50%; transform:translateX(-50%); background:rgba(8,8,8,0.85); border:1px solid rgba(220,30,30,0.5); color:#fff; border-radius:12px; padding:10px 16px; font-size:12.5px; max-width:86vw; text-align:center; display:none; line-height:1.5; }' +
       // Hint = compact bottom sheet above the chips — never covers the AR view
-      '  #hunt-hint { position:absolute; left:50%; bottom:calc(64px + env(safe-area-inset-bottom)); transform:translateX(-50%) translateY(16px); width:min(92vw,380px); background:rgba(8,8,8,0.9); border:1px solid rgba(220,30,30,0.55); border-radius:14px; padding:13px 40px 13px 16px; text-align:left; display:none; opacity:0; transition:opacity 0.3s ease, transform 0.3s ease; pointer-events:auto; }' +
-      '  #hunt-hint.show { opacity:1; transform:translateX(-50%) translateY(0); }' +
+      // left+right anchoring + margin:auto centers the sheet without transform-X,
+      // so it can never be clipped at a screen edge; box-sizing keeps the padding
+      // inside the width on every browser
+      '  #hunt-hint { position:absolute; left:12px; right:12px; margin:0 auto; max-width:380px; box-sizing:border-box; bottom:calc(64px + env(safe-area-inset-bottom)); transform:translateY(16px); background:rgba(8,8,8,0.9); border:1px solid rgba(220,30,30,0.55); border-radius:14px; padding:13px 40px 13px 16px; text-align:left; display:none; opacity:0; transition:opacity 0.3s ease, transform 0.3s ease; pointer-events:auto; }' +
+      '  #hunt-hint.show { opacity:1; transform:translateY(0); }' +
       '  #hunt-hint .hp { color:#ff5555; font-size:10px; font-weight:800; letter-spacing:0.2em; text-transform:uppercase; margin-bottom:5px; }' +
       '  #hunt-hint .ht { color:#fff; font-size:13px; line-height:1.55; }' +
       '  #hunt-hint button, #hunt-gate a, #hunt-gate button, #hunt-done a { pointer-events:auto; -webkit-tap-highlight-color:transparent; }' +
@@ -403,7 +408,9 @@
       '  #hunt-peek { position:absolute; width:82px; background:rgba(8,8,8,0.88); border:1px solid rgba(220,30,30,0.55); border-radius:12px; overflow:hidden; display:none; pointer-events:auto; touch-action:none; z-index:5; box-shadow:0 4px 14px rgba(0,0,0,0.4); }' +
       '  #hunt-peek img { display:block; width:100%; height:82px; object-fit:cover; pointer-events:none; -webkit-user-drag:none; user-select:none; -webkit-user-select:none; }' +
       '  #hunt-peek .pk { font-size:8.5px; letter-spacing:0.1em; text-transform:uppercase; color:#ff6666; font-weight:800; text-align:center; padding:4px 4px 5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }' +
-      '  #hunt-peek.big { left:50% !important; top:50% !important; transform:translate(-50%,-50%); width:min(80vw,320px); z-index:20; }' +
+      // plain width first = fallback for browsers without CSS min(); max-width
+      // guarantees the enlarged card always fits inside the screen
+      '  #hunt-peek.big { left:50% !important; top:50% !important; transform:translate(-50%,-50%); width:288px; width:min(80vw,320px); max-width:calc(100vw - 24px); z-index:20; }' +
       '  #hunt-peek.big img { height:auto; max-height:55vh; object-fit:contain; background:#000; }' +
       '  #hunt-peek.big .pk { font-size:11px; padding:10px; white-space:normal; }' +
       '  #hunt-peek-backdrop { position:absolute; top:0; right:0; bottom:0; left:0; background:rgba(0,0,0,0.65); display:none; pointer-events:auto; z-index:15; }' +
@@ -587,7 +594,8 @@
     toastTimer = setTimeout(function () { toastEl.style.display = 'none'; }, ms || 2500);
   }
 
-  var hintHideTimer = null;
+  // The card never auto-hides: it stays until the participant taps ✕, the next
+  // scan replaces its content, or the completion screen takes over.
   function hintCard(progressText, hint) {
     if (!hintEl) { return; }
     document.getElementById('hunt-hint-p').textContent = progressText;
@@ -595,12 +603,9 @@
     hintEl.style.display = 'block';
     // next frame so the slide-up transition runs
     requestAnimationFrame(function () { hintEl.classList.add('show'); });
-    clearTimeout(hintHideTimer);
-    hintHideTimer = setTimeout(hideHint, CFG.hintAutoHideMs);
   }
   function hideHint() {
     if (!hintEl) { return; }
-    clearTimeout(hintHideTimer);
     hintEl.classList.remove('show');
     setTimeout(function () {
       if (!hintEl.classList.contains('show')) { hintEl.style.display = 'none'; }
@@ -609,7 +614,6 @@
 
   function showCompletion(data) {
     if (!doneEl) { return; }
-    clearTimeout(hintHideTimer);
     hintEl.classList.remove('show');
     hintEl.style.display = 'none';
     if (peekEl) {
