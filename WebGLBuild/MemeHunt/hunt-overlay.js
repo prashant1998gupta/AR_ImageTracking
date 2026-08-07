@@ -22,12 +22,13 @@
     leaderboardUrl: 'https://dashboard.rionick.com/hunt/leaderboard.html',
     requireRegistration: true,
     totalPosters: 5,
-    // Reveal timing: the hint / completion screen appears when the meme video
-    // finishes its FIRST LOOP (primary trigger). Fallbacks: the participant
-    // looks away from the poster (tracking lost), or *MaxMs elapses. Never
-    // earlier than *MinMs after the scan (tracking-jitter protection).
-    hintMinMs: 2500,
-    hintMaxMs: 15000,
+    // The "Next Clue" button appears this long after a successful scan —
+    // long enough for the meme to play (memes are 4-8s per the campaign spec).
+    // The clue and the tracking thumbnail only advance when it is tapped.
+    nextBtnDelayMs: 9000,
+    // Completion-screen reveal: waits for the final meme's FIRST LOOP.
+    // Fallbacks: tracking lost (looked away) or doneMaxMs. Never earlier
+    // than doneMinMs after the scan (tracking-jitter protection).
     doneMinMs: 3000,
     doneMaxMs: 15000
   };
@@ -339,6 +340,11 @@
     if (typeof data.elapsed_ms === 'number') {
       state.timerBase = Date.now() - data.elapsed_ms;
     }
+    // Freeze the tracking thumbnail BEFORE renderChips/updatePeek run, so a
+    // live scan doesn't advance it — that happens only on "Next Clue" / ✕.
+    if (announce && !data.duplicate && data.poster_id && !data.completed && data.next) {
+      peekHold = true;
+    }
     renderChips();
 
     if (state.completed) {
@@ -358,13 +364,16 @@
       if (data.duplicate) {
         toast('✓ Already counted — next poster!', 2600);
       } else if (data.next) {
-        // Stage 1: the card celebrates the scan while the meme plays.
-        // Stage 2: same card swaps to the next-poster clue once the meme
-        // finishes its first loop. The card stays until ✕ is tapped.
+        // Enjoy phase: the card celebrates the scan while the meme plays and
+        // the tracking thumbnail stays frozen on the poster just scanned.
+        // After nextBtnDelayMs a "Next Clue" button appears — only tapping it
+        // (or ✕) reveals the clue and advances the thumbnail. Nothing changes
+        // on its own.
+        pendingNext = { count: data.count, total: data.total, hint: data.next.hint };
         hintCard('✓ ' + data.count + '/' + data.total + ' completed', 'Enjoy the meme! 🎬');
-        scheduleReveal(data.poster_id, CFG.hintMinMs, CFG.hintMaxMs, function () {
-          hintCard(data.count + '/' + data.total + ' completed', data.next.hint);
-        });
+        setNextBtnVisible(false);
+        clearTimeout(nextBtnTimer);
+        nextBtnTimer = setTimeout(function () { setNextBtnVisible(true); }, CFG.nextBtnDelayMs);
       }
     }
   }
@@ -374,6 +383,9 @@
   var peekEl, peekBackdrop, peekImg, peekLabel;
   var posterImages = {};       // target id -> image URL (from <imagetarget> tags)
   var currentPeekLabel = '';
+  var nextBtnEl, nextBtnTimer = null;
+  var pendingNext = null;      // {count,total,hint} waiting behind "Next Clue"
+  var peekHold = false;        // true = thumbnail frozen until Next Clue / ✕
 
   function buildUI() {
     root = document.createElement('div');
@@ -402,7 +414,9 @@
       '  #hunt-hint .hp { color:#ff5555; font-size:10px; font-weight:800; letter-spacing:0.2em; text-transform:uppercase; margin-bottom:5px; }' +
       '  #hunt-hint .ht { color:#fff; font-size:13px; line-height:1.55; }' +
       '  #hunt-hint button, #hunt-gate a, #hunt-gate button, #hunt-done a { pointer-events:auto; -webkit-tap-highlight-color:transparent; }' +
-      '  #hunt-hint button { position:absolute; top:6px; right:6px; width:28px; height:28px; background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.6); border:none; border-radius:50%; font-size:13px; line-height:28px; padding:0; }' +
+      '  #hunt-hint .hx { position:absolute; top:6px; right:6px; width:28px; height:28px; background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.6); border:none; border-radius:50%; font-size:13px; line-height:28px; padding:0; }' +
+      '  #hunt-hint .nxt { display:none; margin-top:11px; background:linear-gradient(135deg,#ff4444,#aa1111); color:#fff; border:none; border-radius:10px; font-size:11.5px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; padding:11px 24px; -webkit-tap-highlight-color:transparent; }' +
+      '  #hunt-hint .nxt.on { display:inline-block; }' +
       '  #hunt-gate, #hunt-done { position:absolute; top:0; right:0; bottom:0; left:0; background:rgba(8,8,8,0.94); display:none; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:30px 24px; pointer-events:auto; z-index:30; }' +
       // Draggable "find this poster" preview thumbnail
       '  #hunt-peek { position:absolute; width:82px; background:rgba(8,8,8,0.88); border:1px solid rgba(220,30,30,0.55); border-radius:12px; overflow:hidden; display:none; pointer-events:auto; touch-action:none; z-index:5; box-shadow:0 4px 14px rgba(0,0,0,0.4); }' +
@@ -428,7 +442,7 @@
       '<div id="hunt-peek-backdrop"></div>' +
       '<div id="hunt-peek"><img id="hunt-peek-img" alt="Next poster"><div class="pk" id="hunt-peek-label"></div></div>' +
       '<div id="hunt-toast"></div>' +
-      '<div id="hunt-hint"><button id="hunt-hint-ok" aria-label="Close">✕</button><div class="hp" id="hunt-hint-p"></div><div class="ht" id="hunt-hint-t"></div></div>' +
+      '<div id="hunt-hint"><button id="hunt-hint-ok" class="hx" aria-label="Close">✕</button><div class="hp" id="hunt-hint-p"></div><div class="ht" id="hunt-hint-t"></div><button id="hunt-hint-next" class="nxt">Next Clue ▸</button></div>' +
       '<div id="hunt-gate">' +
       '  <div class="hunt-brand">AR<b>RISE</b></div>' +
       '  <div class="hunt-h">AR Meme Hunt</div>' +
@@ -468,6 +482,8 @@
     initPeekInteractions();
 
     document.getElementById('hunt-hint-ok').addEventListener('click', hideHint);
+    nextBtnEl = document.getElementById('hunt-hint-next');
+    nextBtnEl.addEventListener('click', advanceToClue);
     document.getElementById('hunt-gate-btn').setAttribute('href', CFG.landingUrl);
     document.getElementById('hunt-gate-skip').addEventListener('click', function () {
       gateEl.style.display = 'none';
@@ -495,9 +511,11 @@
   function clampPeekPos() {
     var w = peekEl.offsetWidth || 82;
     var h = peekEl.offsetHeight || 104;
-    // Safe area: below the top HUD, above the chips row, inside the edges
-    peekPos.x = Math.min(Math.max(8, peekPos.x), Math.max(8, window.innerWidth - w - 8));
-    peekPos.y = Math.min(Math.max(64, peekPos.y), Math.max(64, window.innerHeight - h - 96));
+    // No keep-out zones — the participant may park the thumbnail anywhere on
+    // the screen. Only stop it leaving the viewport entirely (it would become
+    // unreachable: the overlay root clips at the screen edges).
+    peekPos.x = Math.min(Math.max(0, peekPos.x), Math.max(0, window.innerWidth - w));
+    peekPos.y = Math.min(Math.max(0, peekPos.y), Math.max(0, window.innerHeight - h));
   }
   function applyPeekPos() {
     if (!peekPos) { peekPos = loadPeekPos() || { x: 10, y: 104 }; }
@@ -564,6 +582,9 @@
       peekEl.classList.remove('big');
       return;
     }
+    // Enjoy phase: keep showing the poster just scanned — the thumbnail only
+    // advances when the participant taps "Next Clue" (or closes the card).
+    if (peekHold) { return; }
     currentPeekLabel = nextP.label;
     if (peekImg.getAttribute('src') !== posterImages[nextP.id]) {
       peekImg.src = posterImages[nextP.id];
@@ -604,8 +625,29 @@
     // next frame so the slide-up transition runs
     requestAnimationFrame(function () { hintEl.classList.add('show'); });
   }
+  function setNextBtnVisible(on) {
+    if (!nextBtnEl) { return; }
+    if (on) { nextBtnEl.classList.add('on'); } else { nextBtnEl.classList.remove('on'); }
+  }
+  // "Next Clue" tapped: reveal the clue and let the tracking thumbnail advance
+  function advanceToClue() {
+    clearTimeout(nextBtnTimer);
+    setNextBtnVisible(false);
+    peekHold = false;
+    if (pendingNext) {
+      hintCard(pendingNext.count + '/' + pendingNext.total + ' completed', pendingNext.hint);
+      pendingNext = null;
+    }
+    updatePeek();
+  }
   function hideHint() {
     if (!hintEl) { return; }
+    // Closing the card also ends the enjoy phase: drop the unseen clue and
+    // let the tracking thumbnail advance so the participant is never stuck.
+    clearTimeout(nextBtnTimer);
+    setNextBtnVisible(false);
+    pendingNext = null;
+    if (peekHold) { peekHold = false; updatePeek(); }
     hintEl.classList.remove('show');
     setTimeout(function () {
       if (!hintEl.classList.contains('show')) { hintEl.style.display = 'none'; }
@@ -614,6 +656,10 @@
 
   function showCompletion(data) {
     if (!doneEl) { return; }
+    clearTimeout(nextBtnTimer);
+    setNextBtnVisible(false);
+    pendingNext = null;
+    peekHold = false;
     hintEl.classList.remove('show');
     hintEl.style.display = 'none';
     if (peekEl) {
