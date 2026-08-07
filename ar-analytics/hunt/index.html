@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>AR Meme Hunt | ARRISE</title>
+<style>
+  :root { --red:#dc1e1e; --red-soft:rgba(220,30,30,0.12); --bg:#080808; }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { background:var(--bg); color:#fff; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px 16px; }
+  .card { width:100%; max-width:420px; }
+  .brand { text-align:center; letter-spacing:0.38em; font-weight:300; font-size:22px; text-transform:uppercase; margin-bottom:4px; }
+  .brand strong { color:var(--red); font-weight:700; }
+  .tagline { text-align:center; color:rgba(255,255,255,0.35); font-size:10px; letter-spacing:0.25em; text-transform:uppercase; margin-bottom:28px; }
+  h1 { font-size:17px; font-weight:600; letter-spacing:0.06em; margin-bottom:6px; text-align:center; }
+  .sub { color:rgba(255,255,255,0.5); font-size:12.5px; line-height:1.6; text-align:center; margin-bottom:22px; }
+  label { display:block; font-size:10.5px; letter-spacing:0.15em; text-transform:uppercase; color:rgba(255,255,255,0.45); margin:14px 0 6px; }
+  input, select { width:100%; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); border-radius:10px; color:#fff; font-size:16px; padding:13px 14px; outline:none; }
+  input:focus, select:focus { border-color:var(--red); }
+  select { appearance:none; -webkit-appearance:none; }
+  .consent { display:flex; gap:10px; align-items:flex-start; margin:18px 0 6px; font-size:12px; color:rgba(255,255,255,0.55); line-height:1.55; }
+  .consent input { width:18px; height:18px; margin-top:2px; accent-color:var(--red); flex-shrink:0; }
+  .privacy { font-size:10.5px; color:rgba(255,255,255,0.3); line-height:1.5; margin-top:10px; }
+  .btn { display:block; width:100%; text-align:center; background:linear-gradient(135deg,#ff4444,#aa1111); color:#fff; border:none; border-radius:12px; font-size:14px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; padding:16px; margin-top:22px; cursor:pointer; text-decoration:none; }
+  .btn:disabled { opacity:0.5; }
+  .btn.secondary { background:rgba(255,255,255,0.08); font-weight:500; }
+  .err { display:none; background:var(--red-soft); border:1px solid rgba(220,30,30,0.4); color:#ff8888; border-radius:10px; padding:11px 14px; font-size:12.5px; margin-top:16px; }
+  .view { display:none; }
+  .view.active { display:block; }
+  .steps { margin:20px 0; }
+  .step { display:flex; gap:14px; align-items:flex-start; margin-bottom:14px; }
+  .step .n { width:26px; height:26px; border-radius:50%; background:var(--red-soft); border:1px solid rgba(220,30,30,0.5); color:#ff6666; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .step p { font-size:13px; color:rgba(255,255,255,0.7); line-height:1.5; padding-top:3px; }
+  .bigmsg { text-align:center; font-size:26px; font-weight:800; letter-spacing:0.08em; margin:10px 0 4px; }
+  .progress-pill { text-align:center; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:12px; padding:14px; margin-top:18px; font-size:13px; color:rgba(255,255,255,0.7); }
+  .progress-pill b { color:#fff; }
+  .time { text-align:center; font-size:40px; font-weight:100; color:var(--red); margin:14px 0 2px; }
+  .rank { text-align:center; font-size:13px; color:rgba(255,255,255,0.6); margin-bottom:8px; }
+  .warn { display:none; background:rgba(255,180,0,0.08); border:1px solid rgba(255,180,0,0.35); color:#e8c36a; border-radius:10px; padding:11px 14px; font-size:12px; margin-top:16px; line-height:1.5; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="brand">AR<strong>RISE</strong></div>
+  <div class="tagline">Bharatiya Vyapar Mahotsav 2026</div>
+
+  <!-- ─── View: registration ─── -->
+  <div class="view active" id="view-register">
+    <h1>AR Meme Hunt</h1>
+    <p class="sub">Find 5 posters. Scan them all.<br>Top 3 win prizes.</p>
+    <form id="regForm">
+      <label>Full Name *</label>
+      <input id="fName" type="text" autocomplete="name" required maxlength="100" placeholder="Your name">
+      <label>Phone Number *</label>
+      <input id="fPhone" type="tel" autocomplete="tel" required maxlength="16" placeholder="10-digit mobile number">
+      <label>Company Name (optional)</label>
+      <input id="fCompany" type="text" autocomplete="organization" maxlength="150" placeholder="Company">
+      <label>Business Type (optional)</label>
+      <select id="fBiz">
+        <option value="">Select...</option>
+        <option>Manufacturer</option>
+        <option>Retailer / Distributor</option>
+        <option>Services</option>
+        <option>Startup</option>
+        <option>Student / Visitor</option>
+        <option>Other</option>
+      </select>
+      <div class="consent">
+        <input id="fConsent" type="checkbox" required>
+        <span>I agree to participate in the challenge and be contacted if I win.</span>
+      </div>
+      <p class="privacy">Your details will only be used for leaderboard tracking, challenge management, and contacting winners.</p>
+      <div class="err" id="regErr"></div>
+      <button class="btn" id="regBtn" type="submit">Join The Hunt</button>
+    </form>
+  </div>
+
+  <!-- ─── View: you're in / instructions ─── -->
+  <div class="view" id="view-intro">
+    <div class="bigmsg">You're In!</div>
+    <p class="sub" id="introName"></p>
+    <div class="steps">
+      <div class="step"><div class="n">1</div><p>Find all <b>five posters</b> around Bharatiya Vyapar Mahotsav.</p></div>
+      <div class="step"><div class="n">2</div><p>Scan each poster through the <b>AR camera</b>.</p></div>
+      <div class="step"><div class="n">3</div><p>Follow the <b>clue</b> after every scan.</p></div>
+      <div class="step"><div class="n">4</div><p>Complete the challenge <b>as fast as possible</b>. Your timer starts at your <b>first poster scan</b> — so reach poster 1, then go fast!</p></div>
+    </div>
+    <div class="warn" id="arUrlWarn"></div>
+    <div class="err" id="introErr"></div>
+    <button class="btn" id="startBtn">Start Scanning</button>
+    <a class="btn secondary" id="lbLink1" href="leaderboard.html">View Leaderboard</a>
+  </div>
+
+  <!-- ─── View: in progress (returning visitor) ─── -->
+  <div class="view" id="view-progress">
+    <h1>Hunt In Progress</h1>
+    <p class="sub" id="progName"></p>
+    <div class="progress-pill" id="progPill"></div>
+    <div class="err" id="progErr"></div>
+    <button class="btn" id="resumeBtn">Continue Scanning</button>
+    <a class="btn secondary" href="leaderboard.html">View Leaderboard</a>
+  </div>
+
+  <!-- ─── View: completed ─── -->
+  <div class="view" id="view-done">
+    <div class="bigmsg">Challenge Complete!</div>
+    <p class="sub">Congratulations! You completed the<br>Bharatiya Vyapar Mahotsav AR Meme Hunt.</p>
+    <div class="time" id="doneTime">--:--</div>
+    <div class="rank" id="doneRank"></div>
+    <a class="btn" href="leaderboard.html">View Leaderboard</a>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════
+// CONFIG — set HUNT_AR_URL to the deployed Unity WebGL build URL
+// (the MemeHunt build). The participant token is appended as
+// ?hunt_token=... so the AR page can identify them (works across
+// different origins/domains).
+// ══════════════════════════════════════════════════════════════════
+var HUNT_AR_URL = '';   // e.g. 'https://yourdomain.com/memehunt/' — REQUIRED before the event
+
+// Derive the API base from this page's own path (works at domain root AND in a
+// subdirectory deploy like /ar-analytics/hunt/ — same pattern as the admin SPA)
+var BASE = location.origin + location.pathname.replace(/\/hunt\/?.*$/, '/');
+var API = BASE + 'api/controllers/hunt.php';
+
+var TOKEN_KEY = 'hunt_token';
+
+function $(id) { return document.getElementById(id); }
+function show(viewId) {
+  document.querySelectorAll('.view').forEach(function (v) { v.classList.remove('active'); });
+  $(viewId).classList.add('active');
+}
+function setErr(id, msg) {
+  var el = $(id);
+  el.textContent = msg || '';
+  el.style.display = msg ? 'block' : 'none';
+}
+
+function api(action, method, body) {
+  return fetch(API + '?action=' + action, {
+    method: method || 'GET',
+    headers: { 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined
+  }).then(function (r) {
+    return r.json().then(function (j) { j.__status = r.status; return j; });
+  });
+}
+
+function arUrl() {
+  var token = localStorage.getItem(TOKEN_KEY) || '';
+  if (!HUNT_AR_URL) return '';
+  return HUNT_AR_URL + (HUNT_AR_URL.indexOf('?') === -1 ? '?' : '&') + 'hunt_token=' + encodeURIComponent(token);
+}
+
+function goToAR(errElId) {
+  var url = arUrl();
+  if (!url) {
+    setErr(errElId, 'AR experience URL is not configured yet (HUNT_AR_URL in hunt/index.html).');
+    return;
+  }
+  window.location.assign(url);
+}
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+  });
+}
+
+function routeByState(state) {
+  if (state.completed) {
+    $('doneTime').textContent = state.time_formatted || '--:--';
+    $('doneRank').textContent = state.rank ? 'Leaderboard position: #' + state.rank : '';
+    show('view-done');
+  } else if (state.started) {
+    $('progName').textContent = state.name;
+    $('progPill').innerHTML = '<b>' + state.count + ' / ' + state.total + '</b> posters scanned — timer is running!' +
+      (state.next ? '<br><br>Next hint: ' + esc(state.next.hint) : '');
+    show('view-progress');
+  } else {
+    $('introName').textContent = 'Good luck, ' + state.name + '!';
+    if (!HUNT_AR_URL) {
+      var w = $('arUrlWarn');
+      w.textContent = 'Setup note: HUNT_AR_URL is not set in hunt/index.html — set it to the deployed MemeHunt WebGL build URL.';
+      w.style.display = 'block';
+      $('startBtn').disabled = true;
+    }
+    show('view-intro');
+  }
+}
+
+// ─── Registration ───
+$('regForm').addEventListener('submit', function (e) {
+  e.preventDefault();
+  setErr('regErr', '');
+  var btn = $('regBtn');
+  btn.disabled = true;
+  api('register', 'POST', {
+    name: $('fName').value.trim(),
+    phone: $('fPhone').value.trim(),
+    company: $('fCompany').value.trim(),
+    business_type: $('fBiz').value,
+    consent: $('fConsent').checked
+  }).then(function (res) {
+    btn.disabled = false;
+    if (!res.success) { setErr('regErr', res.message); return; }
+    localStorage.setItem(TOKEN_KEY, res.data.token);
+    routeByState(res.data);
+  }).catch(function () {
+    btn.disabled = false;
+    setErr('regErr', 'Network error — please check your connection and try again.');
+  });
+});
+
+// ─── Start / resume ───
+// The server timer starts at the FIRST poster scan (not here), so this button
+// only validates config and navigates to the AR experience.
+$('startBtn').addEventListener('click', function () {
+  setErr('introErr', '');
+  goToAR('introErr');
+});
+$('resumeBtn').addEventListener('click', function () { goToAR('progErr'); });
+
+// ─── On load: resume existing session if any ───
+(function init() {
+  var token = localStorage.getItem(TOKEN_KEY);
+  if (!token) return;
+  api('status&token=' + encodeURIComponent(token)).then(function (res) {
+    if (res.success) { routeByState(res.data); }
+    else if (res.__status === 401) { localStorage.removeItem(TOKEN_KEY); }
+    // other failures (e.g. transient 500): keep the token, stay on register view
+  }).catch(function () { /* stay on register view */ });
+})();
+</script>
+</body>
+</html>

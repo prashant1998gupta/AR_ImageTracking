@@ -1,0 +1,542 @@
+<?php
+/**
+ * Hunt Controller — AR Meme Hunt challenge engine (Bharatiya Vyapar Mahotsav 2026)
+ *
+ * Public actions (no auth):
+ *   POST ?action=register     {name, phone, company?, business_type?, consent}  -> {token, ...status}
+ *   POST ?action=start        {token}                                          -> readiness check (timer starts at first scan)
+ *   POST ?action=scan         {token, poster_id}                               -> records a poster scan (first scan starts the timer)
+ *   GET  ?action=status&token=...                                              -> participant progress
+ *   GET  ?action=config                                                        -> poster list
+ *   GET  ?action=leaderboard                                                   -> public top 10 (no phones)
+ *
+ * Admin actions (Bearer token from auth.php?action=admin-login):
+ *   GET  ?action=admin-participants                                            -> full table incl. phone
+ *   GET  ?action=admin-export                                                  -> CSV download
+ *
+ * Anti-cheat: phone is the unique participant identifier, every scan gets a
+ * server-side millisecond timestamp, each poster counts once per participant,
+ * ranking = fastest total time, ties broken by earlier completion.
+ *
+ * Timer semantics: the clock runs from the FIRST poster scan to the FIFTH —
+ * download/boot time and the walk to poster 1 are not counted. Completions
+ * faster than the plausibility floors below are flagged is_suspect and hidden
+ * from the public leaderboard until an admin verifies them.
+ */
+
+// Plausibility floors (scan events are client-asserted — see MEME_HUNT_SETUP.md)
+define('HUNT_MIN_TOTAL_MS', 60000);   // faster than 60s across 5 posters = suspect
+define('HUNT_MIN_GAP_MS', 10000);     // faster than 10s between posters = suspect
+
+require_once __DIR__ . '/../helpers/Database.php';
+require_once __DIR__ . '/../helpers/Auth.php';
+require_once __DIR__ . '/../helpers/Response.php';
+
+Response::cors();
+
+$method = $_SERVER['REQUEST_METHOD'];
+$action = $_GET['action'] ?? '';
+
+// CSV export sends its own headers — everything else is JSON
+if ($action !== 'admin-export') {
+    Response::json();
+}
+
+// ─── Poster configuration ────────────────────────────────────────────
+// Order = canonical hunt order (the "next hint" points to the first unscanned
+// poster in this order). Edit labels/hints freely — ids MUST match the Unity
+// image target ids exactly.
+function huntPosters() {
+    return [
+        ['id' => 'FIFA_Target', 'label' => 'FIFA',  'hint' => 'Kick-off ho chuka hai! Football wala poster dhoondo — jahan game ki baat hoti hai, FIFA card wahin hai.'],
+        ['id' => 'One8Traget',  'label' => 'One8',  'hint' => 'Ab thodi King Kohli wali energy! One8 shoes ka poster aas-paas hi hai — sneakerheads ko turant dikh jayega.'],
+        ['id' => 'BookCover',   'label' => 'Book',  'hint' => 'Ab thoda intellectual bano — ek book cover ka poster dhoondo. Padhai nahi karni, bas scan karna hai!'],
+        ['id' => 'CultGym',     'label' => 'Gym',   'hint' => 'Networking zyada, patience kam? Gym poster ke paas jao — gains yahin milenge.'],
+        ['id' => 'Shoes',       'label' => 'Shoes', 'hint' => 'Last one! Jo shoes sabse zyada chamak rahe hain, wahi poster scan karna hai. Finish line paas hai!'],
+    ];
+}
+
+function huntPosterIds() {
+    $ids = [];
+    foreach (huntPosters() as $p) { $ids[] = $p['id']; }
+    return $ids;
+}
+
+$db = Database::getInstance();
+
+// ─── Auto-migration: create hunt tables if missing ───────────────────
+$hasParticipants = $db->scalar("SHOW TABLES LIKE 'hunt_participants'");
+if (!$hasParticipants) {
+    try {
+        $db->execute("CREATE TABLE IF NOT EXISTS hunt_participants (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(100) NOT NULL,
+            phone VARCHAR(20) NOT NULL,
+            company VARCHAR(150) DEFAULT '',
+            business_type VARCHAR(100) DEFAULT '',
+            token VARCHAR(64) NOT NULL,
+            consent BOOLEAN DEFAULT TRUE,
+            registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            started_at DATETIME(3) NULL,
+            completed_at DATETIME(3) NULL,
+            total_ms BIGINT NULL,
+            is_verified BOOLEAN DEFAULT FALSE,
+            is_suspect BOOLEAN DEFAULT FALSE,
+            UNIQUE KEY uk_phone (phone),
+            UNIQUE KEY uk_token (token),
+            INDEX idx_completed (completed_at)
+        ) ENGINE=InnoDB");
+    } catch (Exception $e) {
+        error_log('[Hunt] create hunt_participants failed: ' . $e->getMessage());
+        Response::error('Hunt storage unavailable', 500);
+    }
+} else {
+    // Quick Migration: add is_suspect if the table predates it
+    $hasColSuspect = $db->scalar("SHOW COLUMNS FROM hunt_participants LIKE 'is_suspect'");
+    if (!$hasColSuspect) { try { $db->execute("ALTER TABLE hunt_participants ADD COLUMN is_suspect BOOLEAN DEFAULT FALSE AFTER is_verified"); } catch (Exception $e) {} }
+}
+$hasScans = $db->scalar("SHOW TABLES LIKE 'hunt_scans'");
+if (!$hasScans) {
+    try {
+        $db->execute("CREATE TABLE IF NOT EXISTS hunt_scans (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            participant_id INT NOT NULL,
+            poster_id VARCHAR(64) NOT NULL,
+            scanned_at DATETIME(3) NULL,
+            UNIQUE KEY uk_participant_poster (participant_id, poster_id),
+            INDEX idx_poster (poster_id),
+            FOREIGN KEY (participant_id) REFERENCES hunt_participants(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB");
+    } catch (Exception $e) {
+        error_log('[Hunt] create hunt_scans failed: ' . $e->getMessage());
+        Response::error('Hunt storage unavailable', 500);
+    }
+}
+
+// ─── Dispatch ────────────────────────────────────────────────────────
+switch ($action) {
+    case 'register':
+        if ($method !== 'POST') Response::error('Method not allowed', 405);
+        handleRegister($db);
+        break;
+    case 'start':
+        if ($method !== 'POST') Response::error('Method not allowed', 405);
+        handleStart($db);
+        break;
+    case 'scan':
+        if ($method !== 'POST') Response::error('Method not allowed', 405);
+        handleScan($db);
+        break;
+    case 'status':
+        handleStatus($db);
+        break;
+    case 'config':
+        Response::success(['posters' => publicPosters(), 'total' => count(huntPosters())]);
+        break;
+    case 'leaderboard':
+        handleLeaderboard($db);
+        break;
+    case 'admin-participants':
+        Auth::requireAuth(['admin', 'super_admin']);
+        handleAdminParticipants($db);
+        break;
+    case 'admin-export':
+        Auth::requireAuth(['admin', 'super_admin']);
+        handleAdminExport($db);
+        break;
+    case 'admin-verify':
+        if ($method !== 'POST') Response::error('Method not allowed', 405);
+        Auth::requireAuth(['admin', 'super_admin']);
+        handleAdminVerify($db);
+        break;
+    case 'admin-reset':
+        if ($method !== 'POST') Response::error('Method not allowed', 405);
+        Auth::requireAuth(['admin', 'super_admin']);
+        handleAdminReset($db);
+        break;
+    default:
+        Response::error('Unknown action', 404);
+}
+
+// ─── Public actions ──────────────────────────────────────────────────
+
+function publicPosters() {
+    $out = [];
+    foreach (huntPosters() as $p) {
+        $out[] = ['id' => $p['id'], 'label' => $p['label']];
+    }
+    return $out;
+}
+
+function normalizePhone($raw) {
+    $digits = preg_replace('/[^0-9]/', '', $raw ?? '');
+    // Strip Indian country code prefix if present
+    if (strlen($digits) === 12 && substr($digits, 0, 2) === '91') {
+        $digits = substr($digits, 2);
+    }
+    if (strlen($digits) === 11 && substr($digits, 0, 1) === '0') {
+        $digits = substr($digits, 1);
+    }
+    return $digits;
+}
+
+function handleRegister($db) {
+    $input = json_decode(file_get_contents('php://input'), true);
+    if (!$input) Response::error('Invalid JSON body', 400);
+
+    $name  = trim(mb_substr($input['name'] ?? '', 0, 100, 'UTF-8'));
+    $phone = normalizePhone($input['phone'] ?? '');
+    $company = trim(mb_substr($input['company'] ?? '', 0, 150, 'UTF-8'));
+    $businessType = trim(mb_substr($input['business_type'] ?? '', 0, 100, 'UTF-8'));
+    $consent = !empty($input['consent']);
+
+    if (mb_strlen($name, 'UTF-8') < 2) Response::error('Please enter your full name', 400);
+    if (strlen($phone) < 8 || strlen($phone) > 15) Response::error('Please enter a valid phone number', 400);
+    if (!$consent) Response::error('Consent is required to participate', 400);
+
+    $existing = $db->queryOne("SELECT * FROM hunt_participants WHERE phone = ?", [$phone]);
+    if ($existing) {
+        resumeExisting($db, $existing, $name);
+    }
+
+    $token = bin2hex(random_bytes(16));
+    try {
+        $db->insert(
+            "INSERT INTO hunt_participants (name, phone, company, business_type, token, consent) VALUES (?, ?, ?, ?, ?, ?)",
+            [$name, $phone, $company, $businessType, $token, $consent ? 1 : 0]
+        );
+    } catch (Exception $e) {
+        // Duplicate phone raced past the SELECT above — converge on the resume path
+        $existing = $db->queryOne("SELECT * FROM hunt_participants WHERE phone = ?", [$phone]);
+        if ($existing) {
+            resumeExisting($db, $existing, $name);
+        }
+        error_log('[Hunt] register insert failed: ' . $e->getMessage());
+        Response::error('Could not register, please try again', 500);
+    }
+    $participant = $db->queryOne("SELECT * FROM hunt_participants WHERE token = ?", [$token]);
+    Response::success(participantState($db, $participant, false), 'Registered');
+}
+
+/**
+ * Resume guard: a bare phone number must not hand out someone else's session.
+ * The name has to match the original registration (case-insensitive).
+ */
+function resumeExisting($db, $existing, $name) {
+    if (mb_strtolower(trim($existing['name']), 'UTF-8') === mb_strtolower($name, 'UTF-8')) {
+        Response::success(participantState($db, $existing, true), 'Welcome back');
+    }
+    Response::error('This phone number is already registered under a different name. Resume on the device you registered with, or visit the ARRISE team for help.', 409);
+}
+
+function requireParticipant($db, $token) {
+    $token = trim($token ?? '');
+    if ($token === '' || strlen($token) > 64) Response::error('Missing token', 401);
+    $participant = $db->queryOne("SELECT * FROM hunt_participants WHERE token = ?", [$token]);
+    if (!$participant) Response::error('Invalid token — please register again', 401);
+    return $participant;
+}
+
+function handleStart($db) {
+    $input = json_decode(file_get_contents('php://input'), true);
+    if (!$input) Response::error('Invalid JSON body', 400);
+    $participant = requireParticipant($db, $input['token'] ?? '');
+
+    if ($participant['completed_at'] !== null) {
+        Response::success(participantState($db, $participant, true), 'Already completed');
+    }
+    // The clock does NOT start here — it starts at the first poster scan, so
+    // build download time and the walk to poster 1 are never counted.
+    Response::success(participantState($db, $participant, true), 'Ready — the timer starts at your first scan');
+}
+
+function handleScan($db) {
+    $input = json_decode(file_get_contents('php://input'), true);
+    if (!$input) Response::error('Invalid JSON body', 400);
+    $participant = requireParticipant($db, $input['token'] ?? '');
+
+    $posterId = trim($input['poster_id'] ?? '');
+    if (!in_array($posterId, huntPosterIds(), true)) Response::error('Unknown poster', 400);
+
+    if ($participant['completed_at'] !== null) {
+        $state = participantState($db, $participant, true);
+        $state['duplicate'] = true;
+        Response::success($state, 'Challenge already completed');
+    }
+
+    // Auto-start the timer on first scan (robustness: user skipped the Start screen)
+    if ($participant['started_at'] === null) {
+        $db->execute("UPDATE hunt_participants SET started_at = NOW(3) WHERE id = ? AND started_at IS NULL", [$participant['id']]);
+    }
+
+    $duplicate = false;
+    try {
+        $db->execute(
+            "INSERT INTO hunt_scans (participant_id, poster_id, scanned_at) VALUES (?, ?, NOW(3))",
+            [$participant['id'], $posterId]
+        );
+    } catch (PDOException $e) {
+        $isDupKey = $e->getCode() == 23000 || (isset($e->errorInfo[1]) && intval($e->errorInfo[1]) === 1062);
+        if ($isDupKey) {
+            // Unique key (participant_id, poster_id) violated -> poster already counted
+            $duplicate = true;
+        } else {
+            error_log('[Hunt] scan insert failed: ' . $e->getMessage());
+            Response::error('Could not record the scan — please try again', 500);
+        }
+    }
+
+    // Completion check — set completed_at exactly once (guarded UPDATE)
+    $count = intval($db->scalar("SELECT COUNT(*) FROM hunt_scans WHERE participant_id = ?", [$participant['id']]));
+    if ($count >= count(huntPosters())) {
+        $changed = $db->execute(
+            "UPDATE hunt_participants
+             SET completed_at = (SELECT MAX(scanned_at) FROM hunt_scans WHERE participant_id = ?),
+                 total_ms = TIMESTAMPDIFF(MICROSECOND, started_at, (SELECT MAX(scanned_at) FROM hunt_scans WHERE participant_id = ?)) DIV 1000
+             WHERE id = ? AND completed_at IS NULL AND started_at IS NOT NULL",
+            [$participant['id'], $participant['id'], $participant['id']]
+        );
+        if ($changed > 0) {
+            flagIfImplausible($db, $participant['id']);
+        }
+    }
+
+    $participant = $db->queryOne("SELECT * FROM hunt_participants WHERE id = ?", [$participant['id']]);
+    $state = participantState($db, $participant, true);
+    $state['duplicate'] = $duplicate;
+    $state['poster_id'] = $posterId;
+    Response::success($state, $duplicate ? 'Poster already scanned' : 'Poster scanned');
+}
+
+function handleStatus($db) {
+    $participant = requireParticipant($db, $_GET['token'] ?? '');
+    Response::success(participantState($db, $participant, true));
+}
+
+/**
+ * Scan events are client-asserted (no cryptographic proof the camera saw the
+ * poster), so implausibly fast completions are flagged and kept off the public
+ * leaderboard until an admin verifies the participant in person.
+ */
+function flagIfImplausible($db, $participantId) {
+    $row = $db->queryOne("SELECT total_ms FROM hunt_participants WHERE id = ?", [$participantId]);
+    if (!$row || $row['total_ms'] === null) return;
+
+    $suspect = intval($row['total_ms']) < HUNT_MIN_TOTAL_MS;
+    if (!$suspect) {
+        $times = [];
+        foreach ($db->query("SELECT scanned_at FROM hunt_scans WHERE participant_id = ? ORDER BY scanned_at ASC", [$participantId]) as $s) {
+            $dt = DateTime::createFromFormat('Y-m-d H:i:s.u', $s['scanned_at'])
+               ?: DateTime::createFromFormat('Y-m-d H:i:s', $s['scanned_at']);
+            if ($dt) $times[] = floatval($dt->format('U.u'));
+        }
+        for ($i = 1; $i < count($times); $i++) {
+            if (($times[$i] - $times[$i - 1]) * 1000 < HUNT_MIN_GAP_MS) { $suspect = true; break; }
+        }
+    }
+    if ($suspect) {
+        $db->execute("UPDATE hunt_participants SET is_suspect = TRUE WHERE id = ?", [$participantId]);
+        error_log('[Hunt] participant ' . $participantId . ' flagged as suspect (implausibly fast completion)');
+    }
+}
+
+function formatMs($ms) {
+    if ($ms === null) return null;
+    $totalSeconds = intval($ms / 1000);
+    return sprintf('%02d:%02d', intval($totalSeconds / 60), $totalSeconds % 60);
+}
+
+function participantRank($db, $participant) {
+    if ($participant['completed_at'] === null || $participant['total_ms'] === null) return null;
+    if (!empty($participant['is_suspect']) && empty($participant['is_verified'])) return null;
+    $ahead = intval($db->scalar(
+        "SELECT COUNT(*) FROM hunt_participants
+         WHERE completed_at IS NOT NULL AND id != ?
+           AND NOT (is_suspect = TRUE AND is_verified = FALSE)
+           AND (total_ms < ? OR (total_ms = ? AND completed_at < ?))",
+        [$participant['id'], $participant['total_ms'], $participant['total_ms'], $participant['completed_at']]
+    ));
+    return $ahead + 1;
+}
+
+function participantState($db, $participant, $includeProgress) {
+    $scannedRows = $db->query(
+        "SELECT poster_id FROM hunt_scans WHERE participant_id = ? ORDER BY scanned_at ASC",
+        [$participant['id']]
+    );
+    $scanned = [];
+    foreach ($scannedRows as $row) { $scanned[] = $row['poster_id']; }
+
+    $next = null;
+    foreach (huntPosters() as $p) {
+        if (!in_array($p['id'], $scanned, true)) {
+            $next = ['id' => $p['id'], 'label' => $p['label'], 'hint' => $p['hint']];
+            break;
+        }
+    }
+
+    $completed = $participant['completed_at'] !== null;
+    $totalMs = $participant['total_ms'] !== null ? intval($participant['total_ms']) : null;
+
+    // Elapsed time since start (for the in-AR HUD timer)
+    $elapsedMs = null;
+    if ($completed) {
+        $elapsedMs = $totalMs;
+    } elseif ($participant['started_at'] !== null) {
+        $elapsedMs = intval($db->scalar(
+            "SELECT TIMESTAMPDIFF(MICROSECOND, started_at, NOW(3)) DIV 1000 FROM hunt_participants WHERE id = ?",
+            [$participant['id']]
+        ));
+    }
+
+    return [
+        'token' => $participant['token'],
+        'name' => $participant['name'],
+        'started' => $participant['started_at'] !== null,
+        'completed' => $completed,
+        'scanned' => $scanned,
+        'count' => count($scanned),
+        'total' => count(huntPosters()),
+        'next' => $completed ? null : $next,
+        'total_ms' => $totalMs,
+        'elapsed_ms' => $elapsedMs,
+        'time_formatted' => formatMs($totalMs),
+        'rank' => participantRank($db, $participant),
+        'posters' => publicPosters(),
+        'resumed' => true,
+    ];
+}
+
+function handleLeaderboard($db) {
+    $rows = $db->query(
+        "SELECT name, company, total_ms, completed_at FROM hunt_participants
+         WHERE completed_at IS NOT NULL AND total_ms IS NOT NULL
+           AND NOT (is_suspect = TRUE AND is_verified = FALSE)
+         ORDER BY total_ms ASC, completed_at ASC
+         LIMIT 10"
+    );
+    $board = [];
+    $rank = 1;
+    foreach ($rows as $row) {
+        $board[] = [
+            'rank' => $rank,
+            'name' => $row['name'],
+            'company' => $row['company'],
+            'time_formatted' => formatMs(intval($row['total_ms'])),
+        ];
+        $rank++;
+    }
+    $stats = [
+        'total_participants' => intval($db->scalar("SELECT COUNT(*) FROM hunt_participants")),
+        'total_completed' => intval($db->scalar("SELECT COUNT(*) FROM hunt_participants WHERE completed_at IS NOT NULL")),
+    ];
+    Response::success(['leaderboard' => $board, 'stats' => $stats]);
+}
+
+// ─── Admin actions ───────────────────────────────────────────────────
+
+function adminRows($db) {
+    $participants = $db->query(
+        "SELECT id, name, phone, company, business_type, registered_at, started_at, completed_at, total_ms, is_verified, is_suspect
+         FROM hunt_participants
+         ORDER BY (completed_at IS NULL), total_ms ASC, completed_at ASC, registered_at ASC"
+    );
+    $scans = $db->query("SELECT participant_id, poster_id, scanned_at FROM hunt_scans");
+    $scanMap = [];
+    foreach ($scans as $s) {
+        $scanMap[$s['participant_id']][$s['poster_id']] = $s['scanned_at'];
+    }
+
+    $rank = 1;
+    $rows = [];
+    foreach ($participants as $p) {
+        $row = $p;
+        $row['is_verified'] = intval($p['is_verified']);
+        $row['is_suspect'] = intval($p['is_suspect']);
+        $hidden = $row['is_suspect'] && !$row['is_verified'];   // off the public board
+        $row['total_ms'] = $p['total_ms'] !== null ? intval($p['total_ms']) : null;
+        $row['time_formatted'] = formatMs($row['total_ms']);
+        $row['rank'] = ($p['completed_at'] !== null && !$hidden) ? $rank++ : null;
+        $row['posters'] = [];
+        foreach (huntPosterIds() as $pid) {
+            $row['posters'][$pid] = isset($scanMap[$p['id']][$pid]) ? $scanMap[$p['id']][$pid] : null;
+        }
+        $row['scan_count'] = count(isset($scanMap[$p['id']]) ? $scanMap[$p['id']] : []);
+        $rows[] = $row;
+    }
+    return $rows;
+}
+
+function handleAdminParticipants($db) {
+    Response::success([
+        'participants' => adminRows($db),
+        'posters' => publicPosters(),
+        'stats' => [
+            'total_participants' => intval($db->scalar("SELECT COUNT(*) FROM hunt_participants")),
+            'total_completed' => intval($db->scalar("SELECT COUNT(*) FROM hunt_participants WHERE completed_at IS NOT NULL")),
+        ],
+    ]);
+}
+
+/** Neutralize spreadsheet formula injection (=, +, -, @, tab, CR prefixes) */
+function csvSafe($value) {
+    $value = strval($value);
+    return preg_match('/^[=+\-@\t\r]/', $value) ? "'" . $value : $value;
+}
+
+function handleAdminExport($db) {
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="memehunt_participants.csv"');
+    header('Cache-Control: no-cache');
+
+    $out = fopen('php://output', 'w');
+    $header = ['Rank', 'Name', 'Phone', 'Company', 'Business Type', 'Registered At', 'Started At', 'Completed At', 'Total Time', 'Verified', 'Suspect'];
+    foreach (huntPosterIds() as $pid) { $header[] = $pid; }
+    fputcsv($out, $header);
+
+    foreach (adminRows($db) as $row) {
+        $line = [
+            $row['rank'] !== null ? $row['rank'] : '',
+            csvSafe($row['name']), $row['phone'], csvSafe($row['company']), csvSafe($row['business_type']),
+            $row['registered_at'], $row['started_at'], $row['completed_at'],
+            $row['time_formatted'] !== null ? $row['time_formatted'] : '',
+            $row['is_verified'] ? 'YES' : '',
+            $row['is_suspect'] ? 'SUSPECT' : '',
+        ];
+        foreach (huntPosterIds() as $pid) {
+            $line[] = $row['posters'][$pid] !== null ? $row['posters'][$pid] : '';
+        }
+        fputcsv($out, $line);
+    }
+    fclose($out);
+    exit;
+}
+
+/** Mark a completed participant as manually verified (also clears the suspect flag). */
+function handleAdminVerify($db) {
+    $input = json_decode(file_get_contents('php://input'), true);
+    if (!$input) Response::error('Invalid JSON body', 400);
+    $id = intval($input['id'] ?? 0);
+    $verified = !empty($input['verified']);
+    if ($id <= 0) Response::error('Missing participant id', 400);
+
+    if ($verified) {
+        $db->execute("UPDATE hunt_participants SET is_verified = TRUE, is_suspect = FALSE WHERE id = ?", [$id]);
+    } else {
+        $db->execute("UPDATE hunt_participants SET is_verified = FALSE WHERE id = ?", [$id]);
+        // Re-run the plausibility check so an implausible time goes back to
+        // being hidden from the public leaderboard when verification is undone
+        flagIfImplausible($db, $id);
+    }
+    Response::success(null, $verified ? 'Participant verified' : 'Verification removed');
+}
+
+/** Pre-event reset: wipes ALL participants + scans (test data cleanup). */
+function handleAdminReset($db) {
+    $input = json_decode(file_get_contents('php://input'), true);
+    if (!$input || ($input['confirm'] ?? '') !== 'RESET') {
+        Response::error('Send {"confirm":"RESET"} to wipe all hunt data', 400);
+    }
+    $db->execute("DELETE FROM hunt_participants");   // hunt_scans cascades
+    Response::success(null, 'All hunt data cleared');
+}

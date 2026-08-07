@@ -15,6 +15,9 @@ RewriteRule ^tracker/ - [L]
 RewriteRule ^dashboard/ - [L]
 RewriteRule ^admin/ - [L]
 
+# Allow direct access to meme hunt pages
+RewriteRule ^hunt/ - [L]
+
 # Security: block access to config and helpers
 RewriteRule ^api/config\.php$ - [F,L]
 RewriteRule ^api/helpers/ - [F,L]

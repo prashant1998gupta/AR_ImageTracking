@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hunt Admin | ARRISE</title>
+<style>
+  :root { --red:#dc1e1e; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#080808; color:#fff; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; min-height:100vh; padding:26px 18px; }
+  .wrap { max-width:1100px; margin:0 auto; }
+  .brand { letter-spacing:0.3em; font-weight:300; font-size:17px; text-transform:uppercase; }
+  .brand strong { color:var(--red); font-weight:700; }
+  .topbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:22px; flex-wrap:wrap; gap:12px; }
+  .btn { background:linear-gradient(135deg,#ff4444,#aa1111); color:#fff; border:none; border-radius:10px; font-size:12px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; padding:11px 18px; cursor:pointer; }
+  .btn.ghost { background:rgba(255,255,255,0.08); font-weight:500; }
+  .login { max-width:360px; margin:60px auto; }
+  .login h1 { font-size:15px; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:18px; text-align:center; }
+  label { display:block; font-size:10.5px; letter-spacing:0.15em; text-transform:uppercase; color:rgba(255,255,255,0.45); margin:14px 0 6px; }
+  input { width:100%; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); border-radius:10px; color:#fff; font-size:16px; padding:12px 14px; outline:none; }
+  input:focus { border-color:var(--red); }
+  .err { display:none; background:rgba(220,30,30,0.12); border:1px solid rgba(220,30,30,0.4); color:#ff8888; border-radius:10px; padding:11px 14px; font-size:12.5px; margin-top:16px; }
+  .stats { display:flex; gap:12px; margin-bottom:20px; flex-wrap:wrap; }
+  .stat { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.09); border-radius:12px; padding:14px 20px; }
+  .stat .v { font-size:24px; font-weight:800; }
+  .stat .l { font-size:10px; letter-spacing:0.15em; text-transform:uppercase; color:rgba(255,255,255,0.4); margin-top:2px; }
+  .tablewrap { overflow-x:auto; border:1px solid rgba(255,255,255,0.08); border-radius:12px; }
+  table { width:100%; border-collapse:collapse; min-width:900px; }
+  th { text-align:left; font-size:9.5px; letter-spacing:0.12em; text-transform:uppercase; color:rgba(255,255,255,0.4); padding:10px 12px; border-bottom:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.03); white-space:nowrap; }
+  td { padding:11px 12px; font-size:13px; border-bottom:1px solid rgba(255,255,255,0.05); white-space:nowrap; }
+  td .co { display:block; font-size:10.5px; color:rgba(255,255,255,0.4); }
+  .ok { color:#5fd06a; font-weight:700; }
+  .no { color:rgba(255,255,255,0.2); }
+  .rank1 { color:#ffd700; font-weight:800; } .rank2 { color:#c0c0c0; font-weight:800; } .rank3 { color:#cd7f32; font-weight:800; }
+  .muted { color:rgba(255,255,255,0.35); font-size:11px; }
+  .suspect { color:#e8c36a; font-size:10px; font-weight:800; letter-spacing:0.08em; }
+  .vbtn { background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); color:#fff; border-radius:8px; font-size:10.5px; padding:6px 10px; cursor:pointer; }
+  .vbtn.on { background:rgba(95,208,106,0.15); border-color:rgba(95,208,106,0.6); color:#5fd06a; font-weight:700; }
+  #adminView { display:none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ─── Login ─── -->
+  <div class="login" id="loginView">
+    <div class="brand" style="text-align:center; margin-bottom:26px;">AR<strong>RISE</strong> · HUNT ADMIN</div>
+    <h1>Admin Login</h1>
+    <form id="loginForm">
+      <label>Username</label>
+      <input id="lUser" type="text" autocomplete="username" required>
+      <label>Password</label>
+      <input id="lPass" type="password" autocomplete="current-password" required>
+      <div class="err" id="loginErr"></div>
+      <button class="btn" style="width:100%; margin-top:20px;" type="submit">Sign In</button>
+    </form>
+  </div>
+
+  <!-- ─── Dashboard ─── -->
+  <div id="adminView">
+    <div class="topbar">
+      <div class="brand">AR<strong>RISE</strong> · MEME HUNT ADMIN</div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="btn ghost" id="refreshBtn">Refresh</button>
+        <button class="btn" id="exportBtn">Export CSV</button>
+        <button class="btn ghost" id="resetBtn" style="border:1px solid rgba(220,30,30,0.5);">Reset All Data</button>
+        <button class="btn ghost" id="logoutBtn">Logout</button>
+      </div>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="v" id="stJoined">0</div><div class="l">Joined</div></div>
+      <div class="stat"><div class="v" id="stDone">0</div><div class="l">Completed</div></div>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead id="thead"></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <p class="muted" style="margin-top:12px;">Phone numbers are visible here only (never on the public leaderboard). Verify the top 3 manually before awarding prizes. Auto-refreshes every 15s.</p>
+  </div>
+</div>
+
+<script>
+// Works at domain root AND in a subdirectory deploy (same pattern as the SPAs)
+var BASE = location.origin + location.pathname.replace(/\/hunt\/?.*$/, '/');
+var API = BASE + 'api/controllers/hunt.php';
+var AUTH_API = BASE + 'api/controllers/auth.php';
+var TOKEN_KEY = 'ara_admin_token';   // shared with the main admin panel
+
+function $(id) { return document.getElementById(id); }
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+  });
+}
+function token() { return localStorage.getItem(TOKEN_KEY) || ''; }
+
+function setView(loggedIn) {
+  $('loginView').style.display = loggedIn ? 'none' : 'block';
+  $('adminView').style.display = loggedIn ? 'block' : 'none';
+}
+
+$('loginForm').addEventListener('submit', function (e) {
+  e.preventDefault();
+  var errEl = $('loginErr');
+  errEl.style.display = 'none';
+  fetch(AUTH_API + '?action=admin-login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: $('lUser').value.trim(), password: $('lPass').value })
+  }).then(function (r) { return r.json(); }).then(function (res) {
+    if (!res.success) { errEl.textContent = res.message; errEl.style.display = 'block'; return; }
+    localStorage.setItem(TOKEN_KEY, res.data.token);
+    setView(true);
+    load();
+  }).catch(function () {
+    errEl.textContent = 'Network error';
+    errEl.style.display = 'block';
+  });
+});
+
+$('logoutBtn').addEventListener('click', function () {
+  localStorage.removeItem(TOKEN_KEY);
+  setView(false);
+});
+$('refreshBtn').addEventListener('click', function () { load(); });
+
+$('resetBtn').addEventListener('click', function () {
+  var typed = prompt('This permanently deletes ALL participants and scans (use before the event to clear test data).\n\nType RESET to confirm:');
+  if (typed !== 'RESET') return;
+  fetch(API + '?action=admin-reset', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token() },
+    body: JSON.stringify({ confirm: 'RESET' })
+  }).then(function (r) { return r.json(); }).then(function (res) {
+    alert(res.message || 'Done');
+    load();
+  }).catch(function () { alert('Reset failed'); });
+});
+
+function setVerified(id, verified) {
+  fetch(API + '?action=admin-verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token() },
+    body: JSON.stringify({ id: id, verified: verified })
+  }).then(function (r) { return r.json(); }).then(function () { load(); })
+    .catch(function () { alert('Update failed'); });
+}
+
+$('exportBtn').addEventListener('click', function () {
+  fetch(API + '?action=admin-export', { headers: { 'Authorization': 'Bearer ' + token() } })
+    .then(function (r) {
+      if (!r.ok) throw new Error('export failed');
+      return r.blob();
+    })
+    .then(function (blob) {
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'memehunt_participants.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    })
+    .catch(function () { alert('Export failed — are you still logged in?'); });
+});
+
+function fmtDate(s) {
+  if (!s) return '';
+  return s.replace(/\.\d+$/, '');   // trim milliseconds for display
+}
+
+function render(data) {
+  var posters = data.posters || [];
+  var head = '<tr><th>#</th><th>Participant</th><th>Phone</th><th>Business</th>';
+  posters.forEach(function (p) { head += '<th>' + esc(p.label) + '</th>'; });
+  head += '<th>Progress</th><th>Time</th><th>Verified</th><th>Registered</th><th>Completed</th></tr>';
+  $('thead').innerHTML = head;
+
+  var html = '';
+  (data.participants || []).forEach(function (p) {
+    var rankCls = p.rank >= 1 && p.rank <= 3 ? ' class="rank' + p.rank + '"' : '';
+    var suspectTag = p.is_suspect && !p.is_verified ? ' <span class="suspect" title="Implausibly fast completion — hidden from the public leaderboard until verified">⚠ SUSPECT</span>' : '';
+    html += '<tr><td' + rankCls + '>' + (p.rank ? '#' + p.rank : '—') + '</td>' +
+      '<td>' + esc(p.name) + suspectTag + (p.company ? '<span class="co">' + esc(p.company) + '</span>' : '') + '</td>' +
+      '<td>' + esc(p.phone) + '</td>' +
+      '<td>' + esc(p.business_type) + '</td>';
+    posters.forEach(function (po) {
+      var t = p.posters && p.posters[po.id];
+      html += '<td>' + (t ? '<span class="ok" title="' + esc(fmtDate(t)) + '">✓</span>' : '<span class="no">○</span>') + '</td>';
+    });
+    var verifyCell = p.completed_at
+      ? '<button class="vbtn' + (p.is_verified ? ' on' : '') + '" data-vid="' + p.id + '" data-von="' + (p.is_verified ? 1 : 0) + '">' + (p.is_verified ? '✓ Verified' : 'Verify') + '</button>'
+      : '';
+    html += '<td>' + p.scan_count + '/' + posters.length + '</td>' +
+      '<td>' + (p.time_formatted || '') + '</td>' +
+      '<td>' + verifyCell + '</td>' +
+      '<td class="muted">' + esc(fmtDate(p.registered_at)) + '</td>' +
+      '<td class="muted">' + esc(fmtDate(p.completed_at)) + '</td></tr>';
+  });
+  $('tbody').innerHTML = html || '<tr><td colspan="20" class="muted" style="padding:30px; text-align:center;">No participants yet</td></tr>';
+
+  $('tbody').querySelectorAll('.vbtn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      setVerified(parseInt(btn.getAttribute('data-vid'), 10), btn.getAttribute('data-von') !== '1');
+    });
+  });
+
+  var s = data.stats || {};
+  $('stJoined').textContent = s.total_participants || 0;
+  $('stDone').textContent = s.total_completed || 0;
+}
+
+function load() {
+  fetch(API + '?action=admin-participants', { headers: { 'Authorization': 'Bearer ' + token() } })
+    .then(function (r) { return r.json(); })
+    .then(function (res) {
+      if (!res.success) { localStorage.removeItem(TOKEN_KEY); setView(false); return; }
+      render(res.data);
+    })
+    .catch(function () { /* keep last data */ });
+}
+
+setView(!!token());
+if (token()) load();
+setInterval(function () { if (token() && $('adminView').style.display === 'block') load(); }, 15000);
+</script>
+</body>
+</html>

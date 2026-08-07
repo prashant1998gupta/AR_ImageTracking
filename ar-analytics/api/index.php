@@ -39,6 +39,9 @@ switch ($controller) {
     case 'admin':
         require_once __DIR__ . '/controllers/admin.php';
         break;
+    case 'hunt':
+        require_once __DIR__ . '/controllers/hunt.php';
+        break;
     default:
         Response::success([
             'name' => 'AR Analytics API',
