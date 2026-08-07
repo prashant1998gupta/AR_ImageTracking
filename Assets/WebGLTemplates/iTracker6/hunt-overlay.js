@@ -439,7 +439,13 @@
     document.getElementById('hunt-gate-skip').addEventListener('click', function () {
       gateEl.style.display = 'none';
     });
-    document.getElementById('hunt-done-lb').setAttribute('href', CFG.leaderboardUrl);
+    // Carry the participant token to the leaderboard (different domain, so
+    // localStorage doesn't transfer) — enables its "Your Rank" card
+    var lbUrl = CFG.leaderboardUrl;
+    if (getToken()) {
+      lbUrl += (lbUrl.indexOf('?') === -1 ? '?' : '&') + 'hunt_token=' + encodeURIComponent(getToken());
+    }
+    document.getElementById('hunt-done-lb').setAttribute('href', lbUrl);
     document.getElementById('hunt-done-close').addEventListener('click', function () {
       doneEl.style.display = 'none';
     });

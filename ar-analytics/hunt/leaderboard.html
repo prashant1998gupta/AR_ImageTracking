@@ -25,6 +25,12 @@
   tr.top1 td.rank { color:#ffd700; } tr.top1 { background:rgba(255,215,0,0.05); }
   tr.top2 td.rank { color:#c0c0c0; } tr.top2 { background:rgba(192,192,192,0.04); }
   tr.top3 td.rank { color:#cd7f32; } tr.top3 { background:rgba(205,127,50,0.04); }
+  tr.me td { background:rgba(220,30,30,0.1); }
+  .you-card { display:none; align-items:center; justify-content:space-between; gap:12px; margin:0 0 18px; background:rgba(220,30,30,0.08); border:1px solid rgba(220,30,30,0.45); border-radius:12px; padding:12px 16px; }
+  .you-card .yl { font-size:9.5px; letter-spacing:0.2em; text-transform:uppercase; color:#ff6666; font-weight:800; margin-bottom:3px; }
+  .you-card .yn { font-size:14px; font-weight:600; }
+  .you-card .yr { font-size:22px; font-weight:800; text-align:right; }
+  .you-card .yt { font-size:11px; color:rgba(255,255,255,0.5); text-align:right; }
   .empty { text-align:center; color:rgba(255,255,255,0.35); font-size:13px; padding:40px 0; line-height:1.7; }
   .cta { margin-top:44px; border:1px solid rgba(220,30,30,0.35); background:rgba(220,30,30,0.06); border-radius:16px; padding:24px 20px; text-align:center; }
   .cta h2 { font-size:15px; font-weight:700; letter-spacing:0.04em; margin-bottom:10px; }
@@ -39,6 +45,17 @@
   <div class="tagline">AR Meme Hunt — Bharatiya Vyapar Mahotsav 2026</div>
   <h1>Leaderboard</h1>
   <div class="stats" id="stats"><span class="live">●</span> Live</div>
+
+  <div class="you-card" id="youCard">
+    <div>
+      <div class="yl" id="youLabel">Your Rank</div>
+      <div class="yn" id="youName"></div>
+    </div>
+    <div>
+      <div class="yr" id="youRank"></div>
+      <div class="yt" id="youTime"></div>
+    </div>
+  </div>
 
   <table>
     <thead><tr><th>Rank</th><th>Participant</th><th>Time</th></tr></thead>
@@ -61,6 +78,27 @@
 var BASE = location.origin + location.pathname.replace(/\/hunt\/?.*$/, '/');
 var API = BASE + 'api/controllers/hunt.php';
 
+var TOKEN_KEY = 'hunt_token';
+var myRank = null;
+
+// Accept ?hunt_token=... (arriving from the AR page, which is on a different
+// domain, so localStorage doesn't carry over) and persist it
+(function () {
+  try {
+    var qs = new URLSearchParams(location.search);
+    var t = qs.get('hunt_token');
+    if (t) {
+      localStorage.setItem(TOKEN_KEY, t);
+      qs.delete('hunt_token');
+      history.replaceState(null, '', location.pathname + (qs.toString() ? '?' + qs.toString() : ''));
+    }
+  } catch (e) {}
+})();
+
+function myToken() {
+  try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; }
+}
+
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
     return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
@@ -73,8 +111,9 @@ function render(data) {
   document.getElementById('empty').style.display = board.length ? 'none' : 'block';
   var html = '';
   board.forEach(function (e) {
-    var cls = e.rank <= 3 ? ' class="top' + e.rank + '"' : '';
-    html += '<tr' + cls + '><td class="rank">' + e.rank + '</td><td>' + esc(e.name) +
+    var cls = e.rank <= 3 ? 'top' + e.rank : '';
+    if (myRank !== null && e.rank === myRank) { cls += ' me'; }
+    html += '<tr' + (cls ? ' class="' + cls + '"' : '') + '><td class="rank">' + e.rank + '</td><td>' + esc(e.name) +
       (e.company ? '<span class="co">' + esc(e.company) + '</span>' : '') +
       '</td><td class="time">' + esc(e.time_formatted) + '</td></tr>';
   });
@@ -91,6 +130,42 @@ function render(data) {
   }
 }
 
+function refreshMe() {
+  var token = myToken();
+  var card = document.getElementById('youCard');
+  if (!token) { return; }
+  fetch(API + '?action=status&token=' + encodeURIComponent(token))
+    .then(function (r) { return r.json().then(function (j) { j.__status = r.status; return j; }); })
+    .then(function (res) {
+      if (!res.success) {
+        card.style.display = 'none';
+        if (res.__status === 401) { try { localStorage.removeItem(TOKEN_KEY); } catch (e) {} }
+        return;
+      }
+      var d = res.data;
+      document.getElementById('youName').textContent = d.name;
+      if (d.completed) {
+        document.getElementById('youLabel').textContent = 'Your Rank';
+        if (d.rank) {
+          myRank = d.rank;
+          document.getElementById('youRank').textContent = '#' + d.rank;
+          document.getElementById('youTime').textContent = d.time_formatted;
+        } else {
+          myRank = null;
+          document.getElementById('youRank').textContent = d.time_formatted;
+          document.getElementById('youTime').textContent = 'pending verification';
+        }
+      } else {
+        myRank = null;
+        document.getElementById('youLabel').textContent = 'Your Progress';
+        document.getElementById('youRank').textContent = d.count + '/' + d.total;
+        document.getElementById('youTime').textContent = 'keep hunting!';
+      }
+      card.style.display = 'flex';
+    })
+    .catch(function () { /* keep last state */ });
+}
+
 function refresh() {
   fetch(API + '?action=leaderboard')
     .then(function (r) { return r.json(); })
@@ -98,8 +173,9 @@ function refresh() {
     .catch(function () { /* keep last data */ });
 }
 
+refreshMe();
 refresh();
-setInterval(refresh, 5000);
+setInterval(function () { refreshMe(); refresh(); }, 5000);
 </script>
 </body>
 </html>
