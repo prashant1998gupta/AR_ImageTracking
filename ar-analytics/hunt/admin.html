@@ -101,10 +101,10 @@
       <div style="margin-top:18px; padding-top:14px; border-top:1px solid rgba(255,255,255,0.08);">
         <h2 style="font-size:12px; letter-spacing:0.12em; text-transform:uppercase; margin-bottom:4px;">Sponsor Ads (optional, up to 4)</h2>
         <p class="muted" style="margin-bottom:6px;">Full-screen closeable images shown when a participant taps "Next Clue" — they rotate in order (Ad 1 after the 1st scan, Ad 2 after the 2nd, …; fewer ads repeat). Never before the first scan, never on the completion screen. Leave all image URLs empty to disable.</p>
-        <div class="poster-row"><div style="flex:1;min-width:220px;"><label>Ad 1 — image URL (https)</label><input class="adImg" type="text" maxlength="300" placeholder="https://dashboard.rionick.com/hunt/sponsor1.jpg"></div><div style="flex:1;min-width:220px;"><label>Ad 1 — link (optional)</label><input class="adLnk" type="text" maxlength="300" placeholder="https://sponsor-website.com"></div></div>
-        <div class="poster-row"><div style="flex:1;min-width:220px;"><label>Ad 2 — image URL (https)</label><input class="adImg" type="text" maxlength="300"></div><div style="flex:1;min-width:220px;"><label>Ad 2 — link (optional)</label><input class="adLnk" type="text" maxlength="300"></div></div>
-        <div class="poster-row"><div style="flex:1;min-width:220px;"><label>Ad 3 — image URL (https)</label><input class="adImg" type="text" maxlength="300"></div><div style="flex:1;min-width:220px;"><label>Ad 3 — link (optional)</label><input class="adLnk" type="text" maxlength="300"></div></div>
-        <div class="poster-row"><div style="flex:1;min-width:220px;"><label>Ad 4 — image URL (https)</label><input class="adImg" type="text" maxlength="300"></div><div style="flex:1;min-width:220px;"><label>Ad 4 — link (optional)</label><input class="adLnk" type="text" maxlength="300"></div></div>
+        <div class="poster-row"><div style="flex:1;min-width:220px;"><label>Ad 1 — image URL (https)</label><input class="slotImg" type="text" maxlength="300" placeholder="https://dashboard.rionick.com/hunt/sponsor1.jpg"></div><div style="flex:1;min-width:220px;"><label>Ad 1 — link (optional)</label><input class="slotLink" type="text" maxlength="300" placeholder="https://sponsor-website.com"></div></div>
+        <div class="poster-row"><div style="flex:1;min-width:220px;"><label>Ad 2 — image URL (https)</label><input class="slotImg" type="text" maxlength="300"></div><div style="flex:1;min-width:220px;"><label>Ad 2 — link (optional)</label><input class="slotLink" type="text" maxlength="300"></div></div>
+        <div class="poster-row"><div style="flex:1;min-width:220px;"><label>Ad 3 — image URL (https)</label><input class="slotImg" type="text" maxlength="300"></div><div style="flex:1;min-width:220px;"><label>Ad 3 — link (optional)</label><input class="slotLink" type="text" maxlength="300"></div></div>
+        <div class="poster-row"><div style="flex:1;min-width:220px;"><label>Ad 4 — image URL (https)</label><input class="slotImg" type="text" maxlength="300"></div><div style="flex:1;min-width:220px;"><label>Ad 4 — link (optional)</label><input class="slotLink" type="text" maxlength="300"></div></div>
       </div>
       <div style="display:flex; gap:10px; align-items:center; margin-top:18px;">
         <button class="btn" id="saveSettingsBtn">Save Settings</button>
@@ -192,8 +192,8 @@ function loadSettings() {
       $('setMinGap').value = res.data.floors.min_gap_s;
       $('setNextDelay').value = (res.data.ui && res.data.ui.next_btn_delay_s != null) ? res.data.ui.next_btn_delay_s : 9;
       var ads = (res.data.ui && res.data.ui.ads) || [];
-      var imgInputs = document.querySelectorAll('#settingsPanel .adImg');
-      var lnkInputs = document.querySelectorAll('#settingsPanel .adLnk');
+      var imgInputs = document.querySelectorAll('#settingsPanel .slotImg');
+      var lnkInputs = document.querySelectorAll('#settingsPanel .slotLink');
       imgInputs.forEach(function (inp, i) { inp.value = ads[i] ? ads[i].image : ''; });
       lnkInputs.forEach(function (inp, i) { inp.value = ads[i] ? (ads[i].link || '') : ''; });
       $('settingsMsg').textContent = '';
@@ -223,8 +223,8 @@ $('saveSettingsBtn').addEventListener('click', function () {
         next_btn_delay_s: parseInt($('setNextDelay').value, 10) || 0,
         ads: (function () {
           var out = [];
-          var imgs = document.querySelectorAll('#settingsPanel .adImg');
-          var lnks = document.querySelectorAll('#settingsPanel .adLnk');
+          var imgs = document.querySelectorAll('#settingsPanel .slotImg');
+          var lnks = document.querySelectorAll('#settingsPanel .slotLink');
           imgs.forEach(function (inp, i) {
             var img = inp.value.trim();
             if (img) { out.push({ image: img, link: (lnks[i] ? lnks[i].value.trim() : '') }); }

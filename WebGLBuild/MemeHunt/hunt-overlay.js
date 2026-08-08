@@ -476,11 +476,11 @@
       '  #hunt-peek-backdrop { position:absolute; top:0; right:0; bottom:0; left:0; background:rgba(0,0,0,0.65); display:none; pointer-events:auto; z-index:15; }' +
       // Sponsor interstitial — above hunt UI (z 40) but below the template
       // dialogs (.ctaDiv 99 lives outside #hunt-root), instantly closeable
-      '  #hunt-ad { position:absolute; top:0; right:0; bottom:0; left:0; background:rgba(8,8,8,0.92); display:none; flex-direction:column; align-items:center; justify-content:center; padding:24px; pointer-events:auto; z-index:40; }' +
-      '  #hunt-ad .adlbl { color:rgba(255,255,255,0.35); font-size:9px; letter-spacing:0.3em; text-transform:uppercase; margin-bottom:12px; }' +
-      '  #hunt-ad img { max-width:88vw; max-height:64vh; border-radius:14px; border:1px solid rgba(255,255,255,0.15); -webkit-user-drag:none; }' +
-      '  #hunt-ad .adtap { color:rgba(255,255,255,0.3); font-size:10.5px; margin-top:12px; }' +
-      '  #hunt-ad-close { position:absolute; top:calc(14px + env(safe-area-inset-top)); right:14px; width:38px; height:38px; border-radius:50%; background:rgba(255,255,255,0.1); color:#fff; border:1px solid rgba(255,255,255,0.3); font-size:15px; line-height:36px; padding:0; -webkit-tap-highlight-color:transparent; }' +
+      '  #hunt-spot { position:absolute; top:0; right:0; bottom:0; left:0; background:rgba(8,8,8,0.92); display:none; flex-direction:column; align-items:center; justify-content:center; padding:24px; pointer-events:auto; z-index:40; }' +
+      '  #hunt-spot .splbl { color:rgba(255,255,255,0.35); font-size:9px; letter-spacing:0.3em; text-transform:uppercase; margin-bottom:12px; }' +
+      '  #hunt-spot img { max-width:88vw; max-height:64vh; border-radius:14px; border:1px solid rgba(255,255,255,0.15); -webkit-user-drag:none; }' +
+      '  #hunt-spot .sptap { color:rgba(255,255,255,0.3); font-size:10.5px; margin-top:12px; }' +
+      '  #hunt-spot-close { position:absolute; top:calc(14px + env(safe-area-inset-top)); right:14px; width:38px; height:38px; border-radius:50%; background:rgba(255,255,255,0.1); color:#fff; border:1px solid rgba(255,255,255,0.3); font-size:15px; line-height:36px; padding:0; -webkit-tap-highlight-color:transparent; }' +
       '  .hunt-brand { letter-spacing:0.38em; font-weight:300; font-size:20px; text-transform:uppercase; color:#fff; }' +
       '  .hunt-brand b { color:#dc1e1e; font-weight:700; }' +
       '  .hunt-h { color:#fff; font-size:21px; font-weight:800; letter-spacing:0.06em; margin:16px 0 8px; }' +
@@ -495,7 +495,7 @@
       '<div id="hunt-chips"></div>' +
       '<div id="hunt-peek-backdrop"></div>' +
       '<div id="hunt-peek"><img id="hunt-peek-img" alt="Next poster"><div class="pk" id="hunt-peek-label"></div><div class="pkhint" id="hunt-peek-hint"></div></div>' +
-      '<div id="hunt-ad"><button id="hunt-ad-close" aria-label="Close">✕</button><div class="adlbl">Sponsored</div><img id="hunt-ad-img" alt="Sponsor"><div class="adtap" id="hunt-ad-tap"></div></div>' +
+      '<div id="hunt-spot"><button id="hunt-spot-close" aria-label="Close">✕</button><div class="splbl">Sponsored</div><img id="hunt-spot-img" alt="Sponsor"><div class="sptap" id="hunt-spot-tap"></div></div>' +
       '<div id="hunt-toast"></div>' +
       '<div id="hunt-hint"><button id="hunt-hint-ok" class="hx" aria-label="Close">✕</button><div class="hp" id="hunt-hint-p"></div><div class="ht" id="hunt-hint-t"></div><button id="hunt-hint-next" class="nxt">Next Clue ▸</button></div>' +
       '<div id="hunt-gate">' +
@@ -539,9 +539,9 @@
     initPeekInteractions();
 
     document.getElementById('hunt-hint-ok').addEventListener('click', hideHint);
-    adEl = document.getElementById('hunt-ad');
-    adImgEl = document.getElementById('hunt-ad-img');
-    document.getElementById('hunt-ad-close').addEventListener('click', hideAd);
+    adEl = document.getElementById('hunt-spot');
+    adImgEl = document.getElementById('hunt-spot-img');
+    document.getElementById('hunt-spot-close').addEventListener('click', hideAd);
     adEl.addEventListener('click', hideAd);   // tap anywhere outside the image closes
     adImgEl.addEventListener('click', function (e) {
       e.stopPropagation();
@@ -748,7 +748,7 @@
     if (!ad || !ad.image) { return; }
     currentAdLink = ad.link || '';
     if (adImgEl.getAttribute('src') !== ad.image) { adImgEl.src = ad.image; }
-    document.getElementById('hunt-ad-tap').textContent = currentAdLink ? 'Tap the image to learn more · tap anywhere else to continue' : 'Tap anywhere to continue';
+    document.getElementById('hunt-spot-tap').textContent = currentAdLink ? 'Tap the image to learn more · tap anywhere else to continue' : 'Tap anywhere to continue';
     adEl.style.display = 'flex';
   }
   function hideAd() {
