@@ -94,9 +94,11 @@ function saveHuntSetting($db, $key, $value) {
 function huntUi() {
     $delay = 9;   // seconds until the "Next Clue" button appears after a scan
     $ads = [];    // sponsor interstitials, rotate per Next Clue tap ([] = disabled)
+    $sequential = false;   // admin toggle: posters must be scanned in order
     $ui = huntSetting('ui');
     if (is_array($ui)) {
         if (isset($ui['next_btn_delay_s'])) { $delay = max(0, min(60, intval($ui['next_btn_delay_s']))); }
+        if (!empty($ui['sequential'])) { $sequential = true; }
         if (isset($ui['ads']) && is_array($ui['ads'])) {
             foreach ($ui['ads'] as $ad) {
                 if (is_array($ad) && !empty($ad['image'])) {
@@ -110,6 +112,7 @@ function huntUi() {
     }
     return [
         'next_btn_delay_s' => $delay,
+        'sequential' => $sequential,
         'ads' => $ads,
         // legacy single-ad fields for any cached overlay still reading them
         'ad_image_url' => count($ads) ? $ads[0]['image'] : '',
@@ -381,6 +384,27 @@ function handleScan($db) {
         $state = participantState($db, $participant, true);
         $state['duplicate'] = true;
         Response::success($state, 'Challenge already completed');
+    }
+
+    // Sequential mode (admin toggle): posters must be found in order. Checked
+    // BEFORE the timer auto-start, so a rejected out-of-order first scan does
+    // not start anyone's clock. Re-scans of already-counted posters fall
+    // through to the normal duplicate path.
+    $uiCfg = huntUi();
+    if (!empty($uiCfg['sequential'])) {
+        $have = [];
+        foreach ($db->query("SELECT poster_id FROM hunt_scans WHERE participant_id = ?", [$participant['id']]) as $s) {
+            $have[$s['poster_id']] = true;
+        }
+        if (empty($have[$posterId])) {
+            $expected = null;
+            foreach (huntPosters() as $p) {
+                if (empty($have[$p['id']])) { $expected = $p; break; }
+            }
+            if ($expected && $posterId !== $expected['id']) {
+                Response::error('Posters unlock in order — find the "' . $expected['label'] . '" poster next!', 409);
+            }
+        }
     }
 
     // Auto-start the timer on first scan (robustness: user skipped the Start screen)
@@ -772,6 +796,7 @@ function handleAdminSaveSettings($db) {
         }
         saveHuntSetting($db, 'ui', [
             'next_btn_delay_s' => max(0, min(60, intval($input['ui']['next_btn_delay_s'] ?? 9))),
+            'sequential' => !empty($input['ui']['sequential']),
             'ads' => $ads,
         ]);
     }

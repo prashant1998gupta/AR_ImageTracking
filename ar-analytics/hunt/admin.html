@@ -97,6 +97,13 @@
           <label>"Next Clue" button delay (seconds after scan)</label>
           <input id="setNextDelay" type="number" min="0" max="60" step="1">
         </div>
+        <div style="flex:1; min-width:200px;">
+          <label>Poster order</label>
+          <label style="display:flex; align-items:center; gap:9px; cursor:pointer; font-size:13px; padding:9px 0; text-transform:none; letter-spacing:0;">
+            <input id="setSequential" type="checkbox" style="width:auto; margin:0;">
+            Sequential — posters must be found in order (1→2→3→4→5)
+          </label>
+        </div>
       </div>
       <div style="margin-top:18px; padding-top:14px; border-top:1px solid rgba(255,255,255,0.08);">
         <h2 style="font-size:12px; letter-spacing:0.12em; text-transform:uppercase; margin-bottom:4px;">Sponsor Ads (optional, up to 4)</h2>
@@ -191,6 +198,7 @@ function loadSettings() {
       $('setMinTotal').value = res.data.floors.min_total_s;
       $('setMinGap').value = res.data.floors.min_gap_s;
       $('setNextDelay').value = (res.data.ui && res.data.ui.next_btn_delay_s != null) ? res.data.ui.next_btn_delay_s : 9;
+      $('setSequential').checked = !!(res.data.ui && res.data.ui.sequential);
       var ads = (res.data.ui && res.data.ui.ads) || [];
       var imgInputs = document.querySelectorAll('#settingsPanel .slotImg');
       var lnkInputs = document.querySelectorAll('#settingsPanel .slotLink');
@@ -221,6 +229,7 @@ $('saveSettingsBtn').addEventListener('click', function () {
       },
       ui: {
         next_btn_delay_s: parseInt($('setNextDelay').value, 10) || 0,
+        sequential: $('setSequential').checked,
         ads: (function () {
           var out = [];
           var imgs = document.querySelectorAll('#settingsPanel .slotImg');
