@@ -224,6 +224,9 @@ switch ($action) {
     case 'leaderboard':
         handleLeaderboard($db);
         break;
+    case 'activity':
+        handleActivity($db);
+        break;
     case 'admin-participants':
         Auth::requireAuth(['admin', 'super_admin']);
         handleAdminParticipants($db);
@@ -549,6 +552,66 @@ function handleLeaderboard($db) {
         'total_completed' => intval($db->scalar("SELECT COUNT(*) FROM hunt_participants WHERE completed_at IS NOT NULL")),
     ];
     Response::success(['leaderboard' => $board, 'stats' => $stats]);
+}
+
+/** First name only — the live ticker is a public display. */
+function firstName($name) {
+    $parts = preg_split('/\s+/', trim(strval($name)));
+    return (is_array($parts) && $parts[0] !== '') ? $parts[0] : 'Hunter';
+}
+
+/**
+ * Live activity feed for the big-screen leaderboard: recent scans, finishes
+ * and joins (first names only, no phones), plus a "hunting right now" count.
+ */
+function handleActivity($db) {
+    $labels = [];
+    foreach (huntPosters() as $p) { $labels[$p['id']] = $p['label']; }
+    $events = [];
+
+    foreach ($db->query(
+        "SELECT name, completed_at, total_ms FROM hunt_participants
+         WHERE completed_at IS NOT NULL AND total_ms IS NOT NULL
+           AND NOT (is_suspect = TRUE AND is_verified = FALSE)
+         ORDER BY completed_at DESC LIMIT 6") as $r) {
+        $events[] = ['type' => 'finish', 'name' => firstName($r['name']),
+                     'time' => formatMs(intval($r['total_ms'])), 'at' => $r['completed_at']];
+    }
+    foreach ($db->query(
+        "SELECT s.scanned_at, s.poster_id, p.name FROM hunt_scans s
+         JOIN hunt_participants p ON p.id = s.participant_id
+         ORDER BY s.scanned_at DESC LIMIT 12") as $r) {
+        $events[] = ['type' => 'scan', 'name' => firstName($r['name']),
+                     'poster' => isset($labels[$r['poster_id']]) ? $labels[$r['poster_id']] : $r['poster_id'],
+                     'at' => $r['scanned_at']];
+    }
+    foreach ($db->query(
+        "SELECT name, registered_at FROM hunt_participants
+         ORDER BY registered_at DESC LIMIT 6") as $r) {
+        $events[] = ['type' => 'join', 'name' => firstName($r['name']), 'at' => $r['registered_at']];
+    }
+
+    usort($events, function ($a, $b) { return strcmp($b['at'], $a['at']); });
+    $events = array_slice($events, 0, 15);
+    $now = time();
+    foreach ($events as $i => $e) {
+        $t = strtotime($e['at']);
+        $events[$i]['ago_s'] = $t ? max(0, $now - $t) : 0;
+        unset($events[$i]['at']);
+        $events[$i]['at'] = $e['at'];   // keep for client-side dedup keys
+    }
+
+    // Actively hunting: not completed, with a scan or registration in the last 15 min
+    $huntingNow = intval($db->scalar(
+        "SELECT COUNT(*) FROM hunt_participants p
+         WHERE p.completed_at IS NULL
+           AND (p.registered_at >= (NOW() - INTERVAL 15 MINUTE)
+                OR EXISTS (SELECT 1 FROM hunt_scans s
+                           WHERE s.participant_id = p.id
+                             AND s.scanned_at >= (NOW() - INTERVAL 15 MINUTE)))"
+    ));
+
+    Response::success(['events' => $events, 'hunting_now' => $huntingNow]);
 }
 
 // ─── Admin actions ───────────────────────────────────────────────────

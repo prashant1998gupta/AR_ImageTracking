@@ -79,7 +79,8 @@
     completed: false,
     timerBase: null,      // Date.now() - elapsed_ms
     active: false,        // token present + status ok
-    nextHint: null        // latest {id,label,hint} — clue stays recoverable
+    nextHint: null,       // latest {id,label,hint} — clue stays recoverable
+    name: ''              // participant name (for the victory card)
   };
   var FALLBACK_POSTERS = [
     { id: 'FIFA_Target', label: 'FIFA' },
@@ -346,6 +347,7 @@
     if (typeof data.elapsed_ms === 'number') {
       state.timerBase = Date.now() - data.elapsed_ms;
     }
+    if (data.name) { state.name = data.name; }
     if (data.next) { state.nextHint = data.next; }
     if (data.completed) { state.nextHint = null; }
     // Server-tunable UI settings (hunt/admin.html → Settings) override defaults
@@ -488,8 +490,12 @@
       '  .hunt-btn { display:inline-block; margin-top:20px; background:linear-gradient(135deg,#ff4444,#aa1111); color:#fff; border:none; border-radius:12px; font-size:13px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; padding:15px 30px; text-decoration:none; }' +
       '  .hunt-resume { display:inline-block; margin-top:18px; color:rgba(255,255,255,0.75); font-size:13px; font-weight:600; text-decoration:underline; text-underline-offset:3px; pointer-events:auto; -webkit-tap-highlight-color:transparent; }' +
       '  .hunt-skip { display:inline-block; margin-top:14px; color:rgba(255,255,255,0.35); font-size:11.5px; text-decoration:underline; background:none; border:none; }' +
-      '  #hunt-done .big-time { color:#dc1e1e; font-size:46px; font-weight:100; margin:8px 0 2px; font-variant-numeric:tabular-nums; }' +
-      '  #hunt-done .rank { color:rgba(255,255,255,0.7); font-size:14px; margin-bottom:6px; }' +
+      '  #hunt-done .big-time { color:#dc1e1e; font-size:42px; font-weight:100; margin:6px 0 0; font-variant-numeric:tabular-nums; }' +
+      '  #hunt-done .rank { color:rgba(255,255,255,0.7); font-size:14px; margin-bottom:2px; }' +
+      // Victory card preview + share (WhatsApp viral loop)
+      '  #hunt-vc-preview { display:none; width:min(44vw,180px); border-radius:12px; border:1px solid rgba(255,255,255,0.25); margin:10px 0 0; box-shadow:0 8px 28px rgba(0,0,0,0.55); pointer-events:auto; }' +
+      '  #hunt-done-lb { background:rgba(255,255,255,0.12); }' +
+      '  #hunt-done { overflow-y:auto; }' +
       '</style>' +
       '<div id="hunt-top"><div id="hunt-count"><b>0</b>/5</div><div id="hunt-timer">00:00</div></div>' +
       '<div id="hunt-chips"></div>' +
@@ -512,6 +518,8 @@
       '  <p class="hunt-p">Congratulations! You completed the Bharatiya Vyapar Mahotsav AR Meme Hunt.</p>' +
       '  <div class="big-time" id="hunt-done-time">--:--</div>' +
       '  <div class="rank" id="hunt-done-rank"></div>' +
+      '  <img id="hunt-vc-preview" alt="My victory card">' +
+      '  <a class="hunt-btn" id="hunt-vc-share">📲 Share Victory Card</a>' +
       '  <a class="hunt-btn" id="hunt-done-lb">View Leaderboard</a>' +
       '  <button class="hunt-skip" id="hunt-done-close">Keep exploring the AR experience</button>' +
       '</div>';
@@ -562,6 +570,8 @@
       lbUrl += (lbUrl.indexOf('?') === -1 ? '?' : '&') + 'hunt_token=' + encodeURIComponent(getToken());
     }
     document.getElementById('hunt-done-lb').setAttribute('href', lbUrl);
+    document.getElementById('hunt-vc-share').addEventListener('click', shareVictoryCard);
+    document.getElementById('hunt-vc-preview').addEventListener('click', shareVictoryCard);
     document.getElementById('hunt-done-close').addEventListener('click', function () {
       doneEl.style.display = 'none';
     });
@@ -783,6 +793,206 @@
     }, 320);
   }
 
+  // ─── Victory card: canvas-drawn shareable completion image ──────────
+  // Pure shapes + text (no external images), so the canvas is never CORS-
+  // tainted and toBlob always works.
+  var vcCanvas = null, vcFile = null, vcText = '';
+
+  function vcRoundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+  function vcFitFont(ctx, text, weight, startPx, minPx, maxWidth, family) {
+    var px = startPx;
+    while (px > minPx) {
+      ctx.font = weight + ' ' + px + 'px ' + family;
+      if (ctx.measureText(text).width <= maxWidth) { break; }
+      px -= 4;
+    }
+    return px;
+  }
+
+  function buildVictoryCard(data) {
+    var FAM = '-apple-system, Roboto, "Segoe UI", sans-serif';
+    var W = 1080, H = 1350;
+    var c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    var ctx = c.getContext('2d');
+
+    // Background + red glow
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(0, 0, W, H);
+    var glow = ctx.createRadialGradient(W / 2, 340, 60, W / 2, 340, 700);
+    glow.addColorStop(0, 'rgba(220,30,30,0.16)');
+    glow.addColorStop(1, 'rgba(220,30,30,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, W, H);
+
+    // Confetti
+    var colors = ['#ff4444', '#ffd700', '#ffffff', '#5fd06a', '#dc1e1e', '#ff9f43'];
+    for (var i = 0; i < 40; i++) {
+      ctx.save();
+      ctx.translate(60 + Math.random() * (W - 120), 60 + Math.random() * 620);
+      ctx.rotate(Math.random() * Math.PI);
+      ctx.fillStyle = colors[i % colors.length];
+      ctx.globalAlpha = 0.5 + Math.random() * 0.5;
+      ctx.fillRect(-5, -8, 10, 16);
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+
+    // Frame + HUD corner brackets
+    ctx.strokeStyle = 'rgba(220,30,30,0.45)';
+    ctx.lineWidth = 3;
+    vcRoundRect(ctx, 34, 34, W - 68, H - 68, 26);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,80,80,0.9)';
+    ctx.lineWidth = 6;
+    [[60, 60, 1, 1], [W - 60, 60, -1, 1], [60, H - 60, 1, -1], [W - 60, H - 60, -1, -1]].forEach(function (k) {
+      ctx.beginPath();
+      ctx.moveTo(k[0] + 44 * k[2], k[1]);
+      ctx.lineTo(k[0], k[1]);
+      ctx.lineTo(k[0], k[1] + 44 * k[3]);
+      ctx.stroke();
+    });
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // Brand: [AR] RISE
+    ctx.font = '900 56px ' + FAM;
+    var arW = ctx.measureText('AR').width + 36;
+    var riseW = ctx.measureText('RISE').width;
+    var bx = W / 2 - (arW + 14 + riseW) / 2;
+    ctx.fillStyle = '#dc1e1e';
+    vcRoundRect(ctx, bx, 118, arW, 74, 8);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('AR', bx + arW / 2, 158);
+    ctx.fillText('RISE', bx + arW + 14 + riseW / 2, 158);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = '600 27px ' + FAM;
+    ctx.fillText('AR MEME HUNT · BHARATIYA VYAPAR MAHOTSAV 2026', W / 2, 240);
+
+    // Trophy + headline
+    ctx.font = '150px ' + FAM;
+    ctx.fillText('🏆', W / 2, 380);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '900 62px ' + FAM;
+    ctx.fillText('CHALLENGE COMPLETE!', W / 2, 510);
+
+    // Name (auto-fit)
+    var name = (data.name || state.name || 'Meme Hunter').toUpperCase();
+    ctx.fillStyle = '#ffd700';
+    vcFitFont(ctx, name, '800', 68, 34, 920, FAM);
+    ctx.fillText(name, W / 2, 600);
+
+    // Time
+    ctx.fillStyle = '#ff4444';
+    ctx.font = '800 175px ' + FAM;
+    ctx.fillText(data.time_formatted || '--:--', W / 2, 745);
+    ctx.fillStyle = 'rgba(255,255,255,0.45)';
+    ctx.font = '600 26px ' + FAM;
+    ctx.fillText('HUNT TIME · ALL 5 MEMES FOUND', W / 2, 850);
+
+    // Rank pill
+    if (data.rank) {
+      var rankTxt = 'RANK  #' + data.rank;
+      ctx.font = '800 46px ' + FAM;
+      var rw = ctx.measureText(rankTxt).width + 90;
+      var gold = data.rank <= 3;
+      ctx.strokeStyle = gold ? '#ffd700' : 'rgba(255,80,80,0.9)';
+      ctx.lineWidth = 4;
+      vcRoundRect(ctx, W / 2 - rw / 2, 895, rw, 88, 44);
+      ctx.stroke();
+      ctx.fillStyle = gold ? '#ffd700' : '#ffffff';
+      ctx.fillText(rankTxt, W / 2, 941);
+    }
+
+    // Poster chips row
+    var posters = state.posters.length ? state.posters : FALLBACK_POSTERS;
+    ctx.font = '700 26px ' + FAM;
+    var pad = 34, gap = 14, chipH = 56;
+    var widths = posters.map(function (p) { return ctx.measureText('✓ ' + p.label.toUpperCase()).width + pad * 2; });
+    var totalW = widths.reduce(function (a, b) { return a + b; }, 0) + gap * (posters.length - 1);
+    var cx = W / 2 - totalW / 2;
+    posters.forEach(function (p, idx) {
+      ctx.strokeStyle = 'rgba(95,208,106,0.8)';
+      ctx.lineWidth = 3;
+      vcRoundRect(ctx, cx, 1030, widths[idx], chipH, 28);
+      ctx.stroke();
+      ctx.fillStyle = '#5fd06a';
+      ctx.fillText('✓ ' + p.label.toUpperCase(), cx + widths[idx] / 2, 1059);
+      cx += widths[idx] + gap;
+    });
+
+    // Footer
+    var div = ctx.createLinearGradient(200, 0, W - 200, 0);
+    div.addColorStop(0, 'rgba(220,30,30,0)');
+    div.addColorStop(0.5, 'rgba(220,30,30,0.8)');
+    div.addColorStop(1, 'rgba(220,30,30,0)');
+    ctx.fillStyle = div;
+    ctx.fillRect(200, 1130, W - 400, 3);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '800 40px ' + FAM;
+    ctx.fillText('CAN YOU BEAT MY TIME?', W / 2, 1190);
+    ctx.fillStyle = '#ff5555';
+    ctx.font = '700 32px ' + FAM;
+    ctx.fillText(CFG.landingUrl.replace(/^https:\/\//, '').replace(/\/$/, ''), W / 2, 1243);
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.font = '600 22px ' + FAM;
+    ctx.fillText('POWERED BY ARRISE · RIONICK STUDIOS — TURNING PRINT INTO AR', W / 2, 1295);
+
+    return c;
+  }
+
+  function renderVictoryCard(data) {
+    vcCanvas = buildVictoryCard(data);
+    vcText = 'I completed the AR Meme Hunt at Bharatiya Vyapar Mahotsav in ' +
+      (data.time_formatted || '') + (data.rank ? ' — Rank #' + data.rank : '') +
+      '! 🏆 Can you beat my time? 👉 ' + CFG.landingUrl;
+
+    var preview = document.getElementById('hunt-vc-preview');
+    preview.src = vcCanvas.toDataURL('image/png');
+    preview.style.display = 'block';
+
+    vcFile = null;
+    vcCanvas.toBlob(function (blob) {
+      // Pre-built File keeps navigator.share inside the tap's user-activation
+      try { vcFile = new File([blob], 'meme-hunt-victory.png', { type: 'image/png' }); } catch (e) {}
+    }, 'image/png');
+  }
+
+  function vcDownload() {
+    try {
+      var a = document.createElement('a');
+      a.href = vcCanvas.toDataURL('image/png');
+      a.download = 'meme-hunt-victory.png';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      toast('Card saved — share it on WhatsApp! 📲', 3500);
+    } catch (e) {}
+  }
+
+  function shareVictoryCard() {
+    if (!vcCanvas) { return; }
+    try {
+      if (vcFile && navigator.canShare && navigator.canShare({ files: [vcFile] }) && navigator.share) {
+        navigator.share({ files: [vcFile], title: 'AR Meme Hunt', text: vcText }).catch(function () {});
+        return;
+      }
+    } catch (e) {}
+    vcDownload();
+  }
+
   function showCompletion(data) {
     if (!doneEl) { return; }
     clearTimeout(nextBtnTimer);
@@ -799,6 +1009,7 @@
     }
     document.getElementById('hunt-done-time').textContent = data.time_formatted || '--:--';
     document.getElementById('hunt-done-rank').textContent = data.rank ? 'Leaderboard position: #' + data.rank : '';
+    try { renderVictoryCard(data); } catch (e) { console.error('[Hunt] victory card:', e); }
     doneEl.style.display = 'flex';
     spawnConfetti();
   }

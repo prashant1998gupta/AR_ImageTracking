@@ -31,6 +31,22 @@
   .you-card .yn { font-size:14px; font-weight:600; }
   .you-card .yr { font-size:22px; font-weight:800; text-align:right; }
   .you-card .yt { font-size:11px; color:rgba(255,255,255,0.5); text-align:right; }
+  /* Live hunt ticker */
+  #liveNow { display:none; text-align:center; font-size:12px; color:#5fd06a; margin:-12px 0 16px; }
+  #liveNow .pulse { display:inline-block; width:8px; height:8px; border-radius:50%; background:#5fd06a; margin-right:6px; animation:lnPulse 1.6s ease-in-out infinite; }
+  @keyframes lnPulse { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.35; transform:scale(0.75); } }
+  #feedWrap { border:1px solid rgba(255,255,255,0.08); border-radius:12px; margin-bottom:20px; overflow:hidden; }
+  #feedHead { display:flex; justify-content:space-between; align-items:center; padding:9px 12px; background:rgba(255,255,255,0.03); border-bottom:1px solid rgba(255,255,255,0.08); }
+  #feedHead .t { font-size:10px; letter-spacing:0.2em; text-transform:uppercase; color:rgba(255,255,255,0.4); font-weight:700; }
+  #dingBtn { background:none; border:none; font-size:15px; cursor:pointer; opacity:0.7; -webkit-tap-highlight-color:transparent; }
+  .fitem { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:9px 12px; font-size:13px; color:rgba(255,255,255,0.75); border-bottom:1px solid rgba(255,255,255,0.04); }
+  .fitem:last-child { border-bottom:none; }
+  .fitem b { color:#fff; }
+  .fitem.fin { background:rgba(255,215,0,0.06); color:#ffd700; }
+  .fitem.fin b { color:#ffd700; }
+  .fitem .ago { font-size:10px; color:rgba(255,255,255,0.3); white-space:nowrap; }
+  .fitem.new { animation:fSlide 0.45s ease-out; }
+  @keyframes fSlide { 0% { opacity:0; transform:translateY(-10px); } 100% { opacity:1; transform:translateY(0); } }
   .empty { text-align:center; color:rgba(255,255,255,0.35); font-size:13px; padding:40px 0; line-height:1.7; }
   .cta { margin-top:44px; border:1px solid rgba(220,30,30,0.35); background:rgba(220,30,30,0.06); border-radius:16px; padding:24px 20px; text-align:center; }
   .cta h2 { font-size:15px; font-weight:700; letter-spacing:0.04em; margin-bottom:10px; }
@@ -45,6 +61,15 @@
   <div class="tagline">AR Meme Hunt — Bharatiya Vyapar Mahotsav 2026</div>
   <h1>Leaderboard</h1>
   <div class="stats" id="stats"><span class="live">●</span> Live</div>
+  <div id="liveNow"><span class="pulse"></span><span id="liveNowTxt"></span></div>
+
+  <div id="feedWrap">
+    <div id="feedHead">
+      <span class="t">Live Hunt Feed</span>
+      <button id="dingBtn" title="Sound on new finishes">🔕</button>
+    </div>
+    <div id="feed"><div class="fitem" style="color:rgba(255,255,255,0.3);">Waiting for hunters…</div></div>
+  </div>
 
   <div class="you-card" id="youCard">
     <div>
@@ -173,9 +198,90 @@ function refresh() {
     .catch(function () { /* keep last data */ });
 }
 
+// ─── Live hunt ticker ───
+var seenEvents = {};
+var firstFeedLoad = true;
+var dingOn = false;
+
+document.getElementById('dingBtn').addEventListener('click', function () {
+  dingOn = !dingOn;
+  this.textContent = dingOn ? '🔔' : '🔕';
+  if (dingOn) ding();   // audible confirmation + unlocks audio via this gesture
+});
+
+function ding() {
+  try {
+    var Ctx = window.AudioContext || window.webkitAudioContext;
+    var a = ding.ctx || (ding.ctx = new Ctx());
+    var o = a.createOscillator(), g = a.createGain();
+    o.connect(g); g.connect(a.destination);
+    o.frequency.value = 880;
+    g.gain.setValueAtTime(0.12, a.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + 0.45);
+    o.start(); o.stop(a.currentTime + 0.45);
+  } catch (e) {}
+}
+
+function agoTxt(s) {
+  if (s < 20) return 'just now';
+  if (s < 60) return s + 's ago';
+  if (s < 3600) return Math.floor(s / 60) + 'm ago';
+  return Math.floor(s / 3600) + 'h ago';
+}
+
+function renderActivity(data) {
+  var events = data.events || [];
+  var html = '';
+  var newFinish = false;
+  events.forEach(function (e) {
+    var k = e.type + '|' + e.name + '|' + e.at;
+    var fresh = !seenEvents[k];
+    seenEvents[k] = true;
+    var txt, cls = '';
+    if (e.type === 'finish') {
+      txt = '⚡ <b>' + esc(e.name) + '</b> finished in <b>' + esc(e.time) + '</b>!';
+      cls = ' fin';
+      if (fresh && !firstFeedLoad) newFinish = true;
+    } else if (e.type === 'scan') {
+      txt = '🔥 <b>' + esc(e.name) + '</b> found the ' + esc(e.poster) + ' meme';
+    } else {
+      txt = '👋 <b>' + esc(e.name) + '</b> joined the hunt';
+    }
+    html += '<div class="fitem' + cls + (fresh && !firstFeedLoad ? ' new' : '') + '">' +
+      '<span>' + txt + '</span><span class="ago">' + agoTxt(e.ago_s || 0) + '</span></div>';
+  });
+  document.getElementById('feed').innerHTML =
+    html || '<div class="fitem" style="color:rgba(255,255,255,0.3);">Waiting for hunters…</div>';
+
+  var ln = document.getElementById('liveNow');
+  if (data.hunting_now > 0) {
+    document.getElementById('liveNowTxt').textContent = data.hunting_now + ' hunting right now';
+    ln.style.display = 'block';
+  } else {
+    ln.style.display = 'none';
+  }
+  if (newFinish && dingOn) ding();
+  firstFeedLoad = false;
+}
+
+function refreshActivity() {
+  fetch(API + '?action=activity')
+    .then(function (r) { return r.json(); })
+    .then(function (res) { if (res.success) renderActivity(res.data); })
+    .catch(function () { /* keep last feed */ });
+}
+
+// ─── TV mode for the booth screen: leaderboard.html?tv=1 (use Chrome) ───
+try {
+  if (new URLSearchParams(location.search).get('tv') === '1') {
+    document.body.style.zoom = '1.6';
+  }
+} catch (e) {}
+
 refreshMe();
 refresh();
-setInterval(function () { refreshMe(); refresh(); }, 5000);
+refreshActivity();
+setInterval(function () { refreshMe(); refresh(); refreshActivity(); }, 5000);
 </script>
 </body>
 </html>
