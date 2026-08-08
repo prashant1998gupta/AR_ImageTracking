@@ -30,7 +30,12 @@
     // Fallbacks: tracking lost (looked away) or doneMaxMs. Never earlier
     // than doneMinMs after the scan (tracking-jitter protection).
     doneMinMs: 3000,
-    doneMaxMs: 15000
+    doneMaxMs: 15000,
+    // Sponsor interstitials (dashboard-managed; [] = disabled). Up to 4
+    // {image, link} entries that rotate on each "Next Clue" tap — never before
+    // the first scan, never on the completion screen. Instantly closeable so
+    // hunt times stay fair.
+    ads: []
   };
   var CFG = {};
   var userCfg = window.HUNT_CONFIG || {};
@@ -343,9 +348,18 @@
     }
     if (data.next) { state.nextHint = data.next; }
     if (data.completed) { state.nextHint = null; }
-    // Server-tunable UI timing (hunt/admin.html → Settings) overrides the default
-    if (data.ui && typeof data.ui.next_btn_delay_s === 'number') {
-      CFG.nextBtnDelayMs = Math.max(0, data.ui.next_btn_delay_s) * 1000;
+    // Server-tunable UI settings (hunt/admin.html → Settings) override defaults
+    if (data.ui) {
+      if (typeof data.ui.next_btn_delay_s === 'number') {
+        CFG.nextBtnDelayMs = Math.max(0, data.ui.next_btn_delay_s) * 1000;
+      }
+      if (Object.prototype.toString.call(data.ui.ads) === '[object Array]') {
+        CFG.ads = data.ui.ads;
+      } else if (typeof data.ui.ad_image_url === 'string' && data.ui.ad_image_url) {
+        // older backend: single-ad fields
+        CFG.ads = [{ image: data.ui.ad_image_url, link: data.ui.ad_link_url || '' }];
+      }
+      preloadAds();
     }
     // Freeze the tracking thumbnail BEFORE renderChips/updatePeek run, so a
     // live scan doesn't advance it — that happens only on "Next Clue" / ✕.
@@ -394,6 +408,7 @@
   // ─── UI ─────────────────────────────────────────────────────────────
   var root, chipsEl, timerEl, toastEl, toastTimer, hintEl, gateEl, doneEl;
   var peekEl, peekBackdrop, peekImg, peekLabel, peekHintEl;
+  var adEl, adImgEl, adPreloaded = {}, adShownCount = 0, currentAdLink = '';
   var posterImages = {};       // target id -> image URL (from <imagetarget> tags)
   var currentPeekLabel = '';
   var nextBtnEl, nextBtnTimer = null;
@@ -459,6 +474,13 @@
       '  #hunt-peek .pkhint { display:none; }' +
       '  #hunt-peek.big .pkhint { display:block; color:rgba(255,255,255,0.75); font-size:12.5px; line-height:1.55; text-align:center; padding:0 14px 13px; }' +
       '  #hunt-peek-backdrop { position:absolute; top:0; right:0; bottom:0; left:0; background:rgba(0,0,0,0.65); display:none; pointer-events:auto; z-index:15; }' +
+      // Sponsor interstitial — above hunt UI (z 40) but below the template
+      // dialogs (.ctaDiv 99 lives outside #hunt-root), instantly closeable
+      '  #hunt-ad { position:absolute; top:0; right:0; bottom:0; left:0; background:rgba(8,8,8,0.92); display:none; flex-direction:column; align-items:center; justify-content:center; padding:24px; pointer-events:auto; z-index:40; }' +
+      '  #hunt-ad .adlbl { color:rgba(255,255,255,0.35); font-size:9px; letter-spacing:0.3em; text-transform:uppercase; margin-bottom:12px; }' +
+      '  #hunt-ad img { max-width:88vw; max-height:64vh; border-radius:14px; border:1px solid rgba(255,255,255,0.15); -webkit-user-drag:none; }' +
+      '  #hunt-ad .adtap { color:rgba(255,255,255,0.3); font-size:10.5px; margin-top:12px; }' +
+      '  #hunt-ad-close { position:absolute; top:calc(14px + env(safe-area-inset-top)); right:14px; width:38px; height:38px; border-radius:50%; background:rgba(255,255,255,0.1); color:#fff; border:1px solid rgba(255,255,255,0.3); font-size:15px; line-height:36px; padding:0; -webkit-tap-highlight-color:transparent; }' +
       '  .hunt-brand { letter-spacing:0.38em; font-weight:300; font-size:20px; text-transform:uppercase; color:#fff; }' +
       '  .hunt-brand b { color:#dc1e1e; font-weight:700; }' +
       '  .hunt-h { color:#fff; font-size:21px; font-weight:800; letter-spacing:0.06em; margin:16px 0 8px; }' +
@@ -473,6 +495,7 @@
       '<div id="hunt-chips"></div>' +
       '<div id="hunt-peek-backdrop"></div>' +
       '<div id="hunt-peek"><img id="hunt-peek-img" alt="Next poster"><div class="pk" id="hunt-peek-label"></div><div class="pkhint" id="hunt-peek-hint"></div></div>' +
+      '<div id="hunt-ad"><button id="hunt-ad-close" aria-label="Close">✕</button><div class="adlbl">Sponsored</div><img id="hunt-ad-img" alt="Sponsor"><div class="adtap" id="hunt-ad-tap"></div></div>' +
       '<div id="hunt-toast"></div>' +
       '<div id="hunt-hint"><button id="hunt-hint-ok" class="hx" aria-label="Close">✕</button><div class="hp" id="hunt-hint-p"></div><div class="ht" id="hunt-hint-t"></div><button id="hunt-hint-next" class="nxt">Next Clue ▸</button></div>' +
       '<div id="hunt-gate">' +
@@ -516,6 +539,14 @@
     initPeekInteractions();
 
     document.getElementById('hunt-hint-ok').addEventListener('click', hideHint);
+    adEl = document.getElementById('hunt-ad');
+    adImgEl = document.getElementById('hunt-ad-img');
+    document.getElementById('hunt-ad-close').addEventListener('click', hideAd);
+    adEl.addEventListener('click', hideAd);   // tap anywhere outside the image closes
+    adImgEl.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (currentAdLink) { window.open(currentAdLink, '_blank'); }
+    });
     nextBtnEl = document.getElementById('hunt-hint-next');
     nextBtnEl.addEventListener('click', advanceToClue);
     document.getElementById('hunt-gate-btn').setAttribute('href', CFG.landingUrl);
@@ -700,7 +731,33 @@
     if (!nextBtnEl) { return; }
     if (on) { nextBtnEl.classList.add('on'); } else { nextBtnEl.classList.remove('on'); }
   }
-  // "Next Clue" tapped: reveal the clue and let the tracking thumbnail advance
+  // ─── Sponsor interstitials (dashboard-managed, rotate per clue) ─────
+  function preloadAds() {
+    (CFG.ads || []).forEach(function (ad) {
+      if (ad && ad.image && !adPreloaded[ad.image]) {
+        adPreloaded[ad.image] = true;
+        var im = new Image();
+        im.src = ad.image;   // warm the cache so the interstitial is instant
+      }
+    });
+  }
+  function maybeShowAd() {
+    if (!adEl || !CFG.ads || !CFG.ads.length) { return; }
+    var ad = CFG.ads[adShownCount % CFG.ads.length];
+    adShownCount++;
+    if (!ad || !ad.image) { return; }
+    currentAdLink = ad.link || '';
+    if (adImgEl.getAttribute('src') !== ad.image) { adImgEl.src = ad.image; }
+    document.getElementById('hunt-ad-tap').textContent = currentAdLink ? 'Tap the image to learn more · tap anywhere else to continue' : 'Tap anywhere to continue';
+    adEl.style.display = 'flex';
+  }
+  function hideAd() {
+    if (adEl) { adEl.style.display = 'none'; }
+  }
+
+  // "Next Clue" tapped: reveal the clue and let the tracking thumbnail advance.
+  // The sponsor interstitial (if configured) sits on top; closing it uncovers
+  // the clue card + advanced thumbnail already in place underneath.
   function advanceToClue() {
     clearTimeout(nextBtnTimer);
     setNextBtnVisible(false);
@@ -710,6 +767,7 @@
       pendingNext = null;
     }
     updatePeek();
+    maybeShowAd();
   }
   function hideHint() {
     if (!hintEl) { return; }
@@ -731,6 +789,7 @@
     setNextBtnVisible(false);
     pendingNext = null;
     peekHold = false;
+    hideAd();   // never show a sponsor over the completion celebration
     hintEl.classList.remove('show');
     hintEl.style.display = 'none';
     if (peekEl) {

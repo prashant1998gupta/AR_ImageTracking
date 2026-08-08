@@ -93,11 +93,28 @@ function saveHuntSetting($db, $key, $value) {
  *  status/scan response (applies live, no app rebuild). */
 function huntUi() {
     $delay = 9;   // seconds until the "Next Clue" button appears after a scan
+    $ads = [];    // sponsor interstitials, rotate per Next Clue tap ([] = disabled)
     $ui = huntSetting('ui');
-    if (is_array($ui) && isset($ui['next_btn_delay_s'])) {
-        $delay = max(0, min(60, intval($ui['next_btn_delay_s'])));
+    if (is_array($ui)) {
+        if (isset($ui['next_btn_delay_s'])) { $delay = max(0, min(60, intval($ui['next_btn_delay_s']))); }
+        if (isset($ui['ads']) && is_array($ui['ads'])) {
+            foreach ($ui['ads'] as $ad) {
+                if (is_array($ad) && !empty($ad['image'])) {
+                    $ads[] = ['image' => strval($ad['image']), 'link' => strval(isset($ad['link']) ? $ad['link'] : '')];
+                }
+            }
+        } elseif (!empty($ui['ad_image_url'])) {
+            // settings saved by the earlier single-ad panel version
+            $ads[] = ['image' => strval($ui['ad_image_url']), 'link' => strval(isset($ui['ad_link_url']) ? $ui['ad_link_url'] : '')];
+        }
     }
-    return ['next_btn_delay_s' => $delay];
+    return [
+        'next_btn_delay_s' => $delay,
+        'ads' => $ads,
+        // legacy single-ad fields for any cached overlay still reading them
+        'ad_image_url' => count($ads) ? $ads[0]['image'] : '',
+        'ad_link_url' => count($ads) ? $ads[0]['link'] : '',
+    ];
 }
 
 /** Anti-cheat plausibility floors — dashboard-tunable, defaults from the constants. */
@@ -668,8 +685,21 @@ function handleAdminSaveSettings($db) {
         ]);
     }
     if (isset($input['ui']) && is_array($input['ui'])) {
+        // Up to 4 sponsor ads; https-only, junk entries are dropped
+        $ads = [];
+        if (isset($input['ui']['ads']) && is_array($input['ui']['ads'])) {
+            foreach (array_slice($input['ui']['ads'], 0, 4) as $ad) {
+                if (!is_array($ad)) continue;
+                $img = trim(mb_substr($ad['image'] ?? '', 0, 300, 'UTF-8'));
+                $lnk = trim(mb_substr($ad['link'] ?? '', 0, 300, 'UTF-8'));
+                if ($img === '' || strpos($img, 'https://') !== 0) continue;
+                if ($lnk !== '' && strpos($lnk, 'https://') !== 0) { $lnk = ''; }
+                $ads[] = ['image' => $img, 'link' => $lnk];
+            }
+        }
         saveHuntSetting($db, 'ui', [
             'next_btn_delay_s' => max(0, min(60, intval($input['ui']['next_btn_delay_s'] ?? 9))),
+            'ads' => $ads,
         ]);
     }
     Response::success(null, 'Settings saved — live immediately');
