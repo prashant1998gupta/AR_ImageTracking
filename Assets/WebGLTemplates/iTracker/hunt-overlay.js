@@ -344,6 +344,8 @@
     // live scan doesn't advance it — that happens only on "Next Clue" / ✕.
     if (announce && !data.duplicate && data.poster_id && !data.completed && data.next) {
       peekHold = true;
+      // The frozen thumb shows the poster just FOUND — relabel accordingly
+      if (peekLabel) { peekLabel.textContent = peekCaption(peekEl && peekEl.classList.contains('big')); }
     }
     renderChips();
 
@@ -351,7 +353,7 @@
       if (announce && !data.duplicate && data.poster_id) {
         // 5th poster just scanned live: instant feedback, then let the final
         // meme play before the completion screen takes over
-        hintCard('🎉 ' + data.total + '/' + data.total + ' completed', 'Challenge complete — enjoy the last meme! 🎬');
+        hintCard('🎉 ' + data.total + '/' + data.total, 'Challenge complete — enjoy the last meme! 🎬', true);
         scheduleReveal(data.poster_id, CFG.doneMinMs, CFG.doneMaxMs, function () {
           showCompletion(data);
         });
@@ -370,7 +372,7 @@
         // (or ✕) reveals the clue and advances the thumbnail. Nothing changes
         // on its own.
         pendingNext = { count: data.count, total: data.total, hint: data.next.hint };
-        hintCard('✓ ' + data.count + '/' + data.total + ' completed', 'Enjoy the meme! 🎬');
+        hintCard('✓ ' + data.count + '/' + data.total, 'Enjoy the meme! 🎬', true);
         setNextBtnVisible(false);
         clearTimeout(nextBtnTimer);
         nextBtnTimer = setTimeout(function () { setNextBtnVisible(true); }, CFG.nextBtnDelayMs);
@@ -417,7 +419,19 @@
       '  #hunt-hint .hx { position:absolute; top:6px; right:6px; width:28px; height:28px; background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.6); border:none; border-radius:50%; font-size:13px; line-height:28px; padding:0; }' +
       '  #hunt-hint .nxt { display:none; margin-top:11px; background:linear-gradient(135deg,#ff4444,#aa1111); color:#fff; border:none; border-radius:10px; font-size:11.5px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; padding:11px 24px; -webkit-tap-highlight-color:transparent; }' +
       '  #hunt-hint .nxt.on { display:inline-block; }' +
+      // Compact single-row variant for the enjoy phase — half the height:
+      // progress + text on the left, the Next Clue pill on the right
+      '  #hunt-hint.compact { display:flex; align-items:center; gap:10px; padding:9px 34px 9px 14px; }' +
+      '  #hunt-hint.compact .hp { margin:0; white-space:nowrap; }' +
+      '  #hunt-hint.compact .ht { flex:1; font-size:12px; min-width:0; }' +
+      '  #hunt-hint.compact .nxt { margin:0; padding:9px 13px; font-size:10px; letter-spacing:0.08em; white-space:nowrap; }' +
+      '  #hunt-hint.compact .hx { top:50%; transform:translateY(-50%); right:4px; width:24px; height:24px; line-height:24px; font-size:11px; }' +
       '  #hunt-gate, #hunt-done { position:absolute; top:0; right:0; bottom:0; left:0; background:rgba(8,8,8,0.94); display:none; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:30px 24px; pointer-events:auto; z-index:30; }' +
+      // Completion confetti — content stays above it via relative positioning
+      '  #hunt-done > * { position:relative; }' +
+      '  #hunt-confetti { position:absolute; top:0; right:0; bottom:0; left:0; overflow:hidden; pointer-events:none; }' +
+      '  .hunt-cf { position:absolute; top:-14px; width:8px; height:13px; border-radius:2px; opacity:0; animation-name:huntCfFall; animation-timing-function:linear; animation-iteration-count:2; }' +
+      '  @keyframes huntCfFall { 0% { opacity:1; transform:translateY(-14px) rotate(0deg); } 85% { opacity:1; } 100% { opacity:0; transform:translateY(102vh) rotate(680deg); } }' +
       // Draggable "find this poster" preview thumbnail
       '  #hunt-peek { position:absolute; width:82px; background:rgba(8,8,8,0.88); border:1px solid rgba(220,30,30,0.55); border-radius:12px; overflow:hidden; display:none; pointer-events:auto; touch-action:none; z-index:5; box-shadow:0 4px 14px rgba(0,0,0,0.4); }' +
       '  #hunt-peek img { display:block; width:100%; height:82px; object-fit:cover; pointer-events:none; -webkit-user-drag:none; user-select:none; -webkit-user-select:none; }' +
@@ -523,15 +537,25 @@
     peekEl.style.left = peekPos.x + 'px';
     peekEl.style.top = peekPos.y + 'px';
   }
+  // Caption for the thumbnail — accounts for the enjoy-phase hold, where the
+  // thumb still shows the poster that was just FOUND (not the next target)
+  function peekCaption(big) {
+    if (peekHold) {
+      return big ? '✓ ' + currentPeekLabel + ' found! Tap Next Clue for your next target'
+                 : '✓ ' + currentPeekLabel + ' found!';
+    }
+    return big ? 'Find this poster: ' + currentPeekLabel + ' — tap anywhere to close'
+               : 'Find: ' + currentPeekLabel;
+  }
   function expandPeek() {
     peekBackdrop.style.display = 'block';
     peekEl.classList.add('big');
-    peekLabel.textContent = 'Find this poster: ' + currentPeekLabel + ' — tap anywhere to close';
+    peekLabel.textContent = peekCaption(true);
   }
   function collapsePeek() {
     peekBackdrop.style.display = 'none';
     peekEl.classList.remove('big');
-    peekLabel.textContent = 'Find: ' + currentPeekLabel;
+    peekLabel.textContent = peekCaption(false);
     applyPeekPos();
   }
   function initPeekInteractions() {
@@ -589,7 +613,7 @@
     if (peekImg.getAttribute('src') !== posterImages[nextP.id]) {
       peekImg.src = posterImages[nextP.id];
     }
-    peekLabel.textContent = (peekEl.classList.contains('big') ? 'Find this poster: ' + nextP.label + ' — tap anywhere to close' : 'Find: ' + nextP.label);
+    peekLabel.textContent = peekCaption(peekEl.classList.contains('big'));
     peekEl.style.display = 'block';
     if (!peekEl.classList.contains('big')) { applyPeekPos(); }
   }
@@ -617,11 +641,12 @@
 
   // The card never auto-hides: it stays until the participant taps ✕, the next
   // scan replaces its content, or the completion screen takes over.
-  function hintCard(progressText, hint) {
+  function hintCard(progressText, hint, compact) {
     if (!hintEl) { return; }
     document.getElementById('hunt-hint-p').textContent = progressText;
     document.getElementById('hunt-hint-t').textContent = hint;
-    hintEl.style.display = 'block';
+    if (compact) { hintEl.classList.add('compact'); } else { hintEl.classList.remove('compact'); }
+    hintEl.style.display = compact ? 'flex' : 'block';
     // next frame so the slide-up transition runs
     requestAnimationFrame(function () { hintEl.classList.add('show'); });
   }
@@ -670,6 +695,27 @@
     document.getElementById('hunt-done-time').textContent = data.time_formatted || '--:--';
     document.getElementById('hunt-done-rank').textContent = data.rank ? 'Leaderboard position: #' + data.rank : '';
     doneEl.style.display = 'flex';
+    spawnConfetti();
+  }
+
+  function spawnConfetti() {
+    var old = document.getElementById('hunt-confetti');
+    if (old && old.parentNode) { old.parentNode.removeChild(old); }
+    var c = document.createElement('div');
+    c.id = 'hunt-confetti';
+    var colors = ['#ff4444', '#ffd700', '#ffffff', '#5fd06a', '#dc1e1e', '#ff9f43'];
+    for (var i = 0; i < 44; i++) {
+      var p = document.createElement('div');
+      p.className = 'hunt-cf';
+      p.style.left = (Math.random() * 100) + '%';
+      p.style.background = colors[i % colors.length];
+      p.style.animationDuration = (2.4 + Math.random() * 1.8) + 's';
+      p.style.animationDelay = (Math.random() * 1.6) + 's';
+      if (i % 3 === 0) { p.style.width = '6px'; p.style.height = '9px'; }
+      c.appendChild(p);
+    }
+    doneEl.insertBefore(c, doneEl.firstChild);
+    setTimeout(function () { if (c.parentNode) { c.parentNode.removeChild(c); } }, 9500);
   }
 
   function fmtTimer(ms) {

@@ -44,16 +44,61 @@ if ($action !== 'admin-export') {
 
 // ─── Poster configuration ────────────────────────────────────────────
 // Order = canonical hunt order (the "next hint" points to the first unscanned
-// poster in this order). Edit labels/hints freely — ids MUST match the Unity
-// image target ids exactly.
+// poster in this order). The ids MUST match the Unity image target ids and
+// are fixed at build time; labels and hints below are DEFAULTS which can be
+// overridden live from hunt/admin.html → Settings (stored in hunt_settings).
 function huntPosters() {
-    return [
+    static $cached = null;
+    if ($cached !== null) { return $cached; }
+    $posters = [
         ['id' => 'FIFA_Target', 'label' => 'FIFA',  'hint' => 'Kick-off ho chuka hai! Football wala poster dhoondo — jahan game ki baat hoti hai, FIFA card wahin hai.'],
         ['id' => 'One8Traget',  'label' => 'One8',  'hint' => 'Ab thodi King Kohli wali energy! One8 shoes ka poster aas-paas hi hai — sneakerheads ko turant dikh jayega.'],
         ['id' => 'BookCover',   'label' => 'Book',  'hint' => 'Ab thoda intellectual bano — ek book cover ka poster dhoondo. Padhai nahi karni, bas scan karna hai!'],
         ['id' => 'CultGym',     'label' => 'Gym',   'hint' => 'Networking zyada, patience kam? Gym poster ke paas jao — gains yahin milenge.'],
         ['id' => 'Shoes',       'label' => 'Shoes', 'hint' => 'Last one! Jo shoes sabse zyada chamak rahe hain, wahi poster scan karna hai. Finish line paas hai!'],
     ];
+    $overrides = huntSetting('posters');
+    if (is_array($overrides)) {
+        foreach ($posters as $i => $p) {
+            if (isset($overrides[$p['id']]) && is_array($overrides[$p['id']])) {
+                $o = $overrides[$p['id']];
+                // Empty override = fall back to the default (lets admins "reset")
+                if (!empty($o['label'])) { $posters[$i]['label'] = $o['label']; }
+                if (!empty($o['hint']))  { $posters[$i]['hint']  = $o['hint']; }
+            }
+        }
+    }
+    $cached = $posters;
+    return $cached;
+}
+
+/** Read a JSON setting saved from the admin dashboard (null if absent). */
+function huntSetting($key) {
+    try {
+        $db = Database::getInstance();
+        $row = $db->queryOne("SELECT setting_value FROM hunt_settings WHERE setting_key = ?", [$key]);
+        return $row ? json_decode($row['setting_value'], true) : null;
+    } catch (Exception $e) { return null; }
+}
+
+function saveHuntSetting($db, $key, $value) {
+    $db->execute(
+        "INSERT INTO hunt_settings (setting_key, setting_value) VALUES (?, ?)
+         ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)",
+        [$key, json_encode($value, JSON_UNESCAPED_UNICODE)]
+    );
+}
+
+/** Anti-cheat plausibility floors — dashboard-tunable, defaults from the constants. */
+function huntFloors() {
+    $minTotal = HUNT_MIN_TOTAL_MS;
+    $minGap = HUNT_MIN_GAP_MS;
+    $f = huntSetting('floors');
+    if (is_array($f)) {
+        if (isset($f['min_total_s'])) { $minTotal = max(0, intval($f['min_total_s'])) * 1000; }
+        if (isset($f['min_gap_s']))   { $minGap   = max(0, intval($f['min_gap_s'])) * 1000; }
+    }
+    return ['total' => $minTotal, 'gap' => $minGap];
 }
 
 function huntPosterIds() {
@@ -112,6 +157,17 @@ if (!$hasScans) {
         Response::error('Hunt storage unavailable', 500);
     }
 }
+$hasSettings = $db->scalar("SHOW TABLES LIKE 'hunt_settings'");
+if (!$hasSettings) {
+    // Non-fatal: without this table the hardcoded defaults still work
+    try {
+        $db->execute("CREATE TABLE IF NOT EXISTS hunt_settings (
+            setting_key VARCHAR(64) PRIMARY KEY,
+            setting_value TEXT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB");
+    } catch (Exception $e) { error_log('[Hunt] create hunt_settings failed: ' . $e->getMessage()); }
+}
 
 // ─── Dispatch ────────────────────────────────────────────────────────
 switch ($action) {
@@ -153,6 +209,15 @@ switch ($action) {
         if ($method !== 'POST') Response::error('Method not allowed', 405);
         Auth::requireAuth(['admin', 'super_admin']);
         handleAdminReset($db);
+        break;
+    case 'admin-settings':
+        Auth::requireAuth(['admin', 'super_admin']);
+        handleAdminSettings($db);
+        break;
+    case 'admin-save-settings':
+        if ($method !== 'POST') Response::error('Method not allowed', 405);
+        Auth::requireAuth(['admin', 'super_admin']);
+        handleAdminSaveSettings($db);
         break;
     default:
         Response::error('Unknown action', 404);
@@ -322,7 +387,8 @@ function flagIfImplausible($db, $participantId) {
     $row = $db->queryOne("SELECT total_ms FROM hunt_participants WHERE id = ?", [$participantId]);
     if (!$row || $row['total_ms'] === null) return;
 
-    $suspect = intval($row['total_ms']) < HUNT_MIN_TOTAL_MS;
+    $floors = huntFloors();
+    $suspect = intval($row['total_ms']) < $floors['total'];
     if (!$suspect) {
         $times = [];
         foreach ($db->query("SELECT scanned_at FROM hunt_scans WHERE participant_id = ? ORDER BY scanned_at ASC", [$participantId]) as $s) {
@@ -331,7 +397,7 @@ function flagIfImplausible($db, $participantId) {
             if ($dt) $times[] = floatval($dt->format('U.u'));
         }
         for ($i = 1; $i < count($times); $i++) {
-            if (($times[$i] - $times[$i - 1]) * 1000 < HUNT_MIN_GAP_MS) { $suspect = true; break; }
+            if (($times[$i] - $times[$i - 1]) * 1000 < $floors['gap']) { $suspect = true; break; }
         }
     }
     if ($suspect) {
@@ -529,6 +595,43 @@ function handleAdminVerify($db) {
         flagIfImplausible($db, $id);
     }
     Response::success(null, $verified ? 'Participant verified' : 'Verification removed');
+}
+
+/** Current dashboard-editable settings: poster labels/hints + anti-cheat floors. */
+function handleAdminSettings($db) {
+    $floors = huntFloors();
+    Response::success([
+        'posters' => huntPosters(),
+        'floors' => [
+            'min_total_s' => intval($floors['total'] / 1000),
+            'min_gap_s' => intval($floors['gap'] / 1000),
+        ],
+    ]);
+}
+
+/** Save settings from the admin dashboard — live immediately, no rebuild. */
+function handleAdminSaveSettings($db) {
+    $input = json_decode(file_get_contents('php://input'), true);
+    if (!$input) Response::error('Invalid JSON body', 400);
+
+    if (isset($input['posters']) && is_array($input['posters'])) {
+        $clean = [];
+        foreach ($input['posters'] as $pid => $vals) {
+            if (!in_array($pid, huntPosterIds(), true) || !is_array($vals)) { continue; }
+            $clean[$pid] = [
+                'label' => isset($vals['label']) ? trim(mb_substr($vals['label'], 0, 20, 'UTF-8')) : '',
+                'hint' => isset($vals['hint']) ? trim(mb_substr($vals['hint'], 0, 300, 'UTF-8')) : '',
+            ];
+        }
+        saveHuntSetting($db, 'posters', $clean);
+    }
+    if (isset($input['floors']) && is_array($input['floors'])) {
+        saveHuntSetting($db, 'floors', [
+            'min_total_s' => max(0, min(3600, intval($input['floors']['min_total_s'] ?? 60))),
+            'min_gap_s' => max(0, min(600, intval($input['floors']['min_gap_s'] ?? 10))),
+        ]);
+    }
+    Response::success(null, 'Settings saved — live immediately');
 }
 
 /** Pre-event reset: wipes ALL participants + scans (test data cleanup). */

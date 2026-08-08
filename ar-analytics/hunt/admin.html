@@ -34,6 +34,12 @@
   .rank1 { color:#ffd700; font-weight:800; } .rank2 { color:#c0c0c0; font-weight:800; } .rank3 { color:#cd7f32; font-weight:800; }
   .muted { color:rgba(255,255,255,0.35); font-size:11px; }
   .suspect { color:#e8c36a; font-size:10px; font-weight:800; letter-spacing:0.08em; }
+  textarea { width:100%; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); border-radius:10px; color:#fff; font-size:14px; padding:10px 12px; outline:none; resize:vertical; min-height:52px; font-family:inherit; }
+  textarea:focus { border-color:var(--red); }
+  .poster-row { display:flex; gap:12px; margin-bottom:12px; flex-wrap:wrap; align-items:flex-start; }
+  .poster-row .pid { width:120px; padding-top:26px; font-size:11px; color:rgba(255,255,255,0.45); font-family:monospace; word-break:break-all; }
+  .poster-row .plabel { width:130px; }
+  .poster-row .phint { flex:1; min-width:240px; }
   .vbtn { background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); color:#fff; border-radius:8px; font-size:10.5px; padding:6px 10px; cursor:pointer; }
   .vbtn.on { background:rgba(95,208,106,0.15); border-color:rgba(95,208,106,0.6); color:#5fd06a; font-weight:700; }
   #adminView { display:none; }
@@ -61,6 +67,7 @@
     <div class="topbar">
       <div class="brand">AR<strong>RISE</strong> · MEME HUNT ADMIN</div>
       <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="btn ghost" id="settingsBtn">⚙ Settings</button>
         <button class="btn ghost" id="refreshBtn">Refresh</button>
         <button class="btn" id="exportBtn">Export CSV</button>
         <button class="btn ghost" id="resetBtn" style="border:1px solid rgba(220,30,30,0.5);">Reset All Data</button>
@@ -70,6 +77,27 @@
     <div class="stats">
       <div class="stat"><div class="v" id="stJoined">0</div><div class="l">Joined</div></div>
       <div class="stat"><div class="v" id="stDone">0</div><div class="l">Completed</div></div>
+    </div>
+
+    <!-- ─── Settings (labels, hints, anti-cheat floors) ─── -->
+    <div id="settingsPanel" style="display:none; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.09); border-radius:12px; padding:18px 20px; margin-bottom:20px;">
+      <h2 style="font-size:13px; letter-spacing:0.12em; text-transform:uppercase; margin-bottom:4px;">Hunt Settings</h2>
+      <p class="muted" style="margin-bottom:14px;">Changes go live immediately — no app rebuild needed. Clear a field to reset it to the built-in default.</p>
+      <div id="setPosters"></div>
+      <div style="display:flex; gap:14px; flex-wrap:wrap; margin-top:16px;">
+        <div style="flex:1; min-width:200px;">
+          <label>Min total time (seconds) — faster = flagged SUSPECT</label>
+          <input id="setMinTotal" type="number" min="0" max="3600" step="5">
+        </div>
+        <div style="flex:1; min-width:200px;">
+          <label>Min gap between posters (seconds)</label>
+          <input id="setMinGap" type="number" min="0" max="600" step="1">
+        </div>
+      </div>
+      <div style="display:flex; gap:10px; align-items:center; margin-top:18px;">
+        <button class="btn" id="saveSettingsBtn">Save Settings</button>
+        <span class="muted" id="settingsMsg"></span>
+      </div>
     </div>
     <div class="tablewrap">
       <table>
@@ -125,6 +153,60 @@ $('logoutBtn').addEventListener('click', function () {
   setView(false);
 });
 $('refreshBtn').addEventListener('click', function () { load(); });
+
+// ─── Settings (poster labels/hints + anti-cheat floors) ───
+$('settingsBtn').addEventListener('click', function () {
+  var p = $('settingsPanel');
+  var opening = p.style.display === 'none';
+  p.style.display = opening ? 'block' : 'none';
+  if (opening) loadSettings();
+});
+
+function loadSettings() {
+  fetch(API + '?action=admin-settings', { headers: { 'Authorization': 'Bearer ' + token() } })
+    .then(function (r) { return r.json(); })
+    .then(function (res) {
+      if (!res.success) { $('settingsMsg').textContent = res.message || 'Load failed'; return; }
+      var html = '';
+      (res.data.posters || []).forEach(function (p) {
+        html += '<div class="poster-row" data-pid="' + esc(p.id) + '">' +
+          '<div class="pid">' + esc(p.id) + '</div>' +
+          '<div class="plabel"><label>Label (chips)</label><input class="inLabel" type="text" maxlength="20" value="' + esc(p.label) + '"></div>' +
+          '<div class="phint"><label>Hint (shown after the previous scan)</label><textarea class="inHint" maxlength="300">' + esc(p.hint) + '</textarea></div>' +
+          '</div>';
+      });
+      $('setPosters').innerHTML = html;
+      $('setMinTotal').value = res.data.floors.min_total_s;
+      $('setMinGap').value = res.data.floors.min_gap_s;
+      $('settingsMsg').textContent = '';
+    })
+    .catch(function () { $('settingsMsg').textContent = 'Network error'; });
+}
+
+$('saveSettingsBtn').addEventListener('click', function () {
+  var posters = {};
+  $('setPosters').querySelectorAll('.poster-row').forEach(function (row) {
+    posters[row.getAttribute('data-pid')] = {
+      label: row.querySelector('.inLabel').value,
+      hint: row.querySelector('.inHint').value
+    };
+  });
+  $('settingsMsg').textContent = 'Saving…';
+  fetch(API + '?action=admin-save-settings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token() },
+    body: JSON.stringify({
+      posters: posters,
+      floors: {
+        min_total_s: parseInt($('setMinTotal').value, 10) || 0,
+        min_gap_s: parseInt($('setMinGap').value, 10) || 0
+      }
+    })
+  }).then(function (r) { return r.json(); }).then(function (res) {
+    $('settingsMsg').textContent = res.message || 'Saved';
+    if (res.success) loadSettings();
+  }).catch(function () { $('settingsMsg').textContent = 'Save failed — network error'; });
+});
 
 $('resetBtn').addEventListener('click', function () {
   var typed = prompt('This permanently deletes ALL participants and scans (use before the event to clear test data).\n\nType RESET to confirm:');
