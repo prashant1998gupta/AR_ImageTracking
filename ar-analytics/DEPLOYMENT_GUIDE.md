@@ -132,16 +132,44 @@ ar-analytics/
 │   │   └── Response.php   ← JSON response helper
 │   └── controllers/
 │       ├── track.php      ← Event collection (public)
-│       ├── auth.php       ← Login/logout
+│       ├── auth.php       ← Login/logout (username OR email)
 │       ├── dashboard.php  ← Dashboard data queries
-│       └── admin.php      ← Client/project CRUD
+│       ├── admin.php      ← Client/project CRUD
+│       └── hunt.php       ← AR Meme Hunt challenge engine
 ├── admin/
 │   └── index.html         ← Admin panel (SPA)
 ├── dashboard/
 │   └── index.html         ← Client dashboard (SPA)
+├── hunt/                  ← AR Meme Hunt event module (see below)
+│   ├── index.html         ← Registration / resume / start
+│   ├── leaderboard.html   ← Public top-10 + live activity feed
+│   └── admin.html         ← Hunt ops: participants, verify, settings, ads
 └── sql/
-    └── schema.sql         ← Database schema
+    ├── schema.sql         ← Database schema
+    └── hunt_schema.sql    ← Hunt tables (reference — auto-created)
 ```
+
+---
+
+## 🏆 Meme Hunt Module — Deployment
+
+Event scavenger-hunt campaign built on this platform. Full operations guide:
+`../MEME_HUNT_SETUP.md` (repo root).
+
+**Deploy** (no installer needed — `hunt.php` auto-creates `hunt_participants`,
+`hunt_scans`, `hunt_settings` on first request):
+1. Upload `api/controllers/hunt.php`, updated `api/index.php`, updated
+   `.htaccess`, and the whole `hunt/` folder alongside the existing deployment.
+2. Open `.../api/controllers/hunt.php?action=config` once → poster JSON = live.
+3. In `hunt/index.html`, set `HUNT_AR_URL` to the deployed Unity MemeHunt build.
+4. The AR build ships its own `hunt-overlay.js` (from the Unity WebGL template);
+   overlay updates = replace that one file + bump `?v=N` in the build's
+   `index.html` — no Unity rebuild.
+
+**Operate:** `hunt/admin.html` (same admin accounts) → participants, winner
+verification, CSV export, Reset All Data, and live Settings (poster
+labels/hints, anti-cheat floors, Next Clue delay, up to 4 rotating sponsor
+ads). Booth screen: `hunt/leaderboard.html?tv=1` in Chrome + F11.
 
 ---
 

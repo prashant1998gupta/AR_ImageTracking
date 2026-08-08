@@ -102,16 +102,39 @@ ar-analytics/
 │   │   └── Response.php   ← JSON response helper
 │   └── controllers/
 │       ├── track.php      ← Event collection (public)
-│       ├── auth.php       ← Login/logout
+│       ├── auth.php       ← Login/logout (username OR email)
 │       ├── dashboard.php  ← Dashboard data queries
-│       └── admin.php      ← Client/project CRUD
+│       ├── admin.php      ← Client/project CRUD
+│       └── hunt.php       ← AR Meme Hunt challenge engine
 ├── admin/
 │   └── index.html         ← Admin panel (SPA)
 ├── dashboard/
 │   └── index.html         ← Client dashboard (SPA)
+├── hunt/                  ← AR Meme Hunt (event campaign module)
+│   ├── index.html         ← Registration / resume / start
+│   ├── leaderboard.html   ← Public top-10 + live activity feed (?tv=1)
+│   └── admin.html         ← Hunt ops: participants, verify, settings, ads
 └── sql/
-    └── schema.sql         ← Database schema
+    ├── schema.sql         ← Database schema
+    └── hunt_schema.sql    ← Hunt tables (reference — auto-created by hunt.php)
 ```
+
+---
+
+## Meme Hunt Module (event campaigns)
+
+A timed AR scavenger hunt built on this platform (see `../MEME_HUNT_SETUP.md`
+for the full guide). `hunt.php` auto-creates its three tables
+(`hunt_participants`, `hunt_scans`, `hunt_settings`) on first request.
+
+- **Public:** register / resume (phone + name), scan recording with server-side
+  ms timestamps, leaderboard, live activity feed (first names only).
+- **Admin (`hunt/admin.html`, same accounts as the admin panel):** participant
+  table with phones, winner verification, SUSPECT flags, CSV export, data
+  reset, and live Settings: poster labels/hints, anti-cheat floors, Next Clue
+  delay, up to 4 rotating sponsor ads.
+- **In-AR UI** lives in the Unity WebGL template (`hunt-overlay.js`), which
+  talks to `hunt.php` cross-origin (wildcard CORS is already platform policy).
 
 ---
 
