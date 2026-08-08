@@ -89,6 +89,35 @@ function saveHuntSetting($db, $key, $value) {
     );
 }
 
+/** White-label branding — admin-editable; drives event name, brand name,
+ *  colors and CTAs across the overlay, landing page, leaderboard and victory
+ *  card. Defaults = the Bharatiya Vyapar Mahotsav campaign. */
+function huntBranding() {
+    $b = [
+        'event_name' => 'Bharatiya Vyapar Mahotsav 2026',
+        'event_meta' => '12–15 August · Bharat Mandapam, New Delhi',
+        // "PREFIX|SUFFIX": the part after | is rendered in the accent color
+        'brand_name' => 'AR|RISE',
+        'hunt_title' => 'AR Meme Hunt',
+        'powered_by' => 'ARRISE / RIONICK STUDIOS',
+        'primary_color' => '#dc1e1e',
+        'cta_headline' => 'Want to Make Your Marketing Interactive Too?',
+        'cta_text' => 'Book a Demo',
+        'cta_url' => 'https://dashboard.rionick.com',
+    ];
+    $o = huntSetting('branding');
+    if (is_array($o)) {
+        foreach ($b as $k => $v) {
+            if (isset($o[$k]) && is_string($o[$k]) && trim($o[$k]) !== '') {
+                $b[$k] = trim(mb_substr($o[$k], 0, 200, 'UTF-8'));
+            }
+        }
+    }
+    if (!preg_match('/^#[0-9a-fA-F]{6}$/', $b['primary_color'])) { $b['primary_color'] = '#dc1e1e'; }
+    if (strpos($b['cta_url'], 'https://') !== 0) { $b['cta_url'] = 'https://dashboard.rionick.com'; }
+    return $b;
+}
+
 /** Client UI tuning — dashboard-editable, delivered to the overlay in every
  *  status/scan response (applies live, no app rebuild). */
 function huntUi() {
@@ -113,6 +142,7 @@ function huntUi() {
     return [
         'next_btn_delay_s' => $delay,
         'sequential' => $sequential,
+        'branding' => huntBranding(),
         'ads' => $ads,
         // legacy single-ad fields for any cached overlay still reading them
         'ad_image_url' => count($ads) ? $ads[0]['image'] : '',
@@ -756,6 +786,7 @@ function handleAdminSettings($db) {
             'min_gap_s' => intval($floors['gap'] / 1000),
         ],
         'ui' => huntUi(),
+        'branding' => huntBranding(),
     ]);
 }
 
@@ -780,6 +811,16 @@ function handleAdminSaveSettings($db) {
             'min_total_s' => max(0, min(3600, intval($input['floors']['min_total_s'] ?? 60))),
             'min_gap_s' => max(0, min(600, intval($input['floors']['min_gap_s'] ?? 10))),
         ]);
+    }
+    if (isset($input['branding']) && is_array($input['branding'])) {
+        $clean = [];
+        foreach (['event_name', 'event_meta', 'brand_name', 'hunt_title', 'powered_by',
+                  'primary_color', 'cta_headline', 'cta_text', 'cta_url'] as $k) {
+            if (isset($input['branding'][$k]) && is_string($input['branding'][$k])) {
+                $clean[$k] = trim(mb_substr($input['branding'][$k], 0, 200, 'UTF-8'));
+            }
+        }
+        saveHuntSetting($db, 'branding', $clean);
     }
     if (isset($input['ui']) && is_array($input['ui'])) {
         // Up to 4 sponsor ads; https-only, junk entries are dropped

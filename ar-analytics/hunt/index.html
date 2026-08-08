@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>AR Meme Hunt | ARRISE</title>
 <style>
-  :root { --red:#dc1e1e; --red-soft:rgba(220,30,30,0.12); --bg:#080808; }
+  :root { --red:#dc1e1e; --red-rgb:220,30,30; --red-a:#ff4444; --red-d:#aa1111; --red-l:#ff6666; --red-soft:rgba(var(--red-rgb),0.12); --bg:#080808; }
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   /* margin:auto on the card (not align-items:center on body) — centering via
      flex clips the top of overflowing content and blocks scrolling on mobile */
@@ -23,15 +23,15 @@
   .consent { display:flex; gap:10px; align-items:flex-start; margin:18px 0 6px; font-size:12px; color:rgba(255,255,255,0.55); line-height:1.55; }
   .consent input { width:18px; height:18px; margin-top:2px; accent-color:var(--red); flex-shrink:0; }
   .privacy { font-size:10.5px; color:rgba(255,255,255,0.3); line-height:1.5; margin-top:10px; }
-  .btn { display:block; width:100%; text-align:center; background:linear-gradient(135deg,#ff4444,#aa1111); color:#fff; border:none; border-radius:12px; font-size:14px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; padding:16px; margin-top:22px; cursor:pointer; text-decoration:none; }
+  .btn { display:block; width:100%; text-align:center; background:linear-gradient(135deg,var(--red-a),var(--red-d)); color:#fff; border:none; border-radius:12px; font-size:14px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; padding:16px; margin-top:22px; cursor:pointer; text-decoration:none; }
   .btn:disabled { opacity:0.5; }
   .btn.secondary { background:rgba(255,255,255,0.08); font-weight:500; }
-  .err { display:none; background:var(--red-soft); border:1px solid rgba(220,30,30,0.4); color:#ff8888; border-radius:10px; padding:11px 14px; font-size:12.5px; margin-top:16px; }
+  .err { display:none; background:var(--red-soft); border:1px solid rgba(var(--red-rgb),0.4); color:#ff8888; border-radius:10px; padding:11px 14px; font-size:12.5px; margin-top:16px; }
   .view { display:none; }
   .view.active { display:block; }
   .steps { margin:20px 0; }
   .step { display:flex; gap:14px; align-items:flex-start; margin-bottom:14px; }
-  .step .n { width:26px; height:26px; border-radius:50%; background:var(--red-soft); border:1px solid rgba(220,30,30,0.5); color:#ff6666; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .step .n { width:26px; height:26px; border-radius:50%; background:var(--red-soft); border:1px solid rgba(var(--red-rgb),0.5); color:var(--red-l); font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
   .step p { font-size:13px; color:rgba(255,255,255,0.7); line-height:1.5; padding-top:3px; }
   .bigmsg { text-align:center; font-size:26px; font-weight:800; letter-spacing:0.08em; margin:10px 0 4px; }
   .progress-pill { text-align:center; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:12px; padding:14px; margin-top:18px; font-size:13px; color:rgba(255,255,255,0.7); }
@@ -44,8 +44,8 @@
 </head>
 <body>
 <div class="card">
-  <div class="brand">AR<strong>RISE</strong></div>
-  <div class="tagline">Bharatiya Vyapar Mahotsav 2026</div>
+  <div class="brand" id="brandEl">AR<strong>RISE</strong></div>
+  <div class="tagline" id="taglineEl">Bharatiya Vyapar Mahotsav 2026</div>
 
   <!-- ─── View: registration ─── -->
   <div class="view active" id="view-register">
@@ -99,7 +99,7 @@
     <div class="bigmsg">You're In!</div>
     <p class="sub" id="introName"></p>
     <div class="steps">
-      <div class="step"><div class="n">1</div><p>Find all <b>five posters</b> around Bharatiya Vyapar Mahotsav.</p></div>
+      <div class="step"><div class="n">1</div><p>Find all <b>five posters</b> around <span id="evName1">Bharatiya Vyapar Mahotsav</span>.</p></div>
       <div class="step"><div class="n">2</div><p>Scan each poster through the <b>AR camera</b>.</p></div>
       <div class="step"><div class="n">3</div><p>Follow the <b>clue</b> after every scan.</p></div>
       <div class="step"><div class="n">4</div><p>Complete the challenge <b>as fast as possible</b>. Your timer starts at your <b>first poster scan</b> — so reach poster 1, then go fast!</p></div>
@@ -123,7 +123,7 @@
   <!-- ─── View: completed ─── -->
   <div class="view" id="view-done">
     <div class="bigmsg">Challenge Complete!</div>
-    <p class="sub">Congratulations! You completed the<br>Bharatiya Vyapar Mahotsav AR Meme Hunt.</p>
+    <p class="sub" id="doneSub">Congratulations! You completed the<br>Bharatiya Vyapar Mahotsav AR Meme Hunt.</p>
     <div class="time" id="doneTime">--:--</div>
     <div class="rank" id="doneRank"></div>
     <a class="btn" href="leaderboard.html">View Leaderboard</a>
@@ -156,6 +156,49 @@ function setErr(id, msg) {
   el.textContent = msg || '';
   el.style.display = msg ? 'block' : 'none';
 }
+
+// ─── Branding (admin → Settings → Branding; hardcoded text = fallback) ───
+function escHtml(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function mixHex(hex, target, t) {
+  var m1 = /^#([0-9a-f]{6})$/i.exec(hex), m2 = /^#([0-9a-f]{6})$/i.exec(target);
+  if (!m1 || !m2) return hex;
+  var a = parseInt(m1[1], 16), b = parseInt(m2[1], 16);
+  function ch(sh) {
+    var x = (a >> sh) & 255, y = (b >> sh) & 255;
+    return Math.round(x + (y - x) * t);
+  }
+  return '#' + ((1 << 24) + (ch(16) << 16) + (ch(8) << 8) + ch(0)).toString(16).slice(1);
+}
+function applyBranding(b) {
+  if (!b) return;
+  try {
+    if (b.primary_color && /^#[0-9a-f]{6}$/i.test(b.primary_color)) {
+      var n = parseInt(b.primary_color.slice(1), 16);
+      var rs = document.documentElement.style;
+      rs.setProperty('--red', b.primary_color);
+      rs.setProperty('--red-rgb', ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255));
+      rs.setProperty('--red-a', mixHex(b.primary_color, '#ffffff', 0.22));
+      rs.setProperty('--red-d', mixHex(b.primary_color, '#000000', 0.3));
+      rs.setProperty('--red-l', mixHex(b.primary_color, '#ffffff', 0.35));
+    }
+    if (b.brand_name) {
+      var i = b.brand_name.indexOf('|');
+      $('brandEl').innerHTML = i === -1 ? '<strong>' + escHtml(b.brand_name) + '</strong>'
+        : escHtml(b.brand_name.slice(0, i)) + '<strong>' + escHtml(b.brand_name.slice(i + 1)) + '</strong>';
+    }
+    if (b.event_name) {
+      $('taglineEl').textContent = b.event_name;
+      $('evName1').textContent = b.event_name;
+      $('doneSub').innerHTML = 'Congratulations! You completed the<br>' + escHtml(b.event_name) + ' ' + escHtml(b.hunt_title || 'AR Meme Hunt') + '.';
+    }
+    if (b.hunt_title) {
+      document.title = b.hunt_title + ' | ' + (b.brand_name || '').replace('|', '');
+    }
+  } catch (e) {}
+}
+fetch(API + '?action=config').then(function (r) { return r.json(); }).then(function (res) {
+  if (res && res.success && res.data && res.data.ui) { applyBranding(res.data.ui.branding); }
+}).catch(function () {});
 
 function api(action, method, body) {
   return fetch(API + '?action=' + action, {

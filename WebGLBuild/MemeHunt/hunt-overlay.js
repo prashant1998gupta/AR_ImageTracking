@@ -352,6 +352,7 @@
     if (data.completed) { state.nextHint = null; }
     // Server-tunable UI settings (hunt/admin.html → Settings) override defaults
     if (data.ui) {
+      if (data.ui.branding) { applyBranding(data.ui.branding); }
       if (typeof data.ui.next_btn_delay_s === 'number') {
         CFG.nextBtnDelayMs = Math.max(0, data.ui.next_btn_delay_s) * 1000;
       }
@@ -407,6 +408,57 @@
     }
   }
 
+  // ─── Branding (white-label; admin → ui.branding overrides live) ─────
+  var BR = {
+    eventName: 'Bharatiya Vyapar Mahotsav 2026',
+    brandName: 'AR|RISE',        // part after | renders in the accent color
+    huntTitle: 'AR Meme Hunt',
+    poweredBy: 'ARRISE / RIONICK STUDIOS',
+    primary: '#dc1e1e', accent: '#ff4444', dark: '#aa1111', light: '#ff5555'
+  };
+  function hexRgb(h) {
+    var m = /^#([0-9a-f]{6})$/i.exec(String(h || ''));
+    if (!m) { return null; }
+    var n = parseInt(m[1], 16);
+    return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+  }
+  function mixHex(hex, target, t) {
+    var a = hexRgb(hex), b = hexRgb(target);
+    if (!a || !b) { return hex; }
+    function ch(x, y) { return Math.round(x + (y - x) * t); }
+    return '#' + ((1 << 24) + (ch(a.r, b.r) << 16) + (ch(a.g, b.g) << 8) + ch(a.b, b.b)).toString(16).slice(1);
+  }
+  function brandHtml(name) {
+    var esc = function (s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
+    var i = String(name).indexOf('|');
+    if (i === -1) { return '<b>' + esc(String(name)) + '</b>'; }
+    return esc(name.slice(0, i)) + '<b>' + esc(name.slice(i + 1)) + '</b>';
+  }
+  function applyBranding(b) {
+    if (!b || !root) { return; }
+    if (b.event_name) { BR.eventName = b.event_name; }
+    if (b.brand_name) { BR.brandName = b.brand_name; }
+    if (b.hunt_title) { BR.huntTitle = b.hunt_title; }
+    if (b.powered_by) { BR.poweredBy = b.powered_by; }
+    if (b.primary_color && hexRgb(b.primary_color)) {
+      BR.primary = b.primary_color;
+      BR.accent = mixHex(BR.primary, '#ffffff', 0.22);
+      BR.dark = mixHex(BR.primary, '#000000', 0.3);
+      BR.light = mixHex(BR.primary, '#ffffff', 0.35);
+    }
+    var rgb = hexRgb(BR.primary);
+    root.style.setProperty('--hb', BR.primary);
+    root.style.setProperty('--hbr', rgb.r + ',' + rgb.g + ',' + rgb.b);
+    root.style.setProperty('--hba', BR.accent);
+    root.style.setProperty('--hbd', BR.dark);
+    root.style.setProperty('--hbl', BR.light);
+    document.getElementById('hunt-gate-brand').innerHTML = brandHtml(BR.brandName);
+    document.getElementById('hunt-done-brand').innerHTML = brandHtml(BR.brandName);
+    document.getElementById('hunt-gate-title').textContent = BR.huntTitle;
+    document.getElementById('hunt-done-msg').textContent =
+      'Congratulations! You completed the ' + BR.eventName + ' ' + BR.huntTitle + '.';
+  }
+
   // ─── UI ─────────────────────────────────────────────────────────────
   var root, chipsEl, timerEl, toastEl, toastTimer, hintEl, gateEl, doneEl;
   var peekEl, peekBackdrop, peekImg, peekLabel, peekHintEl;
@@ -427,25 +479,27 @@
       // errors are never hidden behind hunt overlays. top/right/bottom/left
       // instead of inset: iOS Safari < 14.5 does not support inset.
       // overflow:hidden — no overlay element may ever paint outside the screen box
-      '  #hunt-root { position:fixed; top:0; right:0; bottom:0; left:0; pointer-events:none; z-index:90; overflow:hidden; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }' +
+      // Brand color vars (--hb primary, --hbr its r,g,b triplet, --hba bright,
+      // --hbd dark, --hbl light text) — overridden live by applyBranding()
+      '  #hunt-root { --hb:#dc1e1e; --hbr:220,30,30; --hba:#ff4444; --hbd:#aa1111; --hbl:#ff5555; position:fixed; top:0; right:0; bottom:0; left:0; pointer-events:none; z-index:90; overflow:hidden; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }' +
       '  #hunt-top { position:absolute; top:calc(10px + env(safe-area-inset-top)); left:0; right:0; display:none; justify-content:center; gap:10px; align-items:center; }' +
-      '  #hunt-timer, #hunt-count { background:rgba(8,8,8,0.72); border:1px solid rgba(220,30,30,0.45); color:#fff; border-radius:20px; padding:6px 14px; font-size:12.5px; font-weight:700; letter-spacing:0.08em; font-variant-numeric:tabular-nums; }' +
-      '  #hunt-count b { color:#ff5555; }' +
+      '  #hunt-timer, #hunt-count { background:rgba(8,8,8,0.72); border:1px solid rgba(var(--hbr),0.45); color:#fff; border-radius:20px; padding:6px 14px; font-size:12.5px; font-weight:700; letter-spacing:0.08em; font-variant-numeric:tabular-nums; }' +
+      '  #hunt-count b { color:var(--hbl); }' +
       '  #hunt-chips { position:absolute; bottom:calc(18px + env(safe-area-inset-bottom)); left:0; right:0; display:none; justify-content:center; gap:7px; padding:0 10px; flex-wrap:wrap; }' +
       '  .hunt-chip { background:rgba(8,8,8,0.72); border:1px solid rgba(255,255,255,0.18); color:rgba(255,255,255,0.55); border-radius:16px; padding:6px 11px; font-size:11px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; }' +
       '  .hunt-chip.done { border-color:rgba(95,208,106,0.7); color:#5fd06a; }' +
-      '  #hunt-toast { position:absolute; top:calc(56px + env(safe-area-inset-top)); left:50%; transform:translateX(-50%); background:rgba(8,8,8,0.85); border:1px solid rgba(220,30,30,0.5); color:#fff; border-radius:12px; padding:10px 16px; font-size:12.5px; max-width:86vw; text-align:center; display:none; line-height:1.5; }' +
+      '  #hunt-toast { position:absolute; top:calc(56px + env(safe-area-inset-top)); left:50%; transform:translateX(-50%); background:rgba(8,8,8,0.85); border:1px solid rgba(var(--hbr),0.5); color:#fff; border-radius:12px; padding:10px 16px; font-size:12.5px; max-width:86vw; text-align:center; display:none; line-height:1.5; }' +
       // Hint = compact bottom sheet above the chips — never covers the AR view
       // left+right anchoring + margin:auto centers the sheet without transform-X,
       // so it can never be clipped at a screen edge; box-sizing keeps the padding
       // inside the width on every browser
-      '  #hunt-hint { position:absolute; left:12px; right:12px; margin:0 auto; max-width:380px; box-sizing:border-box; bottom:calc(64px + env(safe-area-inset-bottom)); transform:translateY(16px); background:rgba(8,8,8,0.9); border:1px solid rgba(220,30,30,0.55); border-radius:14px; padding:13px 40px 13px 16px; text-align:left; display:none; opacity:0; transition:opacity 0.3s ease, transform 0.3s ease; pointer-events:auto; }' +
+      '  #hunt-hint { position:absolute; left:12px; right:12px; margin:0 auto; max-width:380px; box-sizing:border-box; bottom:calc(64px + env(safe-area-inset-bottom)); transform:translateY(16px); background:rgba(8,8,8,0.9); border:1px solid rgba(var(--hbr),0.55); border-radius:14px; padding:13px 40px 13px 16px; text-align:left; display:none; opacity:0; transition:opacity 0.3s ease, transform 0.3s ease; pointer-events:auto; }' +
       '  #hunt-hint.show { opacity:1; transform:translateY(0); }' +
-      '  #hunt-hint .hp { color:#ff5555; font-size:10px; font-weight:800; letter-spacing:0.2em; text-transform:uppercase; margin-bottom:5px; }' +
+      '  #hunt-hint .hp { color:var(--hbl); font-size:10px; font-weight:800; letter-spacing:0.2em; text-transform:uppercase; margin-bottom:5px; }' +
       '  #hunt-hint .ht { color:#fff; font-size:13px; line-height:1.55; }' +
       '  #hunt-hint button, #hunt-gate a, #hunt-gate button, #hunt-done a { pointer-events:auto; -webkit-tap-highlight-color:transparent; }' +
       '  #hunt-hint .hx { position:absolute; top:6px; right:6px; width:28px; height:28px; background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.6); border:none; border-radius:50%; font-size:13px; line-height:28px; padding:0; }' +
-      '  #hunt-hint .nxt { display:none; margin-top:11px; background:linear-gradient(135deg,#ff4444,#aa1111); color:#fff; border:none; border-radius:10px; font-size:11.5px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; padding:11px 24px; -webkit-tap-highlight-color:transparent; }' +
+      '  #hunt-hint .nxt { display:none; margin-top:11px; background:linear-gradient(135deg,var(--hba),var(--hbd)); color:#fff; border:none; border-radius:10px; font-size:11.5px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; padding:11px 24px; -webkit-tap-highlight-color:transparent; }' +
       '  #hunt-hint .nxt.on { display:inline-block; }' +
       // Compact single-row variant for the enjoy phase — half the height:
       // progress + text on the left, the Next Clue pill on the right
@@ -463,9 +517,9 @@
       '  .hunt-cf { position:absolute; top:-14px; width:8px; height:13px; border-radius:2px; opacity:0; animation-name:huntCfFall; animation-timing-function:linear; animation-iteration-count:2; }' +
       '  @keyframes huntCfFall { 0% { opacity:1; transform:translateY(-14px) rotate(0deg); } 85% { opacity:1; } 100% { opacity:0; transform:translateY(102vh) rotate(680deg); } }' +
       // Draggable "find this poster" preview thumbnail
-      '  #hunt-peek { position:absolute; width:82px; background:rgba(8,8,8,0.88); border:1px solid rgba(220,30,30,0.55); border-radius:12px; overflow:hidden; display:none; pointer-events:auto; touch-action:none; z-index:5; box-shadow:0 4px 14px rgba(0,0,0,0.4); }' +
+      '  #hunt-peek { position:absolute; width:82px; background:rgba(8,8,8,0.88); border:1px solid rgba(var(--hbr),0.55); border-radius:12px; overflow:hidden; display:none; pointer-events:auto; touch-action:none; z-index:5; box-shadow:0 4px 14px rgba(0,0,0,0.4); }' +
       '  #hunt-peek img { display:block; width:100%; height:82px; object-fit:cover; pointer-events:none; -webkit-user-drag:none; user-select:none; -webkit-user-select:none; }' +
-      '  #hunt-peek .pk { font-size:8.5px; letter-spacing:0.1em; text-transform:uppercase; color:#ff6666; font-weight:800; text-align:center; padding:4px 4px 5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }' +
+      '  #hunt-peek .pk { font-size:8.5px; letter-spacing:0.1em; text-transform:uppercase; color:var(--hbl); font-weight:800; text-align:center; padding:4px 4px 5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }' +
       // plain width first = fallback for browsers without CSS min(); max-width
       // guarantees the enlarged card always fits inside the screen
       '  #hunt-peek.big { left:50% !important; top:50% !important; transform:translate(-50%,-50%); width:288px; width:min(80vw,320px); max-width:calc(100vw - 24px); z-index:20; }' +
@@ -484,13 +538,13 @@
       '  #hunt-spot .sptap { color:rgba(255,255,255,0.3); font-size:10.5px; margin-top:12px; }' +
       '  #hunt-spot-close { position:absolute; top:calc(14px + env(safe-area-inset-top)); right:14px; width:38px; height:38px; border-radius:50%; background:rgba(255,255,255,0.1); color:#fff; border:1px solid rgba(255,255,255,0.3); font-size:15px; line-height:36px; padding:0; -webkit-tap-highlight-color:transparent; }' +
       '  .hunt-brand { letter-spacing:0.38em; font-weight:300; font-size:20px; text-transform:uppercase; color:#fff; }' +
-      '  .hunt-brand b { color:#dc1e1e; font-weight:700; }' +
+      '  .hunt-brand b { color:var(--hb); font-weight:700; }' +
       '  .hunt-h { color:#fff; font-size:21px; font-weight:800; letter-spacing:0.06em; margin:16px 0 8px; }' +
       '  .hunt-p { color:rgba(255,255,255,0.55); font-size:13px; line-height:1.7; max-width:300px; }' +
-      '  .hunt-btn { display:inline-block; margin-top:20px; background:linear-gradient(135deg,#ff4444,#aa1111); color:#fff; border:none; border-radius:12px; font-size:13px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; padding:15px 30px; text-decoration:none; }' +
+      '  .hunt-btn { display:inline-block; margin-top:20px; background:linear-gradient(135deg,var(--hba),var(--hbd)); color:#fff; border:none; border-radius:12px; font-size:13px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; padding:15px 30px; text-decoration:none; }' +
       '  .hunt-resume { display:inline-block; margin-top:18px; color:rgba(255,255,255,0.75); font-size:13px; font-weight:600; text-decoration:underline; text-underline-offset:3px; pointer-events:auto; -webkit-tap-highlight-color:transparent; }' +
       '  .hunt-skip { display:inline-block; margin-top:14px; color:rgba(255,255,255,0.35); font-size:11.5px; text-decoration:underline; background:none; border:none; }' +
-      '  #hunt-done .big-time { color:#dc1e1e; font-size:42px; font-weight:100; margin:6px 0 0; font-variant-numeric:tabular-nums; }' +
+      '  #hunt-done .big-time { color:var(--hb); font-size:42px; font-weight:100; margin:6px 0 0; font-variant-numeric:tabular-nums; }' +
       '  #hunt-done .rank { color:rgba(255,255,255,0.7); font-size:14px; margin-bottom:2px; }' +
       // Victory card preview + share (WhatsApp viral loop)
       '  #hunt-vc-preview { display:none; width:min(44vw,180px); border-radius:12px; border:1px solid rgba(255,255,255,0.25); margin:10px 0 0; box-shadow:0 8px 28px rgba(0,0,0,0.55); pointer-events:auto; }' +
@@ -505,17 +559,17 @@
       '<div id="hunt-toast"></div>' +
       '<div id="hunt-hint"><button id="hunt-hint-ok" class="hx" aria-label="Close">✕</button><div class="hp" id="hunt-hint-p"></div><div class="ht" id="hunt-hint-t"></div><button id="hunt-hint-next" class="nxt">Next Clue ▸</button></div>' +
       '<div id="hunt-gate">' +
-      '  <div class="hunt-brand">AR<b>RISE</b></div>' +
-      '  <div class="hunt-h">AR Meme Hunt</div>' +
+      '  <div class="hunt-brand" id="hunt-gate-brand">AR<b>RISE</b></div>' +
+      '  <div class="hunt-h" id="hunt-gate-title">AR Meme Hunt</div>' +
       '  <p class="hunt-p">Find 5 posters. Scan them all. Top 3 win prizes. Register first to join the challenge!</p>' +
       '  <a class="hunt-btn" id="hunt-gate-btn">Register To Play</a>' +
       '  <a class="hunt-resume" id="hunt-gate-resume">Already registered? Resume your hunt →</a>' +
       '  <button class="hunt-skip" id="hunt-gate-skip">Continue without the hunt</button>' +
       '</div>' +
       '<div id="hunt-done">' +
-      '  <div class="hunt-brand">AR<b>RISE</b></div>' +
+      '  <div class="hunt-brand" id="hunt-done-brand">AR<b>RISE</b></div>' +
       '  <div class="hunt-h">Challenge Complete!</div>' +
-      '  <p class="hunt-p">Congratulations! You completed the Bharatiya Vyapar Mahotsav AR Meme Hunt.</p>' +
+      '  <p class="hunt-p" id="hunt-done-msg">Congratulations! You completed the Bharatiya Vyapar Mahotsav AR Meme Hunt.</p>' +
       '  <div class="big-time" id="hunt-done-time">--:--</div>' +
       '  <div class="rank" id="hunt-done-rank"></div>' +
       '  <img id="hunt-vc-preview" alt="My victory card">' +
@@ -823,18 +877,23 @@
     var c = document.createElement('canvas');
     c.width = W; c.height = H;
     var ctx = c.getContext('2d');
+    // Canvas can't read CSS vars — build rgba strings from the branding colors
+    var pr = hexRgb(BR.primary) || { r: 220, g: 30, b: 30 };
+    var PT = pr.r + ',' + pr.g + ',' + pr.b;
+    var lr = hexRgb(BR.light) || { r: 255, g: 80, b: 80 };
+    var LT = lr.r + ',' + lr.g + ',' + lr.b;
 
-    // Background + red glow
+    // Background + brand-color glow
     ctx.fillStyle = '#0a0a0a';
     ctx.fillRect(0, 0, W, H);
     var glow = ctx.createRadialGradient(W / 2, 340, 60, W / 2, 340, 700);
-    glow.addColorStop(0, 'rgba(220,30,30,0.16)');
-    glow.addColorStop(1, 'rgba(220,30,30,0)');
+    glow.addColorStop(0, 'rgba(' + PT + ',0.16)');
+    glow.addColorStop(1, 'rgba(' + PT + ',0)');
     ctx.fillStyle = glow;
     ctx.fillRect(0, 0, W, H);
 
     // Confetti
-    var colors = ['#ff4444', '#ffd700', '#ffffff', '#5fd06a', '#dc1e1e', '#ff9f43'];
+    var colors = [BR.accent, '#ffd700', '#ffffff', '#5fd06a', BR.primary, '#ff9f43'];
     for (var i = 0; i < 40; i++) {
       ctx.save();
       ctx.translate(60 + Math.random() * (W - 120), 60 + Math.random() * 620);
@@ -847,11 +906,11 @@
     ctx.globalAlpha = 1;
 
     // Frame + HUD corner brackets
-    ctx.strokeStyle = 'rgba(220,30,30,0.45)';
+    ctx.strokeStyle = 'rgba(' + PT + ',0.45)';
     ctx.lineWidth = 3;
     vcRoundRect(ctx, 34, 34, W - 68, H - 68, 26);
     ctx.stroke();
-    ctx.strokeStyle = 'rgba(255,80,80,0.9)';
+    ctx.strokeStyle = 'rgba(' + LT + ',0.9)';
     ctx.lineWidth = 6;
     [[60, 60, 1, 1], [W - 60, 60, -1, 1], [60, H - 60, 1, -1], [W - 60, H - 60, -1, -1]].forEach(function (k) {
       ctx.beginPath();
@@ -864,21 +923,24 @@
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    // Brand: [AR] RISE
+    // Brand: [PREFIX] SUFFIX — from BR.brandName ("AR|RISE" style)
+    var bi = String(BR.brandName).indexOf('|');
+    var bPre = bi === -1 ? String(BR.brandName) : BR.brandName.slice(0, bi);
+    var bSuf = bi === -1 ? '' : BR.brandName.slice(bi + 1);
     ctx.font = '900 56px ' + FAM;
-    var arW = ctx.measureText('AR').width + 36;
-    var riseW = ctx.measureText('RISE').width;
-    var bx = W / 2 - (arW + 14 + riseW) / 2;
-    ctx.fillStyle = '#dc1e1e';
+    var arW = ctx.measureText(bPre).width + 36;
+    var riseW = bSuf ? ctx.measureText(bSuf).width : 0;
+    var bx = W / 2 - (arW + (bSuf ? 14 : 0) + riseW) / 2;
+    ctx.fillStyle = BR.primary;
     vcRoundRect(ctx, bx, 118, arW, 74, 8);
     ctx.fill();
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('AR', bx + arW / 2, 158);
-    ctx.fillText('RISE', bx + arW + 14 + riseW / 2, 158);
+    ctx.fillText(bPre, bx + arW / 2, 158);
+    if (bSuf) { ctx.fillText(bSuf, bx + arW + 14 + riseW / 2, 158); }
 
     ctx.fillStyle = 'rgba(255,255,255,0.5)';
     ctx.font = '600 27px ' + FAM;
-    ctx.fillText('AR MEME HUNT · BHARATIYA VYAPAR MAHOTSAV 2026', W / 2, 240);
+    ctx.fillText((BR.huntTitle + ' · ' + BR.eventName).toUpperCase(), W / 2, 240);
 
     // Trophy + headline
     ctx.font = '150px ' + FAM;
@@ -894,7 +956,7 @@
     ctx.fillText(name, W / 2, 600);
 
     // Time
-    ctx.fillStyle = '#ff4444';
+    ctx.fillStyle = BR.accent;
     ctx.font = '800 175px ' + FAM;
     ctx.fillText(data.time_formatted || '--:--', W / 2, 745);
     ctx.fillStyle = 'rgba(255,255,255,0.45)';
@@ -907,7 +969,7 @@
       ctx.font = '800 46px ' + FAM;
       var rw = ctx.measureText(rankTxt).width + 90;
       var gold = data.rank <= 3;
-      ctx.strokeStyle = gold ? '#ffd700' : 'rgba(255,80,80,0.9)';
+      ctx.strokeStyle = gold ? '#ffd700' : 'rgba(' + LT + ',0.9)';
       ctx.lineWidth = 4;
       vcRoundRect(ctx, W / 2 - rw / 2, 895, rw, 88, 44);
       ctx.stroke();
@@ -934,28 +996,28 @@
 
     // Footer
     var div = ctx.createLinearGradient(200, 0, W - 200, 0);
-    div.addColorStop(0, 'rgba(220,30,30,0)');
-    div.addColorStop(0.5, 'rgba(220,30,30,0.8)');
-    div.addColorStop(1, 'rgba(220,30,30,0)');
+    div.addColorStop(0, 'rgba(' + PT + ',0)');
+    div.addColorStop(0.5, 'rgba(' + PT + ',0.8)');
+    div.addColorStop(1, 'rgba(' + PT + ',0)');
     ctx.fillStyle = div;
     ctx.fillRect(200, 1130, W - 400, 3);
 
     ctx.fillStyle = '#ffffff';
     ctx.font = '800 40px ' + FAM;
     ctx.fillText('CAN YOU BEAT MY TIME?', W / 2, 1190);
-    ctx.fillStyle = '#ff5555';
+    ctx.fillStyle = BR.light;
     ctx.font = '700 32px ' + FAM;
     ctx.fillText(CFG.landingUrl.replace(/^https:\/\//, '').replace(/\/$/, ''), W / 2, 1243);
     ctx.fillStyle = 'rgba(255,255,255,0.35)';
     ctx.font = '600 22px ' + FAM;
-    ctx.fillText('POWERED BY ARRISE · RIONICK STUDIOS — TURNING PRINT INTO AR', W / 2, 1295);
+    ctx.fillText(('POWERED BY ' + BR.poweredBy).toUpperCase(), W / 2, 1295);
 
     return c;
   }
 
   function renderVictoryCard(data) {
     vcCanvas = buildVictoryCard(data);
-    vcText = 'I completed the AR Meme Hunt at Bharatiya Vyapar Mahotsav in ' +
+    vcText = 'I completed the ' + BR.huntTitle + ' at ' + BR.eventName + ' in ' +
       (data.time_formatted || '') + (data.rank ? ' — Rank #' + data.rank : '') +
       '! 🏆 Can you beat my time? 👉 ' + CFG.landingUrl;
 
@@ -1019,7 +1081,7 @@
     if (old && old.parentNode) { old.parentNode.removeChild(old); }
     var c = document.createElement('div');
     c.id = 'hunt-confetti';
-    var colors = ['#ff4444', '#ffd700', '#ffffff', '#5fd06a', '#dc1e1e', '#ff9f43'];
+    var colors = [BR.accent, '#ffd700', '#ffffff', '#5fd06a', BR.primary, '#ff9f43'];
     for (var i = 0; i < 44; i++) {
       var p = document.createElement('div');
       p.className = 'hunt-cf';
@@ -1058,6 +1120,10 @@
     if (!token) {
       bootSettled = true;
       if (CFG.requireRegistration) { gateEl.style.display = 'flex'; }
+      // Brand the registration gate too (no participant state to piggyback on)
+      api('config').then(function (res) {
+        if (res && res.success && res.data && res.data.ui) { applyBranding(res.data.ui.branding); }
+      }).catch(function () {});
       return;
     }
     api('status&token=' + encodeURIComponent(token)).then(function (res) {

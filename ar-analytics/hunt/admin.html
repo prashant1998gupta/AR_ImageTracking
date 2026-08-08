@@ -106,6 +106,27 @@
         </div>
       </div>
       <div style="margin-top:18px; padding-top:14px; border-top:1px solid rgba(255,255,255,0.08);">
+        <h2 style="font-size:12px; letter-spacing:0.12em; text-transform:uppercase; margin-bottom:4px;">Branding (white-label)</h2>
+        <p class="muted" style="margin-bottom:6px;">Event name, brand and colors across the AR overlay, landing page, leaderboard and victory card. In Brand name, the part after <b>|</b> is shown in the accent color (e.g. <b>AR|RISE</b>).</p>
+        <div class="poster-row">
+          <div style="flex:1;min-width:220px;"><label>Event name</label><input id="brEventName" type="text" maxlength="200" placeholder="Bharatiya Vyapar Mahotsav 2026"></div>
+          <div style="flex:1;min-width:220px;"><label>Event line (dates · venue)</label><input id="brEventMeta" type="text" maxlength="200" placeholder="12–15 August · Bharat Mandapam, New Delhi"></div>
+        </div>
+        <div class="poster-row">
+          <div style="flex:1;min-width:160px;"><label>Brand name (PREFIX|SUFFIX)</label><input id="brBrandName" type="text" maxlength="60" placeholder="AR|RISE"></div>
+          <div style="flex:1;min-width:160px;"><label>Hunt title</label><input id="brHuntTitle" type="text" maxlength="80" placeholder="AR Meme Hunt"></div>
+          <div style="flex:0 0 140px;"><label>Accent color</label><input id="brColor" type="color" value="#dc1e1e" style="height:38px; padding:2px; cursor:pointer;"></div>
+        </div>
+        <div class="poster-row">
+          <div style="flex:1;min-width:220px;"><label>Powered-by footer</label><input id="brPoweredBy" type="text" maxlength="200" placeholder="ARRISE / RIONICK STUDIOS"></div>
+        </div>
+        <div class="poster-row">
+          <div style="flex:1;min-width:220px;"><label>Leaderboard CTA headline</label><input id="brCtaHeadline" type="text" maxlength="200" placeholder="Want to Make Your Marketing Interactive Too?"></div>
+          <div style="flex:1;min-width:140px;"><label>CTA button text</label><input id="brCtaText" type="text" maxlength="60" placeholder="Book a Demo"></div>
+          <div style="flex:1;min-width:220px;"><label>CTA link (https)</label><input id="brCtaUrl" type="text" maxlength="200" placeholder="https://dashboard.rionick.com"></div>
+        </div>
+      </div>
+      <div style="margin-top:18px; padding-top:14px; border-top:1px solid rgba(255,255,255,0.08);">
         <h2 style="font-size:12px; letter-spacing:0.12em; text-transform:uppercase; margin-bottom:4px;">Sponsor Ads (optional, up to 4)</h2>
         <p class="muted" style="margin-bottom:6px;">Full-screen closeable images shown when a participant taps "Next Clue" — they rotate in order (Ad 1 after the 1st scan, Ad 2 after the 2nd, …; fewer ads repeat). Never before the first scan, never on the completion screen. Leave all image URLs empty to disable.</p>
         <div class="poster-row"><div style="flex:1;min-width:220px;"><label>Ad 1 — image URL (https)</label><input class="slotImg" type="text" maxlength="300" placeholder="https://dashboard.rionick.com/hunt/sponsor1.jpg"></div><div style="flex:1;min-width:220px;"><label>Ad 1 — link (optional)</label><input class="slotLink" type="text" maxlength="300" placeholder="https://sponsor-website.com"></div></div>
@@ -199,6 +220,16 @@ function loadSettings() {
       $('setMinGap').value = res.data.floors.min_gap_s;
       $('setNextDelay').value = (res.data.ui && res.data.ui.next_btn_delay_s != null) ? res.data.ui.next_btn_delay_s : 9;
       $('setSequential').checked = !!(res.data.ui && res.data.ui.sequential);
+      var br = res.data.branding || {};
+      $('brEventName').value = br.event_name || '';
+      $('brEventMeta').value = br.event_meta || '';
+      $('brBrandName').value = br.brand_name || '';
+      $('brHuntTitle').value = br.hunt_title || '';
+      $('brPoweredBy').value = br.powered_by || '';
+      $('brColor').value = br.primary_color || '#dc1e1e';
+      $('brCtaHeadline').value = br.cta_headline || '';
+      $('brCtaText').value = br.cta_text || '';
+      $('brCtaUrl').value = br.cta_url || '';
       var ads = (res.data.ui && res.data.ui.ads) || [];
       var imgInputs = document.querySelectorAll('#settingsPanel .slotImg');
       var lnkInputs = document.querySelectorAll('#settingsPanel .slotLink');
@@ -223,6 +254,17 @@ $('saveSettingsBtn').addEventListener('click', function () {
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token() },
     body: JSON.stringify({
       posters: posters,
+      branding: {
+        event_name: $('brEventName').value,
+        event_meta: $('brEventMeta').value,
+        brand_name: $('brBrandName').value,
+        hunt_title: $('brHuntTitle').value,
+        powered_by: $('brPoweredBy').value,
+        primary_color: $('brColor').value,
+        cta_headline: $('brCtaHeadline').value,
+        cta_text: $('brCtaText').value,
+        cta_url: $('brCtaUrl').value
+      },
       floors: {
         min_total_s: parseInt($('setMinTotal').value, 10) || 0,
         min_gap_s: parseInt($('setMinGap').value, 10) || 0
