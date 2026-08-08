@@ -440,14 +440,25 @@
         </svg>
     </div>
     <style>
-        /* pseudo-fullscreen (iOS fallback): pin the page to the dynamic
-           viewport so the canvas tracks the browser bar collapsing */
+        /* pseudo-fullscreen (iOS fallback — no Fullscreen API there): give the
+           page a tiny scroll runway; scrolling collapses the Safari/Chrome URL
+           bar to its minimized strip (exactly how the portfolio games do it).
+           The AR layers get pinned to the viewport so nothing drifts. */
         html.pseudo-fs, html.pseudo-fs body { height: 100dvh; }
+        html.pseudo-fs body { overflow-y: auto; }
+        #fs-scroll-spacer { display: none; }
+        html.pseudo-fs #fs-scroll-spacer { display: block; width: 1px; height: calc(100dvh + 80px); }
+        html.pseudo-fs #unity-container,
+        html.pseudo-fs #video-canvas,
+        html.pseudo-fs #advanced-loader,
+        html.pseudo-fs .ctaDiv { position: fixed !important; top: 0 !important; left: 0 !important; }
+        html.pseudo-fs #fullscreenBtn { position: fixed !important; }
     </style>
+    <div id="fs-scroll-spacer"></div>
     <script>
         (function () {
             // Same pattern as the portfolio arcade: native Fullscreen API where
-            // available, pseudo-fullscreen class on iOS (no API there).
+            // available, pseudo-fullscreen (scroll-collapsed URL bar) on iOS.
             var el = document.documentElement;
             var btn = document.getElementById('fullscreenBtn');
             btn.style.display = 'flex';
@@ -456,19 +467,28 @@
             function refresh() {
                 btn.style.borderColor = (nativeFs() || pseudoOn()) ? 'rgba(95,208,106,0.7)' : 'rgba(220,30,30,0.45)';
             }
+            function setPseudo(on) {
+                el.classList.toggle('pseudo-fs', on);
+                if (on) {
+                    // collapse the browser bar; retry shortly in case layout lags
+                    setTimeout(function () { window.scrollTo(0, 80); }, 60);
+                    setTimeout(function () { window.scrollTo(0, 80); }, 400);
+                } else {
+                    window.scrollTo(0, 0);
+                }
+                refresh();
+            }
             window.ToggleFullscreen = function () {
                 try {
                     if (nativeFs()) {
                         (document.exitFullscreen || document.webkitExitFullscreen).call(document);
                     } else if (pseudoOn()) {
-                        el.classList.remove('pseudo-fs');
-                        refresh();
+                        setPseudo(false);
                     } else if (el.requestFullscreen || el.webkitRequestFullscreen) {
                         var p = (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
-                        if (p && p.catch) { p.catch(function () { el.classList.add('pseudo-fs'); refresh(); }); }
+                        if (p && p.catch) { p.catch(function () { setPseudo(true); }); }
                     } else {
-                        el.classList.add('pseudo-fs');
-                        refresh();
+                        setPseudo(true);
                     }
                 } catch (e) {}
             };
@@ -481,7 +501,7 @@
     <script src="arcamera.js" type="text/javascript"></script>
     <script src="itracker.js" type="text/javascript"></script>
     <!-- AR Meme Hunt overlay (Bharatiya Vyapar Mahotsav 2026) -->
-    <script src="hunt-overlay.js?v=10" type="text/javascript"></script>
+    <script src="hunt-overlay.js?v=11" type="text/javascript"></script>
     <script src="Build/MemeHunt.loader.js"></script>
     <script>
             var initialize = async() =>{

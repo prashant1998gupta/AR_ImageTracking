@@ -541,8 +541,10 @@
   var peekDrag = null;
   var suppressPeekClick = false;
 
+  // v2 key: resets positions saved before the corner-default change
+  var PEEK_POS_KEY = 'hunt_peek_pos2';
   function loadPeekPos() {
-    try { return JSON.parse(localStorage.getItem('hunt_peek_pos') || 'null'); } catch (e) { return null; }
+    try { return JSON.parse(localStorage.getItem(PEEK_POS_KEY) || 'null'); } catch (e) { return null; }
   }
   function clampPeekPos() {
     var w = peekEl.offsetWidth || 82;
@@ -553,8 +555,9 @@
     peekPos.x = Math.min(Math.max(0, peekPos.x), Math.max(0, window.innerWidth - w));
     peekPos.y = Math.min(Math.max(0, peekPos.y), Math.max(0, window.innerHeight - h));
   }
-  // Default: tucked into the top-left corner (draggable; position persists)
-  var PEEK_DEFAULT = { x: 8, y: 58 };
+  // Default: tucked into the top-left corner, on the same line as the HUD
+  // pills (y accounts for the notch/safe-area, measured in initPeekInteractions)
+  var PEEK_DEFAULT = { x: 8, y: 18 };
   function applyPeekPos() {
     if (!peekPos) { peekPos = loadPeekPos() || { x: PEEK_DEFAULT.x, y: PEEK_DEFAULT.y }; }
     clampPeekPos();
@@ -592,6 +595,15 @@
     applyPeekPos();
   }
   function initPeekInteractions() {
+    // Measure the safe-area inset so the corner default clears the notch
+    try {
+      var probe = document.createElement('div');
+      probe.style.cssText = 'position:fixed;top:env(safe-area-inset-top);left:0;width:0;height:0;visibility:hidden;pointer-events:none;';
+      document.body.appendChild(probe);
+      var safeTop = probe.getBoundingClientRect().top || 0;
+      document.body.removeChild(probe);
+      PEEK_DEFAULT.y = Math.max(10, safeTop + 10);
+    } catch (e) {}
     peekEl.addEventListener('pointerdown', function (e) {
       if (peekEl.classList.contains('big')) { return; }
       peekDrag = { sx: e.clientX, sy: e.clientY, ox: peekPos ? peekPos.x : PEEK_DEFAULT.x, oy: peekPos ? peekPos.y : PEEK_DEFAULT.y, moved: false };
@@ -612,7 +624,7 @@
       if (!peekDrag) { return; }
       if (peekDrag.moved) {
         suppressPeekClick = true;
-        try { localStorage.setItem('hunt_peek_pos', JSON.stringify(peekPos)); } catch (e) {}
+        try { localStorage.setItem(PEEK_POS_KEY, JSON.stringify(peekPos)); } catch (e) {}
       }
       peekDrag = null;
     });
