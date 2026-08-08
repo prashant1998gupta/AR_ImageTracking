@@ -553,8 +553,10 @@
     peekPos.x = Math.min(Math.max(0, peekPos.x), Math.max(0, window.innerWidth - w));
     peekPos.y = Math.min(Math.max(0, peekPos.y), Math.max(0, window.innerHeight - h));
   }
+  // Default: tucked into the top-left corner (draggable; position persists)
+  var PEEK_DEFAULT = { x: 8, y: 58 };
   function applyPeekPos() {
-    if (!peekPos) { peekPos = loadPeekPos() || { x: 10, y: 104 }; }
+    if (!peekPos) { peekPos = loadPeekPos() || { x: PEEK_DEFAULT.x, y: PEEK_DEFAULT.y }; }
     clampPeekPos();
     peekEl.style.left = peekPos.x + 'px';
     peekEl.style.top = peekPos.y + 'px';
@@ -592,7 +594,7 @@
   function initPeekInteractions() {
     peekEl.addEventListener('pointerdown', function (e) {
       if (peekEl.classList.contains('big')) { return; }
-      peekDrag = { sx: e.clientX, sy: e.clientY, ox: peekPos ? peekPos.x : 10, oy: peekPos ? peekPos.y : 104, moved: false };
+      peekDrag = { sx: e.clientX, sy: e.clientY, ox: peekPos ? peekPos.x : PEEK_DEFAULT.x, oy: peekPos ? peekPos.y : PEEK_DEFAULT.y, moved: false };
       try { peekEl.setPointerCapture(e.pointerId); } catch (err) {}
       e.preventDefault();
     });
