@@ -175,6 +175,10 @@ switch ($action) {
         if ($method !== 'POST') Response::error('Method not allowed', 405);
         handleRegister($db);
         break;
+    case 'resume':
+        if ($method !== 'POST') Response::error('Method not allowed', 405);
+        handleResume($db);
+        break;
     case 'start':
         if ($method !== 'POST') Response::error('Method not allowed', 405);
         handleStart($db);
@@ -292,6 +296,25 @@ function resumeExisting($db, $existing, $name) {
         Response::success(participantState($db, $existing, true), 'Welcome back');
     }
     Response::error('This phone number is already registered under a different name. Resume on the device you registered with, or visit the ARRISE team for help.', 409);
+}
+
+/**
+ * Explicit resume for participants whose device lost the session token
+ * (closed tab + cleared storage, new browser, in-app browser...).
+ * Requires name + phone to match the original registration.
+ */
+function handleResume($db) {
+    $input = json_decode(file_get_contents('php://input'), true);
+    if (!$input) Response::error('Invalid JSON body', 400);
+
+    $name = trim(mb_substr($input['name'] ?? '', 0, 100, 'UTF-8'));
+    $phone = normalizePhone($input['phone'] ?? '');
+    if (mb_strlen($name, 'UTF-8') < 2) Response::error('Please enter the name you registered with', 400);
+    if (strlen($phone) < 8 || strlen($phone) > 15) Response::error('Please enter a valid phone number', 400);
+
+    $existing = $db->queryOne("SELECT * FROM hunt_participants WHERE phone = ?", [$phone]);
+    if (!$existing) Response::error('No registration found for this phone number — please register first', 404);
+    resumeExisting($db, $existing, $name);
 }
 
 function requireParticipant($db, $token) {

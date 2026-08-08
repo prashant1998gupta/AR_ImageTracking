@@ -73,7 +73,8 @@
     started: false,
     completed: false,
     timerBase: null,      // Date.now() - elapsed_ms
-    active: false         // token present + status ok
+    active: false,        // token present + status ok
+    nextHint: null        // latest {id,label,hint} — clue stays recoverable
   };
   var FALLBACK_POSTERS = [
     { id: 'FIFA_Target', label: 'FIFA' },
@@ -340,6 +341,8 @@
     if (typeof data.elapsed_ms === 'number') {
       state.timerBase = Date.now() - data.elapsed_ms;
     }
+    if (data.next) { state.nextHint = data.next; }
+    if (data.completed) { state.nextHint = null; }
     // Freeze the tracking thumbnail BEFORE renderChips/updatePeek run, so a
     // live scan doesn't advance it — that happens only on "Next Clue" / ✕.
     if (announce && !data.duplicate && data.poster_id && !data.completed && data.next) {
@@ -352,7 +355,11 @@
     if (state.completed) {
       if (announce && !data.duplicate && data.poster_id) {
         // 5th poster just scanned live: instant feedback, then let the final
-        // meme play before the completion screen takes over
+        // meme play before the completion screen takes over. Kill any pending
+        // Next-Clue state from the previous poster (fast back-to-back scans).
+        clearTimeout(nextBtnTimer);
+        setNextBtnVisible(false);
+        pendingNext = null;
         hintCard('🎉 ' + data.total + '/' + data.total, 'Challenge complete — enjoy the last meme! 🎬', true);
         scheduleReveal(data.poster_id, CFG.doneMinMs, CFG.doneMaxMs, function () {
           showCompletion(data);
@@ -382,7 +389,7 @@
 
   // ─── UI ─────────────────────────────────────────────────────────────
   var root, chipsEl, timerEl, toastEl, toastTimer, hintEl, gateEl, doneEl;
-  var peekEl, peekBackdrop, peekImg, peekLabel;
+  var peekEl, peekBackdrop, peekImg, peekLabel, peekHintEl;
   var posterImages = {};       // target id -> image URL (from <imagetarget> tags)
   var currentPeekLabel = '';
   var nextBtnEl, nextBtnTimer = null;
@@ -421,11 +428,13 @@
       '  #hunt-hint .nxt.on { display:inline-block; }' +
       // Compact single-row variant for the enjoy phase — half the height:
       // progress + text on the left, the Next Clue pill on the right
-      '  #hunt-hint.compact { display:flex; align-items:center; gap:10px; padding:9px 34px 9px 14px; }' +
+      '  #hunt-hint.compact { display:flex; align-items:center; gap:10px; padding:9px 14px; }' +
       '  #hunt-hint.compact .hp { margin:0; white-space:nowrap; }' +
       '  #hunt-hint.compact .ht { flex:1; font-size:12px; min-width:0; }' +
       '  #hunt-hint.compact .nxt { margin:0; padding:9px 13px; font-size:10px; letter-spacing:0.08em; white-space:nowrap; }' +
-      '  #hunt-hint.compact .hx { top:50%; transform:translateY(-50%); right:4px; width:24px; height:24px; line-height:24px; font-size:11px; }' +
+      // No ✕ on the enjoy-phase card — the only way forward is Next Clue,
+      // so a mis-tap can never skip the clue
+      '  #hunt-hint.compact .hx { display:none; }' +
       '  #hunt-gate, #hunt-done { position:absolute; top:0; right:0; bottom:0; left:0; background:rgba(8,8,8,0.94); display:none; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:30px 24px; pointer-events:auto; z-index:30; }' +
       // Completion confetti — content stays above it via relative positioning
       '  #hunt-done > * { position:relative; }' +
@@ -440,7 +449,11 @@
       // guarantees the enlarged card always fits inside the screen
       '  #hunt-peek.big { left:50% !important; top:50% !important; transform:translate(-50%,-50%); width:288px; width:min(80vw,320px); max-width:calc(100vw - 24px); z-index:20; }' +
       '  #hunt-peek.big img { height:auto; max-height:55vh; object-fit:contain; background:#000; }' +
-      '  #hunt-peek.big .pk { font-size:11px; padding:10px; white-space:normal; }' +
+      '  #hunt-peek.big .pk { font-size:11px; padding:10px 10px 4px; white-space:normal; }' +
+      // Clue text inside the enlarged thumbnail — the clue is always
+      // recoverable here even if the hint card was closed by mistake
+      '  #hunt-peek .pkhint { display:none; }' +
+      '  #hunt-peek.big .pkhint { display:block; color:rgba(255,255,255,0.75); font-size:12.5px; line-height:1.55; text-align:center; padding:0 14px 13px; }' +
       '  #hunt-peek-backdrop { position:absolute; top:0; right:0; bottom:0; left:0; background:rgba(0,0,0,0.65); display:none; pointer-events:auto; z-index:15; }' +
       '  .hunt-brand { letter-spacing:0.38em; font-weight:300; font-size:20px; text-transform:uppercase; color:#fff; }' +
       '  .hunt-brand b { color:#dc1e1e; font-weight:700; }' +
@@ -454,7 +467,7 @@
       '<div id="hunt-top"><div id="hunt-count"><b>0</b>/5</div><div id="hunt-timer">00:00</div></div>' +
       '<div id="hunt-chips"></div>' +
       '<div id="hunt-peek-backdrop"></div>' +
-      '<div id="hunt-peek"><img id="hunt-peek-img" alt="Next poster"><div class="pk" id="hunt-peek-label"></div></div>' +
+      '<div id="hunt-peek"><img id="hunt-peek-img" alt="Next poster"><div class="pk" id="hunt-peek-label"></div><div class="pkhint" id="hunt-peek-hint"></div></div>' +
       '<div id="hunt-toast"></div>' +
       '<div id="hunt-hint"><button id="hunt-hint-ok" class="hx" aria-label="Close">✕</button><div class="hp" id="hunt-hint-p"></div><div class="ht" id="hunt-hint-t"></div><button id="hunt-hint-next" class="nxt">Next Clue ▸</button></div>' +
       '<div id="hunt-gate">' +
@@ -485,6 +498,7 @@
     peekBackdrop = document.getElementById('hunt-peek-backdrop');
     peekImg = document.getElementById('hunt-peek-img');
     peekLabel = document.getElementById('hunt-peek-label');
+    peekHintEl = document.getElementById('hunt-peek-hint');
 
     // Poster preview images ship in every build: PostProcessBuild injects
     // <imagetarget id src> tags pointing at targets/<file>
@@ -547,10 +561,19 @@
     return big ? 'Find this poster: ' + currentPeekLabel + ' — tap anywhere to close'
                : 'Find: ' + currentPeekLabel;
   }
+  // Clue text shown inside the enlarged thumbnail (recovery path when the
+  // hint card was closed by mistake). Hidden during the enjoy-phase hold —
+  // the caption there already points to the Next Clue button.
+  function refreshPeekHint() {
+    if (!peekHintEl) { return; }
+    var show = !peekHold && state.nextHint && state.nextHint.hint;
+    peekHintEl.textContent = show ? state.nextHint.hint : '';
+  }
   function expandPeek() {
     peekBackdrop.style.display = 'block';
     peekEl.classList.add('big');
     peekLabel.textContent = peekCaption(true);
+    refreshPeekHint();
   }
   function collapsePeek() {
     peekBackdrop.style.display = 'none';
@@ -614,6 +637,7 @@
       peekImg.src = posterImages[nextP.id];
     }
     peekLabel.textContent = peekCaption(peekEl.classList.contains('big'));
+    refreshPeekHint();
     peekEl.style.display = 'block';
     if (!peekEl.classList.contains('big')) { applyPeekPos(); }
   }

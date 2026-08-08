@@ -37,6 +37,7 @@
   .time { text-align:center; font-size:40px; font-weight:100; color:var(--red); margin:14px 0 2px; }
   .rank { text-align:center; font-size:13px; color:rgba(255,255,255,0.6); margin-bottom:8px; }
   .warn { display:none; background:rgba(255,180,0,0.08); border:1px solid rgba(255,180,0,0.35); color:#e8c36a; border-radius:10px; padding:11px 14px; font-size:12px; margin-top:16px; line-height:1.5; }
+  .linklike { display:block; width:100%; background:none; border:none; color:rgba(255,255,255,0.45); font-size:12.5px; text-decoration:underline; text-underline-offset:3px; margin-top:16px; padding:6px; cursor:pointer; }
 </style>
 </head>
 <body>
@@ -72,6 +73,22 @@
       <p class="privacy">Your details will only be used for leaderboard tracking, challenge management, and contacting winners.</p>
       <div class="err" id="regErr"></div>
       <button class="btn" id="regBtn" type="submit">Join The Hunt</button>
+      <button class="linklike" id="goResume" type="button">Already registered? Resume your hunt →</button>
+    </form>
+  </div>
+
+  <!-- ─── View: resume (lost session / new device) ─── -->
+  <div class="view" id="view-resume">
+    <h1>Resume Your Hunt</h1>
+    <p class="sub">Enter the <b>same name and phone number</b><br>you registered with.</p>
+    <form id="resumeForm">
+      <label>Full Name *</label>
+      <input id="rName" type="text" autocomplete="name" required maxlength="100" placeholder="Name you registered with">
+      <label>Phone Number *</label>
+      <input id="rPhone" type="tel" autocomplete="tel" required maxlength="16" placeholder="Registered mobile number">
+      <div class="err" id="resumeErr"></div>
+      <button class="btn" id="resumeSubmit" type="submit">Resume Hunt</button>
+      <button class="btn secondary" id="backToReg" type="button">New participant? Register</button>
     </form>
   </div>
 
@@ -211,6 +228,34 @@ $('regForm').addEventListener('submit', function (e) {
   }).catch(function () {
     btn.disabled = false;
     setErr('regErr', 'Network error — please check your connection and try again.');
+  });
+});
+
+// ─── Resume (lost session / new device) ───
+$('goResume').addEventListener('click', function () {
+  setErr('resumeErr', '');
+  show('view-resume');
+});
+$('backToReg').addEventListener('click', function () {
+  setErr('regErr', '');
+  show('view-register');
+});
+$('resumeForm').addEventListener('submit', function (e) {
+  e.preventDefault();
+  setErr('resumeErr', '');
+  var btn = $('resumeSubmit');
+  btn.disabled = true;
+  api('resume', 'POST', {
+    name: $('rName').value.trim(),
+    phone: $('rPhone').value.trim()
+  }).then(function (res) {
+    btn.disabled = false;
+    if (!res.success) { setErr('resumeErr', res.message); return; }
+    localStorage.setItem(TOKEN_KEY, res.data.token);
+    routeByState(res.data);
+  }).catch(function () {
+    btn.disabled = false;
+    setErr('resumeErr', 'Network error — please check your connection and try again.');
   });
 });
 
