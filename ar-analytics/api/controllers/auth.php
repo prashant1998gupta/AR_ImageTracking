@@ -107,9 +107,10 @@ function handleAdminLogin() {
         } catch (Exception $e) {} 
     }
 
+    // Accept the username OR the account email as the login id
     $admin = $db->queryOne(
-        "SELECT id, username, password_hash, role FROM admins WHERE username = ?",
-        [$username]
+        "SELECT id, username, password_hash, role FROM admins WHERE username = ? OR email = ?",
+        [$username, $username]
     );
 
     if (!$admin || !Auth::verifyPassword($password, $admin['password_hash'])) {

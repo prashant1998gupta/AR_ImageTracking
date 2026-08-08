@@ -93,6 +93,10 @@
           <label>Min gap between posters (seconds)</label>
           <input id="setMinGap" type="number" min="0" max="600" step="1">
         </div>
+        <div style="flex:1; min-width:200px;">
+          <label>"Next Clue" button delay (seconds after scan)</label>
+          <input id="setNextDelay" type="number" min="0" max="60" step="1">
+        </div>
       </div>
       <div style="display:flex; gap:10px; align-items:center; margin-top:18px;">
         <button class="btn" id="saveSettingsBtn">Save Settings</button>
@@ -178,6 +182,7 @@ function loadSettings() {
       $('setPosters').innerHTML = html;
       $('setMinTotal').value = res.data.floors.min_total_s;
       $('setMinGap').value = res.data.floors.min_gap_s;
+      $('setNextDelay').value = (res.data.ui && res.data.ui.next_btn_delay_s != null) ? res.data.ui.next_btn_delay_s : 9;
       $('settingsMsg').textContent = '';
     })
     .catch(function () { $('settingsMsg').textContent = 'Network error'; });
@@ -200,6 +205,9 @@ $('saveSettingsBtn').addEventListener('click', function () {
       floors: {
         min_total_s: parseInt($('setMinTotal').value, 10) || 0,
         min_gap_s: parseInt($('setMinGap').value, 10) || 0
+      },
+      ui: {
+        next_btn_delay_s: parseInt($('setNextDelay').value, 10) || 0
       }
     })
   }).then(function (r) { return r.json(); }).then(function (res) {

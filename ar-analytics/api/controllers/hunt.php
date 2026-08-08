@@ -89,6 +89,17 @@ function saveHuntSetting($db, $key, $value) {
     );
 }
 
+/** Client UI tuning — dashboard-editable, delivered to the overlay in every
+ *  status/scan response (applies live, no app rebuild). */
+function huntUi() {
+    $delay = 9;   // seconds until the "Next Clue" button appears after a scan
+    $ui = huntSetting('ui');
+    if (is_array($ui) && isset($ui['next_btn_delay_s'])) {
+        $delay = max(0, min(60, intval($ui['next_btn_delay_s'])));
+    }
+    return ['next_btn_delay_s' => $delay];
+}
+
 /** Anti-cheat plausibility floors — dashboard-tunable, defaults from the constants. */
 function huntFloors() {
     $minTotal = HUNT_MIN_TOTAL_MS;
@@ -191,7 +202,7 @@ switch ($action) {
         handleStatus($db);
         break;
     case 'config':
-        Response::success(['posters' => publicPosters(), 'total' => count(huntPosters())]);
+        Response::success(['posters' => publicPosters(), 'total' => count(huntPosters()), 'ui' => huntUi()]);
         break;
     case 'leaderboard':
         handleLeaderboard($db);
@@ -492,6 +503,7 @@ function participantState($db, $participant, $includeProgress) {
         'time_formatted' => formatMs($totalMs),
         'rank' => participantRank($db, $participant),
         'posters' => publicPosters(),
+        'ui' => huntUi(),
         'resumed' => true,
     ];
 }
@@ -629,6 +641,7 @@ function handleAdminSettings($db) {
             'min_total_s' => intval($floors['total'] / 1000),
             'min_gap_s' => intval($floors['gap'] / 1000),
         ],
+        'ui' => huntUi(),
     ]);
 }
 
@@ -652,6 +665,11 @@ function handleAdminSaveSettings($db) {
         saveHuntSetting($db, 'floors', [
             'min_total_s' => max(0, min(3600, intval($input['floors']['min_total_s'] ?? 60))),
             'min_gap_s' => max(0, min(600, intval($input['floors']['min_gap_s'] ?? 10))),
+        ]);
+    }
+    if (isset($input['ui']) && is_array($input['ui'])) {
+        saveHuntSetting($db, 'ui', [
+            'next_btn_delay_s' => max(0, min(60, intval($input['ui']['next_btn_delay_s'] ?? 9))),
         ]);
     }
     Response::success(null, 'Settings saved — live immediately');

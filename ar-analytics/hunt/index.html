@@ -270,6 +270,9 @@ $('resumeBtn').addEventListener('click', function () { goToAR('progErr'); });
 
 // ─── On load: resume existing session if any ───
 (function init() {
+  // Deep-link from the AR page's gate: open the resume form directly.
+  // If a valid session exists below, routeByState overrides this anyway.
+  if (location.hash === '#resume') { show('view-resume'); }
   var token = localStorage.getItem(TOKEN_KEY);
   if (!token) return;
   api('status&token=' + encodeURIComponent(token)).then(function (res) {

@@ -343,6 +343,10 @@
     }
     if (data.next) { state.nextHint = data.next; }
     if (data.completed) { state.nextHint = null; }
+    // Server-tunable UI timing (hunt/admin.html → Settings) overrides the default
+    if (data.ui && typeof data.ui.next_btn_delay_s === 'number') {
+      CFG.nextBtnDelayMs = Math.max(0, data.ui.next_btn_delay_s) * 1000;
+    }
     // Freeze the tracking thumbnail BEFORE renderChips/updatePeek run, so a
     // live scan doesn't advance it — that happens only on "Next Clue" / ✕.
     if (announce && !data.duplicate && data.poster_id && !data.completed && data.next) {
@@ -460,6 +464,7 @@
       '  .hunt-h { color:#fff; font-size:21px; font-weight:800; letter-spacing:0.06em; margin:16px 0 8px; }' +
       '  .hunt-p { color:rgba(255,255,255,0.55); font-size:13px; line-height:1.7; max-width:300px; }' +
       '  .hunt-btn { display:inline-block; margin-top:20px; background:linear-gradient(135deg,#ff4444,#aa1111); color:#fff; border:none; border-radius:12px; font-size:13px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; padding:15px 30px; text-decoration:none; }' +
+      '  .hunt-resume { display:inline-block; margin-top:18px; color:rgba(255,255,255,0.75); font-size:13px; font-weight:600; text-decoration:underline; text-underline-offset:3px; pointer-events:auto; -webkit-tap-highlight-color:transparent; }' +
       '  .hunt-skip { display:inline-block; margin-top:14px; color:rgba(255,255,255,0.35); font-size:11.5px; text-decoration:underline; background:none; border:none; }' +
       '  #hunt-done .big-time { color:#dc1e1e; font-size:46px; font-weight:100; margin:8px 0 2px; font-variant-numeric:tabular-nums; }' +
       '  #hunt-done .rank { color:rgba(255,255,255,0.7); font-size:14px; margin-bottom:6px; }' +
@@ -475,6 +480,7 @@
       '  <div class="hunt-h">AR Meme Hunt</div>' +
       '  <p class="hunt-p">Find 5 posters. Scan them all. Top 3 win prizes. Register first to join the challenge!</p>' +
       '  <a class="hunt-btn" id="hunt-gate-btn">Register To Play</a>' +
+      '  <a class="hunt-resume" id="hunt-gate-resume">Already registered? Resume your hunt →</a>' +
       '  <button class="hunt-skip" id="hunt-gate-skip">Continue without the hunt</button>' +
       '</div>' +
       '<div id="hunt-done">' +
@@ -513,6 +519,8 @@
     nextBtnEl = document.getElementById('hunt-hint-next');
     nextBtnEl.addEventListener('click', advanceToClue);
     document.getElementById('hunt-gate-btn').setAttribute('href', CFG.landingUrl);
+    // #resume deep-link: the landing page opens its resume form directly
+    document.getElementById('hunt-gate-resume').setAttribute('href', CFG.landingUrl + '#resume');
     document.getElementById('hunt-gate-skip').addEventListener('click', function () {
       gateEl.style.display = 'none';
     });
