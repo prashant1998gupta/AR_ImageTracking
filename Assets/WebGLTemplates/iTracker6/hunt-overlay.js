@@ -1036,8 +1036,13 @@
 
   function fmtTimer(ms) {
     var s = Math.max(0, Math.floor(ms / 1000));
-    var mm = Math.floor(s / 60);
     var ss = s % 60;
+    // Over an hour: H:MM:SS — "507:37" as minutes reads like a broken clock
+    if (s >= 3600) {
+      var mmH = Math.floor((s % 3600) / 60);
+      return Math.floor(s / 3600) + ':' + (mmH < 10 ? '0' : '') + mmH + ':' + (ss < 10 ? '0' : '') + ss;
+    }
+    var mm = Math.floor(s / 60);
     return (mm < 10 ? '0' : '') + mm + ':' + (ss < 10 ? '0' : '') + ss;
   }
   setInterval(function () {

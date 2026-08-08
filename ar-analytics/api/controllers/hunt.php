@@ -463,6 +463,10 @@ function flagIfImplausible($db, $participantId) {
 function formatMs($ms) {
     if ($ms === null) return null;
     $totalSeconds = intval($ms / 1000);
+    // Over an hour: H:MM:SS — "507:37" as minutes reads like a broken clock
+    if ($totalSeconds >= 3600) {
+        return sprintf('%d:%02d:%02d', intval($totalSeconds / 3600), intval(($totalSeconds % 3600) / 60), $totalSeconds % 60);
+    }
     return sprintf('%02d:%02d', intval($totalSeconds / 60), $totalSeconds % 60);
 }
 
@@ -569,37 +573,43 @@ function handleActivity($db) {
     foreach (huntPosters() as $p) { $labels[$p['id']] = $p['label']; }
     $events = [];
 
+    // ago_s is computed by MySQL (TIMESTAMPDIFF against its own NOW()) — the
+    // same clock that wrote the rows. Mixing in PHP's time()/strtotime() here
+    // shifts every event by the PHP↔MySQL timezone offset (looked like a
+    // "fake" 6h-old feed on Hostinger).
     foreach ($db->query(
-        "SELECT name, completed_at, total_ms FROM hunt_participants
+        "SELECT name, completed_at, total_ms,
+                TIMESTAMPDIFF(SECOND, completed_at, NOW()) AS ago_s
+         FROM hunt_participants
          WHERE completed_at IS NOT NULL AND total_ms IS NOT NULL
            AND NOT (is_suspect = TRUE AND is_verified = FALSE)
          ORDER BY completed_at DESC LIMIT 6") as $r) {
         $events[] = ['type' => 'finish', 'name' => firstName($r['name']),
-                     'time' => formatMs(intval($r['total_ms'])), 'at' => $r['completed_at']];
+                     'time' => formatMs(intval($r['total_ms'])), 'at' => $r['completed_at'],
+                     'ago_s' => max(0, intval($r['ago_s']))];
     }
     foreach ($db->query(
-        "SELECT s.scanned_at, s.poster_id, p.name FROM hunt_scans s
+        "SELECT s.scanned_at, s.poster_id, p.name,
+                TIMESTAMPDIFF(SECOND, s.scanned_at, NOW()) AS ago_s
+         FROM hunt_scans s
          JOIN hunt_participants p ON p.id = s.participant_id
          ORDER BY s.scanned_at DESC LIMIT 12") as $r) {
         $events[] = ['type' => 'scan', 'name' => firstName($r['name']),
                      'poster' => isset($labels[$r['poster_id']]) ? $labels[$r['poster_id']] : $r['poster_id'],
-                     'at' => $r['scanned_at']];
+                     'at' => $r['scanned_at'],
+                     'ago_s' => max(0, intval($r['ago_s']))];
     }
     foreach ($db->query(
-        "SELECT name, registered_at FROM hunt_participants
+        "SELECT name, registered_at,
+                TIMESTAMPDIFF(SECOND, registered_at, NOW()) AS ago_s
+         FROM hunt_participants
          ORDER BY registered_at DESC LIMIT 6") as $r) {
-        $events[] = ['type' => 'join', 'name' => firstName($r['name']), 'at' => $r['registered_at']];
+        $events[] = ['type' => 'join', 'name' => firstName($r['name']), 'at' => $r['registered_at'],
+                     'ago_s' => max(0, intval($r['ago_s']))];
     }
 
     usort($events, function ($a, $b) { return strcmp($b['at'], $a['at']); });
     $events = array_slice($events, 0, 15);
-    $now = time();
-    foreach ($events as $i => $e) {
-        $t = strtotime($e['at']);
-        $events[$i]['ago_s'] = $t ? max(0, $now - $t) : 0;
-        unset($events[$i]['at']);
-        $events[$i]['at'] = $e['at'];   // keep for client-side dedup keys
-    }
 
     // Actively hunting: not completed, with a scan or registration in the last 15 min
     $huntingNow = intval($db->scalar(
