@@ -80,3 +80,6 @@ Unity/.idea
 Unity/Temp
 Unity/UserSettings
 Unity/Builds/
+
+# Editor-tool backups of generated builder scripts
+/[Bb]ackups/
