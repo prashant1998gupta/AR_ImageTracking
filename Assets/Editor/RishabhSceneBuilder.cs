@@ -455,6 +455,15 @@ public static class RishabhSceneBuilder
             scanInfo = "  • Scan prompt: kept\n";
         }
 
+        // 10b. Declare this scene as a PLAIN AR campaign (not a hunt). HuntFlagPostBuild
+        //      reads this at build time and writes enabled:false into index.html, so the
+        //      Meme Hunt HUD can never appear over the card — even if a hunt_token is
+        //      still sitting in this domain's localStorage from testing the hunt.
+        var campaignGo = new GameObject("Campaign Settings");
+        var campaign = campaignGo.AddComponent<CampaignSettings>();
+        campaign.huntEnabled  = false;
+        campaign.campaignName = "Rishabh Rustagi — AR Smart Card";
+
         // 11. vCard file + save + build settings
         string vcardInfo = "";
         if (WriteVCardFile && !UseDataUriVCard)

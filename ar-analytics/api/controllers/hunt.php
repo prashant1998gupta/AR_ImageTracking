@@ -47,8 +47,20 @@ if ($action !== 'admin-export') {
 // poster in this order). The ids MUST match the Unity image target ids and
 // are fixed at build time; labels and hints below are DEFAULTS which can be
 // overridden live from hunt/admin.html → Settings (stored in hunt_settings).
-function huntPosters() {
+//
+// UNITY OWNS THE IDS. They are baked into the WebGL build, so the server
+// LEARNS them instead of hardcoding them: "Tools ▸ Meme Hunt ▸ 3. Copy Poster
+// List JSON" exports the built scene's targets, and pasting that JSON into
+// hunt/admin.html → Settings → Poster list stores it as the 'poster_list'
+// setting, which then REPLACES the list below (any number of posters). With
+// no 'poster_list' saved — or none of its entries valid — the defaults below
+// are used exactly as before.
+//
+// $refresh busts the per-request cache; only the admin save path needs it,
+// after writing a new 'poster_list'.
+function huntPosters($refresh = false) {
     static $cached = null;
+    if ($refresh) { $cached = null; }
     if ($cached !== null) { return $cached; }
     $posters = [
         ['id' => 'FIFA_Target', 'label' => 'FIFA',  'hint' => 'Kick-off ho chuka hai! Football wala poster dhoondo — jahan game ki baat hoti hai, FIFA card wahin hai.'],
@@ -57,6 +69,12 @@ function huntPosters() {
         ['id' => 'CultGym',     'label' => 'Gym',   'hint' => 'Networking zyada, patience kam? Gym poster ke paas jao — gains yahin milenge.'],
         ['id' => 'Shoes',       'label' => 'Shoes', 'hint' => 'Last one! Jo shoes sabse zyada chamak rahe hain, wahi poster scan karna hai. Finish line paas hai!'],
     ];
+    // Saved Unity manifest wins over the built-in list (ids, order and count).
+    $manifest = huntPosterList();
+    if ($manifest !== null) { $posters = $manifest; }
+
+    // Per-poster label/hint overrides apply ON TOP of whichever list won,
+    // keyed by id — the admin's label/hint editor keeps working either way.
     $overrides = huntSetting('posters');
     if (is_array($overrides)) {
         foreach ($posters as $i => $p) {
@@ -70,6 +88,47 @@ function huntPosters() {
     }
     $cached = $posters;
     return $cached;
+}
+
+/**
+ * The Unity-exported poster manifest, validated — or null when none is saved.
+ *
+ * Shape (exactly what MemeHuntSceneBuilder writes to hunt-posters.json):
+ *   [ {"id":"FIFA_Target","label":"FIFA","hint":"…"}, … ]
+ * null is the signal to keep the hardcoded defaults, so a missing/emptied/
+ * all-invalid setting can never wipe the hunt.
+ */
+function huntPosterList() {
+    $clean = normalizePosterList(huntSetting('poster_list'));
+    return count($clean) ? $clean : null;
+}
+
+/**
+ * Validate + normalise a raw poster manifest. Shared by the reader above and
+ * the admin save path so both agree on exactly what a valid entry is.
+ * Invalid ids and duplicates are skipped rather than failing the whole list.
+ */
+function normalizePosterList($raw) {
+    $out = [];
+    $seen = [];
+    if (!is_array($raw)) { return $out; }
+    foreach ($raw as $entry) {
+        // hunt_settings.setting_value is TEXT (65 535 bytes). A huge list would be
+        // truncated mid-JSON by MySQL, json_decode would then fail on the next read
+        // and the server would silently fall back to the built-in placeholders.
+        if (count($out) >= 60) { break; }
+        if (!is_array($entry) || !isset($entry['id']) || !is_scalar($entry['id'])) { continue; }
+        $id = trim(strval($entry['id']));
+        if (!preg_match('/^[A-Za-z0-9_-]{1,64}$/', $id)) { continue; }
+        if (isset($seen[$id])) { continue; }
+        $seen[$id] = true;
+        $label = (isset($entry['label']) && is_scalar($entry['label']))
+            ? trim(mb_substr(strval($entry['label']), 0, 20, 'UTF-8')) : '';
+        $hint = (isset($entry['hint']) && is_scalar($entry['hint']))
+            ? trim(mb_substr(strval($entry['hint']), 0, 300, 'UTF-8')) : '';
+        $out[] = ['id' => $id, 'label' => $label !== '' ? $label : $id, 'hint' => $hint];
+    }
+    return $out;
 }
 
 /** Read a JSON setting saved from the admin dashboard (null if absent). */
@@ -87,6 +146,11 @@ function saveHuntSetting($db, $key, $value) {
          ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)",
         [$key, json_encode($value, JSON_UNESCAPED_UNICODE)]
     );
+}
+
+/** Drop a setting so its hardcoded default takes over again ("reset to built-in"). */
+function deleteHuntSetting($db, $key) {
+    $db->execute("DELETE FROM hunt_settings WHERE setting_key = ?", [$key]);
 }
 
 /** White-label branding — admin-editable; drives event name, brand name,
@@ -459,9 +523,17 @@ function handleScan($db) {
         }
     }
 
-    // Completion check — set completed_at exactly once (guarded UPDATE)
-    $count = intval($db->scalar("SELECT COUNT(*) FROM hunt_scans WHERE participant_id = ?", [$participant['id']]));
-    if ($count >= count(huntPosters())) {
+    // Completion check — set completed_at exactly once (guarded UPDATE).
+    // Counts only scans for posters that are CURRENTLY in the list: once the list
+    // can change (a saved poster_list), rows left over from removed posters would
+    // otherwise count toward completion and mark someone finished early.
+    $liveIds = huntPosterIds();
+    $ph = implode(',', array_fill(0, count($liveIds), '?'));
+    $count = intval($db->scalar(
+        "SELECT COUNT(*) FROM hunt_scans WHERE participant_id = ? AND poster_id IN ($ph)",
+        array_merge([$participant['id']], $liveIds)
+    ));
+    if ($count >= count($liveIds)) {
         $changed = $db->execute(
             "UPDATE hunt_participants
              SET completed_at = (SELECT MAX(scanned_at) FROM hunt_scans WHERE participant_id = ?),
@@ -779,8 +851,14 @@ function handleAdminVerify($db) {
 /** Current dashboard-editable settings: poster labels/hints + anti-cheat floors. */
 function handleAdminSettings($db) {
     $floors = huntFloors();
+    $manifest = huntPosterList();
     Response::success([
         'posters' => huntPosters(),
+        // What the server believes the AR build ships: 'custom' = a Unity
+        // manifest is saved (poster_list holds it), 'builtin' = the hardcoded
+        // defaults are live and poster_list is null.
+        'poster_source' => $manifest === null ? 'builtin' : 'custom',
+        'poster_list' => $manifest,
         'floors' => [
             'min_total_s' => intval($floors['total'] / 1000),
             'min_gap_s' => intval($floors['gap'] / 1000),
@@ -795,10 +873,45 @@ function handleAdminSaveSettings($db) {
     $input = json_decode(file_get_contents('php://input'), true);
     if (!$input) Response::error('Invalid JSON body', 400);
 
+    // Poster list (the Unity manifest) is handled FIRST and validated before
+    // anything is written: it decides which ids exist, so the label/hint
+    // override map below must be filtered against the NEW list. array_key_exists
+    // (not isset) so an explicit null still means "reset to built-in".
+    if (array_key_exists('poster_list', $input)) {
+        $raw = $input['poster_list'];
+        $isClear = ($raw === null || $raw === '' || (is_array($raw) && count($raw) === 0));
+        if ($isClear) {
+            deleteHuntSetting($db, 'poster_list');
+        } elseif (is_array($raw)) {
+            $list = normalizePosterList($raw);
+            if (!count($list)) {
+                Response::error('No valid posters in the list — every entry needs an "id" of letters, digits, _ or - (max 64 chars)', 400);
+            }
+            saveHuntSetting($db, 'poster_list', $list);
+            // Drop label/hint overrides for ids that no longer exist, otherwise a
+            // reused id keeps its old admin-edited text and silently masks the
+            // fresh hint from the new Unity manifest.
+            huntPosters(true);
+            $ov = huntSetting('posters');
+            if (is_array($ov)) {
+                $live = huntPosterIds();
+                $keep = [];
+                foreach ($ov as $k => $v) {
+                    if (in_array(strval($k), $live, true)) { $keep[strval($k)] = $v; }
+                }
+                if (count($keep) !== count($ov)) { saveHuntSetting($db, 'posters', $keep); }
+            }
+        } else {
+            Response::error('poster_list must be an array of {id, label, hint} objects', 400);
+        }
+        huntPosters(true);   // drop the per-request cache so the new ids apply below
+    }
     if (isset($input['posters']) && is_array($input['posters'])) {
         $clean = [];
         foreach ($input['posters'] as $pid => $vals) {
-            if (!in_array($pid, huntPosterIds(), true) || !is_array($vals)) { continue; }
+            // strval: json_decode turns an all-digit JSON key into a PHP int, which
+            // would fail the strict in_array and silently drop that poster's edits.
+            if (!in_array(strval($pid), huntPosterIds(), true) || !is_array($vals)) { continue; }
             $clean[$pid] = [
                 'label' => isset($vals['label']) ? trim(mb_substr($vals['label'], 0, 20, 'UTF-8')) : '',
                 'hint' => isset($vals['hint']) ? trim(mb_substr($vals['hint'], 0, 300, 'UTF-8')) : '',

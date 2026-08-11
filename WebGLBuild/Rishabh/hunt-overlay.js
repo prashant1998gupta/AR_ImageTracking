@@ -42,6 +42,33 @@
   for (var k in DEFAULTS) { CFG[k] = (k in userCfg) ? userCfg[k] : DEFAULTS[k]; }
 
   var qs = new URLSearchParams(window.location.search);
+
+  // ─── Analytics safety net (installed BEFORE the opt-in gate) ────────
+  // Analytics.jslib calls window.arAnalytics from Unity on every tracking
+  // acquisition. If ar-analytics.js failed to load, that call would throw —
+  // so the shim goes in for EVERY build, hunt or not.
+  if (!window.arAnalytics) {
+    window.arAnalytics = {
+      track: function () {}, arSessionStart: function () {},
+      arImageFound: function () {}, arImageLost: function () {},
+      arCtaClick: function () {}
+    };
+  }
+
+  // ─── OPT-IN GATE ────────────────────────────────────────────────────
+  // The Meme Hunt is a CAMPAIGN, not a feature of every AR build. The page
+  // must ask for it explicitly:
+  //     <script>window.HUNT_CONFIG = { enabled: true };</script>
+  // Without that, this file does NOTHING — no HUD, no registration gate, no
+  // network, no localStorage — so a visiting-card / poster / product build
+  // shows only its own AR content. Use ?hunt=1 to force it on for testing.
+  //
+  // Enablement is deliberately NOT inferred from a stored hunt_token: every
+  // build on the same domain shares one localStorage, so a token left over
+  // from testing the hunt would light the HUD up on every other campaign —
+  // which is exactly the bug this gate exists to kill.
+  if (userCfg.enabled !== true && qs.get('hunt') !== '1') { return; }
+
   // ?hunt_api override is for local testing only — honoring it in production
   // would let a crafted link exfiltrate participant tokens to another origin.
   var isDevHost = /^(localhost|127\.0\.0\.1|192\.168\.|10\.)/.test(window.location.hostname);
@@ -90,16 +117,8 @@
     { id: 'Shoes', label: 'Shoes' }
   ];
 
-  // ─── arAnalytics shim + wrap (must happen synchronously at load) ────
-  if (!window.arAnalytics) {
-    // Shim so Analytics.jslib always finds a target even if the analytics
-    // script failed to load (offline dashboards etc.)
-    window.arAnalytics = {
-      track: function () {}, arSessionStart: function () {},
-      arImageFound: function () {}, arImageLost: function () {},
-      arCtaClick: function () {}
-    };
-  }
+  // ─── arAnalytics wrap (must happen synchronously at load) ───────────
+  // The shim itself is installed above, before the opt-in gate.
   var origFound = window.arAnalytics.arImageFound.bind(window.arAnalytics);
   window.arAnalytics.arImageFound = function (id) {
     try { onImageFound(String(id)); } catch (e) { console.error('[Hunt]', e); }

@@ -83,6 +83,22 @@
     <div id="settingsPanel" style="display:none; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.09); border-radius:12px; padding:18px 20px; margin-bottom:20px;">
       <h2 style="font-size:13px; letter-spacing:0.12em; text-transform:uppercase; margin-bottom:4px;">Hunt Settings</h2>
       <p class="muted" style="margin-bottom:14px;">Changes go live immediately — no app rebuild needed. Clear a field to reset it to the built-in default.</p>
+
+      <!-- ─── Poster list (Unity is the source of truth for the ids) ─── -->
+      <div style="margin-bottom:18px; padding-bottom:16px; border-bottom:1px solid rgba(255,255,255,0.08);">
+        <h2 style="font-size:12px; letter-spacing:0.12em; text-transform:uppercase; margin-bottom:4px;">Poster list (from Unity)</h2>
+        <p class="muted" style="margin-bottom:8px;">The ids must match the AR build <b>exactly</b> — a mismatch is silent: the meme plays but the scan is rejected and the chip never ticks. In Unity run <b>Tools ▸ Meme Hunt ▸ 3. Copy Poster List JSON</b>, then paste the JSON here. Leave this empty (or use "Reset to built-in") to keep the server's built-in list.</p>
+        <p class="muted" style="margin-bottom:10px;">Live now: <span id="plCurrent" style="color:rgba(255,255,255,0.75); font-family:monospace; word-break:break-all;">—</span> <span id="plSource"></span></p>
+        <textarea id="plJson" spellcheck="false" style="min-height:132px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; line-height:1.5;"></textarea>
+        <div class="err" id="plErr"></div>
+        <div style="display:flex; gap:10px; align-items:center; margin-top:12px; flex-wrap:wrap;">
+          <button class="btn" id="savePosterListBtn">Save Poster List</button>
+          <button class="btn ghost" id="resetPosterListBtn">Reset to built-in</button>
+          <span class="muted" id="plMsg"></span>
+        </div>
+        <p class="muted" style="margin-top:8px;">Changing the ids mid-event invalidates hunts already in progress — after a change, use <b>Reset All Data</b> before the next session.</p>
+      </div>
+
       <div id="setPosters"></div>
       <div style="display:flex; gap:14px; flex-wrap:wrap; margin-top:16px;">
         <div style="flex:1; min-width:200px;">
@@ -101,7 +117,7 @@
           <label>Poster order</label>
           <label style="display:flex; align-items:center; gap:9px; cursor:pointer; font-size:13px; padding:9px 0; text-transform:none; letter-spacing:0;">
             <input id="setSequential" type="checkbox" style="width:auto; margin:0;">
-            Sequential — posters must be found in order (1→2→3→4→5)
+            Sequential — posters must be found in the order listed above (1→2→3→…)
           </label>
         </div>
       </div>
@@ -216,6 +232,7 @@ function loadSettings() {
           '</div>';
       });
       $('setPosters').innerHTML = html;
+      renderPosterList(res.data);
       $('setMinTotal').value = res.data.floors.min_total_s;
       $('setMinGap').value = res.data.floors.min_gap_s;
       $('setNextDelay').value = (res.data.ui && res.data.ui.next_btn_delay_s != null) ? res.data.ui.next_btn_delay_s : 9;
@@ -239,6 +256,95 @@ function loadSettings() {
     })
     .catch(function () { $('settingsMsg').textContent = 'Network error'; });
 }
+
+// ─── Poster list (the Unity manifest — ids are the source of truth) ───
+// Same rule the server enforces in normalizePosterList().
+var POSTER_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+
+function plError(msg) {
+  var el = $('plErr');
+  el.textContent = msg || '';
+  el.style.display = msg ? 'block' : 'none';
+}
+
+function renderPosterList(data) {
+  var live = (data.posters || []).map(function (p) { return p.id; });
+  $('plCurrent').textContent = live.length ? live.join('  ·  ') + '   (' + live.length + ')' : '(none)';
+  $('plSource').innerHTML = data.poster_source === 'custom'
+    ? '&nbsp;— <b style="color:#5fd06a;">saved list</b>'
+    : '&nbsp;— <b style="color:rgba(255,255,255,0.5);">built-in default</b>';
+  // Prefill only what is actually saved; when the built-ins are live the box
+  // stays empty and the placeholder shows what the server currently believes.
+  $('plJson').value = data.poster_list ? JSON.stringify(data.poster_list, null, 2) : '';
+  $('plJson').placeholder = JSON.stringify((data.posters || []).map(function (p) {
+    return { id: p.id, label: p.label, hint: p.hint || '' };
+  }), null, 2);
+  plError('');
+  $('plMsg').textContent = '';
+}
+
+// Validate the pasted manifest. Returns the cleaned array, or null (error shown).
+function parsePosterList(raw) {
+  var parsed;
+  try { parsed = JSON.parse(raw); }
+  catch (e) { plError('Not valid JSON — ' + e.message); return null; }
+  if (!Array.isArray(parsed)) { plError('Expected a JSON array, e.g. [{"id":"FIFA_Target","label":"FIFA","hint":"…"}]'); return null; }
+  if (!parsed.length) { plError('The array is empty — use "Reset to built-in" instead.'); return null; }
+  if (parsed.length > 60) { plError('Too many posters (' + parsed.length + ') — the server stores at most 60.'); return null; }
+  var out = [];
+  var seen = Object.create(null);
+  for (var i = 0; i < parsed.length; i++) {
+    var e = parsed[i];
+    var at = 'Entry ' + (i + 1) + ': ';
+    if (!e || typeof e !== 'object' || Array.isArray(e)) { plError(at + 'expected an object with an "id".'); return null; }
+    var id = String(e.id == null ? '' : e.id).trim();
+    if (!id) { plError(at + 'missing "id".'); return null; }
+    if (!POSTER_ID_RE.test(id)) { plError(at + 'id "' + id + '" is invalid — letters, digits, _ and - only, 1–64 characters.'); return null; }
+    if (seen[id]) { plError(at + 'duplicate id "' + id + '".'); return null; }
+    seen[id] = true;
+    out.push({
+      id: id,
+      // Array.from + join truncates by CODE POINT, matching the server's mb_substr.
+      // .slice() counts UTF-16 units and can cut an emoji in half, leaving a lone
+      // surrogate that PHP's json_decode rejects outright.
+      label: (Array.from(String(e.label == null ? '' : e.label).trim()).slice(0, 20).join('')) || id,
+      hint: Array.from(String(e.hint == null ? '' : e.hint).trim()).slice(0, 300).join('')
+    });
+  }
+  return out;
+}
+
+// list = array of posters, or null to clear the setting (back to built-in)
+function savePosterList(list) {
+  $('plMsg').textContent = 'Saving…';
+  fetch(API + '?action=admin-save-settings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token() },
+    body: JSON.stringify({ poster_list: list === null ? [] : list })
+  }).then(function (r) { return r.json(); }).then(function (res) {
+    $('plMsg').textContent = res.message || 'Saved';
+    if (res.success) { plError(''); loadSettings(); load(); }
+    else { plError(res.message || 'Save failed'); }
+  }).catch(function () { $('plMsg').textContent = 'Save failed — network error'; });
+}
+
+$('savePosterListBtn').addEventListener('click', function () {
+  plError('');
+  var raw = $('plJson').value.trim();
+  if (!raw) { plError('Paste the JSON exported from Unity, or use "Reset to built-in".'); return; }
+  var list = parsePosterList(raw);
+  if (!list) return;
+  var ids = list.map(function (p) { return '  • ' + p.id; }).join('\n');
+  if (!confirm('Replace the live poster list with these ' + list.length + ':\n\n' + ids +
+               '\n\nThese ids must match the AR build exactly.')) return;
+  savePosterList(list);
+});
+
+$('resetPosterListBtn').addEventListener('click', function () {
+  plError('');
+  if (!confirm('Clear the saved poster list and fall back to the server\'s built-in list?')) return;
+  savePosterList(null);
+});
 
 $('saveSettingsBtn').addEventListener('click', function () {
   var posters = {};
