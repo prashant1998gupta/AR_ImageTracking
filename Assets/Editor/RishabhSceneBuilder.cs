@@ -66,6 +66,27 @@ public static class RishabhSceneBuilder
     // 1.00 wide × (imgH/imgW) tall = 1.00 × 1.60.  Leave PhysicalWidth at 1.0.
     private static readonly float PhysicalWidth = 1.0f;
 
+    // ─── CONTENT SCALE ─── the knob for "the AR is bigger than the card" ────
+    // Multiplies EVERYTHING that is drawn — the video plane AND the whole
+    // surround (frame, badges, icons, name, buttons) — about the card centre.
+    // The invisible tracking quad stays at the card's true size, so it remains
+    // the honest reference for what "1.0" means.
+    //
+    //   1.00 = the video exactly fills the tracking quad (what shipped first)
+    //   0.80 = tested on device — still ~20 % too large
+    //   0.64 = 0.80 × 0.8, i.e. that 20 % taken off      ← current
+    //
+    // Precedent for < 1.0: every other campaign in this project scales its video
+    // down rather than filling the quad — MemeHunt FIFA 0.755, One8 0.57 — and
+    // the Demo-VisitingCard template's own content box measures 0.98 × 0.56 world
+    // units. Nothing here is authored at full quad size except this card was.
+    //
+    // HOW TO TUNE (one number, then re-run the builder — nothing else changes):
+    // it is a pure multiplier, so to take another X % off, multiply by (1 - X/100).
+    //   another 10 % smaller → 0.58        another 20 % smaller → 0.51
+    //   a little bigger      → 0.68        back to the last try → 0.80
+    private static readonly float ContentScale = 0.64f;
+
     // ─── Video ──────────────────────────────────────────────────────────────
     // UseLocalVideoClip = true  → VideoSource.VideoClip, plays instantly in the Editor.
     // UseLocalVideoClip = false → VideoSource.Url + CDNARVideoController.cdnVideoUrl,
@@ -507,8 +528,10 @@ public static class RishabhSceneBuilder
         if (EnableVideo)
         {
             Progress("Creating video plane", 0.55f);
-            float vidW = PhysicalWidth;
-            float vidH = PhysicalWidth * ((float)VideoHeightPx / VideoWidthPx);
+            // ContentScale shrinks the visible video; the tracking quad above keeps
+            // the card's true size, so the two are deliberately allowed to differ.
+            float vidW = PhysicalWidth * ContentScale;
+            float vidH = PhysicalWidth * ContentScale * ((float)VideoHeightPx / VideoWidthPx);
 
             var vidObj = new GameObject(TargetId + " vid");
             vidObj.layer = 0;
@@ -600,13 +623,17 @@ public static class RishabhSceneBuilder
             rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
             rt.pivot     = new Vector2(0.5f, 0.5f);
 
-            float wPx = e.width * pxPerUnit;
+            // Same ContentScale as the video, so the surround stays locked to it
+            float wPx = e.width * ContentScale * pxPerUnit;
             rt.sizeDelta = new Vector2(wPx, wPx * e.aspect);         // height is derived — never stretched
 
             // localZ converts a world-space z back into canvas pixels (see Z CONVENTION).
             float worldZ = float.IsNaN(e.worldZ) ? CanvasWorldZ : e.worldZ;
             float localZ = (worldZ - CanvasWorldZ) / CanvasScaleConst;
-            rt.anchoredPosition3D = new Vector3(e.dx * pxPerUnit, e.dy * pxPerUnit, localZ);
+            rt.anchoredPosition3D = new Vector3(
+                e.dx * ContentScale * pxPerUnit,
+                e.dy * ContentScale * pxPerUnit,
+                localZ);
 
             var img = go.AddComponent<Image>();
             img.sprite = sprites[e.sprite];
