@@ -38,18 +38,32 @@ public static class RishabhSceneBuilder
     // ─── Scene / target identity ────────────────────────────────────────────
     private static readonly string TemplatePath = "Assets/Scenes_1/Demo-VisitingCard.unity";
     private static readonly string NewScenePath = "Assets/Scenes_1/Rishabh.unity";
-    private static readonly string TargetId     = "Rishabh_Card";
 
     // ─── Asset locations ────────────────────────────────────────────────────
     private static readonly string SrcFolder     = "Assets/AR_Assets/Rishabh";
     private static readonly string MatFolder     = "Assets/AR_Assets/Materials";
     private static readonly string MeshFolder    = "Assets/AR_Assets/Planes/Generated";
-    private static readonly string TargetImgPath = SrcFolder + "/Target Image Rishabh.png";
     private static readonly string VideoClipPath = SrcFolder + "/Ar Rishabh Video.mp4";
+
+    /// <summary>One tracked image. Every entry gets its OWN complete copy of the
+    /// card content (video plane + the full UI layout), so scanning EITHER side of
+    /// the printed card gives the identical experience. Both faces are 650 × 1040,
+    /// so the layout numbers below apply unchanged to both.</summary>
+    private class TargetDef
+    {
+        public string id;      // tracker id — must be unique project-wide
+        public string image;   // file name inside SrcFolder
+    }
+
+    private static readonly List<TargetDef> Targets = new List<TargetDef>
+    {
+        new TargetDef { id = "Rishabh_Card",      image = "Target Image Rishabh.png" },
+        new TargetDef { id = "Rishabh_Card_Back", image = "Target Backside Image Rishabh.png" },
+    };
 
     // ─── Physical size ──────────────────────────────────────────────────────
     // The tracker normalises the target's WIDTH to 1.0 world unit, so the card is
-    // 1.00 wide × (imgH/imgW) tall = 1.00 × 1.75.  Leave PhysicalWidth at 1.0.
+    // 1.00 wide × (imgH/imgW) tall = 1.00 × 1.60.  Leave PhysicalWidth at 1.0.
     private static readonly float PhysicalWidth = 1.0f;
 
     // ─── Video ──────────────────────────────────────────────────────────────
@@ -101,7 +115,11 @@ public static class RishabhSceneBuilder
     // "LogoAndLink" is the demo CTA; UIManager.Start() hard-codes rionick.com/contact-us onto
     // it with no null-check, so removing the button also removes the UIManager component.
     private static readonly bool RemoveTemplateCtaButton = true;
-    private static readonly bool UpdateScanHintArt       = true;
+    // The template's on-screen "point your camera at the card" prompt
+    // (Canvas ▸ ScanArea ▸ CardImage + ScanToStart). true = delete it entirely and
+    // clear the tracker's OnImageFound/OnImageLost listeners that toggled it.
+    private static readonly bool RemoveScanArea          = true;
+    private static readonly bool UpdateScanHintArt       = true;   // ignored when RemoveScanArea
     private static readonly float ScanHintHeightPx       = 420f;   // portrait card inside the scan frame
 
     // Build Settings: false = just append this scene (non-destructive, the default).
@@ -281,11 +299,26 @@ public static class RishabhSceneBuilder
         // the PNG file itself into <build>/targets/ and the browser extracts the
         // features, so the importer flag is irrelevant — and leaving it alone keeps
         // the promise that this builder writes nothing outside the folders above.
-        Texture2D targetTex = AssetDatabase.LoadAssetAtPath<Texture2D>(TargetImgPath);
-        if (targetTex == null)
-            throw new System.Exception("Missing tracking image: " + TargetImgPath);
+        if (Targets == null || Targets.Count == 0)
+            throw new System.Exception("No entries in the Targets list.");
 
-        Sprite targetSprite = AssetDatabase.LoadAssetAtPath<Sprite>(TargetImgPath);
+        var targetTextures = new Dictionary<string, Texture2D>();
+        var seenIds = new HashSet<string>();
+        foreach (var def in Targets)
+        {
+            if (!seenIds.Add(def.id))
+                throw new System.Exception("Duplicate target id in the Targets list: " + def.id);
+            string p = SrcFolder + "/" + def.image;
+            var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(p);
+            if (tex == null)
+                throw new System.Exception("Missing tracking image: " + p);
+            targetTextures[def.id] = tex;
+        }
+
+        // Scan-hint art (only used when the prompt is kept)
+        string firstImgPath  = SrcFolder + "/" + Targets[0].image;
+        Texture2D targetTex  = targetTextures[Targets[0].id];
+        Sprite targetSprite  = AssetDatabase.LoadAssetAtPath<Sprite>(firstImgPath);
 
         var sprites = new Dictionary<string, Sprite>();
         foreach (var e in Layout)
@@ -321,9 +354,9 @@ public static class RishabhSceneBuilder
             }
         }
 
-        // 2. Register the image target in the project-global settings (build-time export)
-        Progress("Registering global image target", 0.15f);
-        RegisterGlobalTarget(targetTex);
+        // 2. Register every image target in the project-global settings (build-time export)
+        Progress("Registering global image targets", 0.15f);
+        foreach (var def in Targets) RegisterGlobalTarget(def.id, targetTextures[def.id]);
 
         // 3. Clone the template scene (never opened for writing — only CopyAsset reads it)
         Progress("Cloning template scene", 0.25f);
@@ -371,12 +404,81 @@ public static class RishabhSceneBuilder
         Progress("Removing demo UI", 0.40f);
         string strippedInfo = StripTemplateDemoUi(newScene, screenCanvas);
 
-        // 6. Target root — mesh carries the physical size, transform stays identity.
-        //    ImageTracker.ParseData() hard-assigns localScale/position/rotation on this
-        //    object EVERY tracked frame, so nothing may be authored on it.
+        // 6-8. Build one complete copy of the card content per tracked image, so
+        //      either face of the printed card gives the same experience.
         Progress("Building tracked content", 0.45f);
+        string saveContactUrl = ResolveSaveContactUrl();
+        var linkReport = new List<string>();
+        string videoInfo = "  • Video: disabled\n";
+        var builtRoots = new List<GameObject>();
+        float targetW = PhysicalWidth, targetH = PhysicalWidth;
+
+        for (int ti = 0; ti < Targets.Count; ti++)
+        {
+            // Only the first pass fills the link report — every copy is identical.
+            builtRoots.Add(BuildTargetContent(
+                Targets[ti], targetTextures[Targets[ti].id], tracker, eventCamera,
+                sprites, clip, saveContactUrl,
+                ti == 0 ? linkReport : null,
+                ref videoInfo, ref targetW, ref targetH));
+        }
+
+        // 9. Rewrite the tracker's target list with exactly these targets
+        targetsProp.ClearArray();
+        for (int i = 0; i < builtRoots.Count; i++)
+        {
+            targetsProp.InsertArrayElementAtIndex(i);
+            var el = targetsProp.GetArrayElementAtIndex(i);
+            el.FindPropertyRelative("id").stringValue = Targets[i].id;
+            el.FindPropertyRelative("transform").objectReferenceValue = builtRoots[i].transform;
+        }
+        var originProp = trackerSo.FindProperty("trackerOrigin");
+        if (originProp != null) originProp.enumValueIndex = 0;   // CAMERA_ORIGIN
+        trackerSo.ApplyModifiedProperties();
+
+        // 10. Scan prompt — removed by default (see RemoveScanArea)
+        Progress("Finishing scene", 0.8f);
+        string scanInfo;
+        if (RemoveScanArea)
+        {
+            // Clear the template's listeners FIRST: they point at the ScanArea we are
+            // about to destroy, and a persistent call to a dead object is dead weight.
+            ClearImageEvent(trackerSo, "OnImageFound");
+            ClearImageEvent(trackerSo, "OnImageLost");
+            trackerSo.ApplyModifiedProperties();
+            scanInfo = DestroyScanArea(screenCanvas);
+        }
+        else
+        {
+            WireScanAreaEvents(screenCanvas, trackerSo);
+            if (UpdateScanHintArt) UpdateScanHint(screenCanvas, targetSprite, targetTex);
+            scanInfo = "  • Scan prompt: kept\n";
+        }
+
+        // 11. vCard file + save + build settings
+        string vcardInfo = "";
+        if (WriteVCardFile && !UseDataUriVCard)
+            vcardInfo = WriteVCard();
+
+        return FinishScene(newScene, targetW, targetH, videoInfo, linkReport,
+                           strippedInfo, scanInfo, vcardInfo);
+    }
+
+    /// <summary>Builds ONE tracked target: root (carrying the tracking-image mesh),
+    /// its video plane and its World Canvas with the full layout. Returns the root.</summary>
+    private static GameObject BuildTargetContent(
+        TargetDef def, Texture2D targetTex, ImageTracker tracker, Camera eventCamera,
+        Dictionary<string, Sprite> sprites, VideoClip clip, string saveContactUrl,
+        List<string> linkReport, ref string videoInfo, ref float outW, ref float outH)
+    {
+        string TargetId = def.id;
+
+        // Target root — mesh carries the physical size, transform stays identity.
+        // ImageTracker.ParseData() hard-assigns localScale/position/rotation on this
+        // object EVERY tracked frame, so nothing may be authored on it.
         float targetW = PhysicalWidth;
         float targetH = PhysicalWidth * ((float)targetTex.height / targetTex.width);
+        outW = targetW; outH = targetH;
 
         var targetObj = new GameObject(TargetId);
         targetObj.layer = 0;
@@ -393,7 +495,6 @@ public static class RishabhSceneBuilder
             GetOrCreateUnlitMaterial($"{MatFolder}/{TargetId}_Mat.mat", TargetId + "_Mat", targetTex);
 
         // 7. Video plane — aspect from the source pixels, width pinned to the card width
-        string videoInfo = "  • Video: disabled\n";
         if (EnableVideo)
         {
             Progress("Creating video plane", 0.55f);
@@ -478,9 +579,6 @@ public static class RishabhSceneBuilder
         canvasRt.localRotation = Quaternion.identity;
         canvasRt.localPosition = new Vector3(0, 0, CanvasWorldZ);
 
-        string saveContactUrl = ResolveSaveContactUrl();
-        var linkReport = new List<string>();
-
         foreach (var e in Layout)
         {
             var go = new GameObject(e.name, typeof(RectTransform));
@@ -513,7 +611,7 @@ public static class RishabhSceneBuilder
             }
 
             WireUrlButton(go, img, url);
-            linkReport.Add($"  • {e.name} → {Shorten(url)}");
+            if (linkReport != null) linkReport.Add($"  • {e.name} → {Shorten(url)}");
         }
 
         // Template convention: target roots start INACTIVE — ImageTracker re-activates
@@ -521,27 +619,14 @@ public static class RishabhSceneBuilder
         // run at scene load, so the video would start (and its audio play) before the
         // card is ever scanned.
         targetObj.SetActive(false);
+        return targetObj;
+    }
 
-        // 9. Rewrite the tracker's target list with exactly this one target
-        targetsProp.ClearArray();
-        targetsProp.InsertArrayElementAtIndex(0);
-        var elem = targetsProp.GetArrayElementAtIndex(0);
-        elem.FindPropertyRelative("id").stringValue = TargetId;
-        elem.FindPropertyRelative("transform").objectReferenceValue = targetObj.transform;
-        var originProp = trackerSo.FindProperty("trackerOrigin");
-        if (originProp != null) originProp.enumValueIndex = 0;   // CAMERA_ORIGIN
-        trackerSo.ApplyModifiedProperties();
-
-        // 10. Scan-prompt: OnImageFound → ScanArea.SetActive(false), OnImageLost → true
-        Progress("Wiring the scan prompt", 0.8f);
-        WireScanAreaEvents(screenCanvas, trackerSo);
-        if (UpdateScanHintArt) UpdateScanHint(screenCanvas, targetSprite, targetTex);
-
-        // 11. vCard file + save + build settings
-        string vcardInfo = "";
-        if (WriteVCardFile && !UseDataUriVCard)
-            vcardInfo = WriteVCard();
-
+    /// <summary>Saves the scene, updates Build Settings and composes the report.</summary>
+    private static string FinishScene(Scene newScene, float targetW, float targetH,
+                                      string videoInfo, List<string> linkReport,
+                                      string strippedInfo, string scanInfo, string vcardInfo)
+    {
         Progress("Saving scene", 0.95f);
         EditorSceneManager.MarkSceneDirty(newScene);
         if (!EditorSceneManager.SaveScene(newScene))
@@ -559,12 +644,16 @@ public static class RishabhSceneBuilder
         }
 
         EditorUtility.ClearProgressBar();
+        var ids = new List<string>();
+        foreach (var d in Targets) ids.Add(d.id);
+
         return "Rishabh scene created at " + NewScenePath + "\n\n" +
-               $"  • Target id: {TargetId}  ({targetW:F2} × {targetH:F2} units)\n" +
+               $"  • {Targets.Count} tracked image(s): {string.Join(", ", ids)}\n" +
+               $"    each {targetW:F2} × {targetH:F2} units, with its own copy of the content\n" +
                videoInfo +
-               $"  • {Layout.Count} UI quads, {linkReport.Count} tappable\n" +
+               $"  • {Layout.Count} UI quads per target, {linkReport.Count} tappable\n" +
                string.Join("\n", linkReport) + "\n" +
-               strippedInfo + vcardInfo + "\n" +
+               strippedInfo + scanInfo + vcardInfo + "\n" +
                (MakeOnlyEnabledBuildScene
                     ? "It is now the only enabled scene in Build Settings.\n\n"
                     : "Added to Build Settings; every other scene is untouched — so the\n" +
@@ -686,6 +775,37 @@ public static class RishabhSceneBuilder
         return null;
     }
 
+    /// <summary>Deletes Canvas ▸ ScanArea (CardImage + ScanToStart) — the template's
+    /// "point your camera at the card" prompt. Call ClearImageEvent first: the
+    /// template wires OnImageFound/OnImageLost to toggle this object.</summary>
+    private static string DestroyScanArea(GameObject screenCanvas)
+    {
+        if (screenCanvas == null) return "  • Scan prompt: no screen Canvas found\n";
+        Transform sa = screenCanvas.transform.Find("ScanArea");
+        if (sa == null)
+        {
+            // Not fatal — an earlier run (or a template change) may have removed it
+            Debug.Log("[Rishabh] No Canvas/ScanArea to remove.");
+            return "  • Scan prompt: already absent\n";
+        }
+        Object.DestroyImmediate(sa.gameObject);
+        return "  • Scan prompt: removed (ScanArea + CardImage + ScanToStart)\n";
+    }
+
+    /// <summary>Drops every persistent listener from one of the tracker's
+    /// UnityEvents, so nothing points at an object we deleted.</summary>
+    private static void ClearImageEvent(SerializedObject so, string eventFieldName)
+    {
+        var eventProp = so.FindProperty(eventFieldName);
+        if (eventProp == null)
+        {
+            Debug.LogWarning("[Rishabh] Event not found on ImageTracker: " + eventFieldName);
+            return;
+        }
+        var callsProp = eventProp.FindPropertyRelative("m_PersistentCalls.m_Calls");
+        if (callsProp != null) callsProp.ClearArray();
+    }
+
     private static void WireScanAreaEvents(GameObject screenCanvas, SerializedObject trackerSo)
     {
         Transform sa = screenCanvas != null ? screenCanvas.transform.Find("ScanArea") : null;
@@ -734,7 +854,7 @@ public static class RishabhSceneBuilder
         {
             // Silent no-op would be invisible if the PNG's Texture Type ever changes
             Debug.LogWarning("[Rishabh] Target image is not imported as a Sprite — " +
-                             "scan hint left as the template's: " + TargetImgPath);
+                             "scan hint left as the template's: " + SrcFolder + "/" + Targets[0].image);
             return;
         }
         Transform card = FindChildRecursive(screenCanvas.transform, "CardImage");
@@ -831,7 +951,7 @@ public static class RishabhSceneBuilder
     //  ASSET HELPERS
     // ─────────────────────────────────────────────────────────────────
 
-    private static void RegisterGlobalTarget(Texture2D tex)
+    private static void RegisterGlobalTarget(string targetId, Texture2D tex)
     {
         var gs = Resources.Load<ImageTrackerGlobalSettings>("ImageTrackerGlobalSettings");
         if (gs == null)
@@ -842,13 +962,13 @@ public static class RishabhSceneBuilder
         bool found = false;
         foreach (var info in gs.imageTargetInfos)
         {
-            if (info.id != TargetId) continue;
+            if (info.id != targetId) continue;
             info.texture = tex;
             found = true;
             break;
         }
         if (!found)
-            gs.imageTargetInfos.Add(new ImageTargetInfo { id = TargetId, texture = tex });
+            gs.imageTargetInfos.Add(new ImageTargetInfo { id = targetId, texture = tex });
 
         EditorUtility.SetDirty(gs);
         AssetDatabase.SaveAssets();
