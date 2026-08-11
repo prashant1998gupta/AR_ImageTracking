@@ -1,0 +1,11 @@
+BEGIN:VCARD
+VERSION:3.0
+N;CHARSET=UTF-8:Rustagi;Rishabh;;;
+FN;CHARSET=UTF-8:Rishabh Rustagi
+ORG;CHARSET=UTF-8:Rionick Studios
+TEL;TYPE=CELL:+918377935429
+EMAIL;CHARSET=UTF-8;type=WORK,INTERNET:contact@rionick.com
+URL;type=WORK;CHARSET=UTF-8:https://www.rionick.com
+URL;TYPE=linkedin:https://www.linkedin.com/company/rionick-studios/
+URL;TYPE=instagram:https://www.instagram.com/rionick.studios/
+END:VCARD

@@ -37,6 +37,8 @@ MonoBehaviour:
     texture: {fileID: 2800000, guid: 372f4ce167f10e94b9a3ffd1f9465010, type: 3}
   - id: One8Traget
     texture: {fileID: 2800000, guid: 94a803c8fc5745e419c1cbaa654b8ce0, type: 3}
+  - id: Rishabh_Card
+    texture: {fileID: 2800000, guid: 3107ce75d280241f78831c7fa172692f, type: 3}
   settingsTemplates:
   - {fileID: 11400000, guid: 35c99cc7b662a46eb89cc7a32e239494, type: 2}
   - {fileID: 11400000, guid: 9cf415d375f91458483df57436950575, type: 2}
