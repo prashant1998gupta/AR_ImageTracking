@@ -433,7 +433,7 @@
         <div style="position:relative; background-color:white; padding:10px; box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.3), 0 6px 20px 0 rgba(0, 0, 0, 0.25); width: 80vw; display:flex; flex-direction: column; align-items: center;">
             <p id="confirmUrlText" style="text-align: center; width:80%; overflow: hidden; text-overflow: ellipsis;">Are you sure you want to visit url.com?</p>
             <div>
-                <button onclick="window.open(newUrlString, '_blank').focus(); document.getElementById('confirmUrlDiv').style.display = 'none'">VISIT SITE</button>
+                <button onclick="var w=window.open(newUrlString,'_blank'); if(w){try{w.opener=null;}catch(e){} try{w.focus();}catch(e){}} else {window.location.assign(newUrlString);} document.getElementById('confirmUrlDiv').style.display='none'">VISIT SITE</button>
                 <button onclick="document.getElementById('confirmUrlDiv').style.display = 'none'">GO BACK</button>
             </div>
         </div>
@@ -1024,7 +1024,41 @@
             }
 
             function ShowConfirmUrl(url){
-                window.location.assign(url);                
+                // Open in a NEW TAB, never in this one: navigating this tab tears down
+                // the AR session, so every tap on a social / Save Contact button would
+                // cost the visitor a rescan.
+                //
+                // Try window.open first — that is the instant, no-extra-tap path. It can
+                // be blocked, because Unity dispatches Button.onClick from
+                // EventSystem.Update() rather than straight out of the DOM handler, and
+                // iOS Safari in particular only trusts a window.open made inside a real
+                // gesture. When it IS blocked, fall back to the confirm sheet, whose
+                // VISIT SITE button is a genuine tap and therefore always allowed.
+                try {
+                    var w = window.open(url, '_blank');
+                    if (w) {
+                        try { w.opener = null; } catch (e) {}   // don't hand the AR tab over
+                        try { w.focus(); } catch (e) {}
+                        return;
+                    }
+                } catch (e) {}
+
+                try {
+                    newUrlString = url;
+                    var txt = document.getElementById('confirmUrlText');
+                    if (txt) {
+                        var shown = url;
+                        try {
+                            var u = new URL(url);
+                            shown = (u.protocol === 'data:') ? 'this contact card' : u.hostname;
+                        } catch (e) {}
+                        txt.textContent = 'Open ' + shown + ' in a new tab?';
+                    }
+                    var div = document.getElementById('confirmUrlDiv');
+                    if (div) { div.style.display = 'flex'; return; }
+                } catch (e) {}
+
+                window.location.assign(url);   // last resort only
             }
 
             initialize();
