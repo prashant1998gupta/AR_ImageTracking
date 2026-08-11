@@ -74,7 +74,8 @@ public static class RishabhSceneBuilder
     //
     //   1.00 = the video exactly fills the tracking quad (what shipped first)
     //   0.80 = tested on device — still ~20 % too large
-    //   0.64 = 0.80 × 0.8, i.e. that 20 % taken off      ← current
+    //   0.64 = 0.80 × 0.8 — closer, still a touch too large
+    //   0.63 = settled here on device                    ← current
     //
     // Precedent for < 1.0: every other campaign in this project scales its video
     // down rather than filling the quad — MemeHunt FIFA 0.755, One8 0.57 — and
@@ -83,9 +84,9 @@ public static class RishabhSceneBuilder
     //
     // HOW TO TUNE (one number, then re-run the builder — nothing else changes):
     // it is a pure multiplier, so to take another X % off, multiply by (1 - X/100).
-    //   another 10 % smaller → 0.58        another 20 % smaller → 0.51
-    //   a little bigger      → 0.68        back to the last try → 0.80
-    private static readonly float ContentScale = 0.64f;
+    //   a touch smaller → 0.60             10 % smaller → 0.57
+    //   a touch bigger  → 0.66             back to the start → 0.80
+    private static readonly float ContentScale = 0.63f;
 
     // ─── Video ──────────────────────────────────────────────────────────────
     // UseLocalVideoClip = true  → VideoSource.VideoClip, plays instantly in the Editor.
