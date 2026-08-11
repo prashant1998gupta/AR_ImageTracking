@@ -352,9 +352,42 @@
     return id;
   }
 
+  // ─── ID mismatch detection ──────────────────────────────────────────
+  // The poster ids exist in TWO places that must agree: the ids baked into this
+  // build (PostProcessBuild writes them as <imagetarget id='…'> tags) and the
+  // server's list. When they disagree the failure is SILENT — the camera tracks
+  // the poster and the meme plays, but the scan is rejected and the chip never
+  // ticks. So compare them once and say so loudly in the console.
+  var mismatchChecked = false;
+  function checkPosterIds(serverPosters) {
+    if (mismatchChecked || !serverPosters || !serverPosters.length) { return; }
+    mismatchChecked = true;
+    var inBuild = [];
+    try {
+      document.querySelectorAll('imagetarget').forEach(function (t) {
+        var id = t.getAttribute('id');
+        if (id) { inBuild.push(id); }
+      });
+    } catch (e) { return; }
+    if (!inBuild.length) { return; }   // nothing to compare against
+
+    var missing = serverPosters
+      .map(function (p) { return p.id; })
+      .filter(function (id) { return inBuild.indexOf(id) === -1; });
+    if (missing.length) {
+      console.error(
+        '[Hunt] POSTER ID MISMATCH — the server expects ids this AR build does not have: ' +
+        missing.join(', ') + '\n' +
+        '       ids in this build: ' + inBuild.join(', ') + '\n' +
+        '       Those posters can NEVER be scanned (the meme plays, the scan is rejected).\n' +
+        '       Fix: Unity ▸ Tools ▸ Meme Hunt ▸ 3. Copy Poster List JSON, then paste it into\n' +
+        '       hunt/admin.html ▸ Settings ▸ Poster list.');
+    }
+  }
+
   function applyState(data, announce) {
     if (!data) { return; }
-    if (data.posters && data.posters.length) { state.posters = data.posters; }
+    if (data.posters && data.posters.length) { state.posters = data.posters; checkPosterIds(data.posters); }
     state.total = data.total || state.total;
     state.scanned = {};
     (data.scanned || []).forEach(function (id) { state.scanned[id] = true; });

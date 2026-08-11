@@ -98,12 +98,26 @@ public static class HuntFlagPostBuild
         string patched = FlagRe.Replace(html, "${1}" + (isHunt ? "true" : "false"), 1);
         if (patched != html) File.WriteAllText(indexPath, patched);
 
-        Debug.Log(string.Format(
-            "[HuntFlag] {0} → Meme Hunt {1}\n            scene: {2}{3}",
+        string msg = string.Format(
+            "[HuntFlag] {0} → Meme Hunt {1}\n            scene: {2}",
             Path.GetFileName(buildPath.TrimEnd('/', '\\')),
             isHunt ? "ENABLED — registration, chips, timer, leaderboard"
                    : "disabled — plain AR experience",
-            scene,
-            declared ? "" : "   (no CampaignSettings component found — defaulted to off)"));
+            scene);
+
+        if (declared)
+        {
+            Debug.Log(msg);
+        }
+        else
+        {
+            // Silence here is the dangerous case: a hunt scene built without the
+            // component ships with NO registration and NO scoring, and looks fine.
+            Debug.LogWarning(msg +
+                "\n            NOTE: this scene has no CampaignSettings component, so the hunt " +
+                "was switched OFF by default.\n            If this build IS a hunt, add one " +
+                "(Add Component ▸ ARRISE ▸ Campaign Settings) and tick huntEnabled, or re-run " +
+                "its scene builder — then build again.");
+        }
     }
 }
