@@ -41,6 +41,16 @@ MonoBehaviour:
     texture: {fileID: 2800000, guid: 3107ce75d280241f78831c7fa172692f, type: 3}
   - id: Rishabh_Card_Back
     texture: {fileID: 2800000, guid: b43faa83102e9462b855123dd9954a77, type: 3}
+  - id: Target1
+    texture: {fileID: 2800000, guid: 3cd156fd52209471ba35d61d0759d012, type: 3}
+  - id: Target2
+    texture: {fileID: 2800000, guid: d3bf2c0cc12974e16b4f430316493046, type: 3}
+  - id: Target3
+    texture: {fileID: 2800000, guid: 85999b01b40c04e0e9b5007e2373280b, type: 3}
+  - id: Target4
+    texture: {fileID: 2800000, guid: cd40c519fd9354d899d6a4581ab1e935, type: 3}
+  - id: Target5
+    texture: {fileID: 2800000, guid: 78ec150f59d5f4926b38935045a215fa, type: 3}
   settingsTemplates:
   - {fileID: 11400000, guid: 35c99cc7b662a46eb89cc7a32e239494, type: 2}
   - {fileID: 11400000, guid: 9cf415d375f91458483df57436950575, type: 2}
