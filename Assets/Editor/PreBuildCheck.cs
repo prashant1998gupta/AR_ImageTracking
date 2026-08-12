@@ -322,6 +322,59 @@ public class PreBuildCheck : IPreprocessBuildWithReport
             issues.Add(new PreBuildIssue(PreBuildLevel.Warn,
                 "Colour space is Linear.",
                 "The camera feed and green-screen video are authored for Gamma — Linear can wash them out on mobile GPUs."));
+
+        // Threads need the server to send COOP/COEP headers. Shared hosting does not,
+        // and without cross-origin isolation the build refuses to start at all.
+        if (PlayerSettings.WebGL.threadsSupport)
+            issues.Add(new PreBuildIssue(PreBuildLevel.Error,
+                "WebGL multithreading is on.",
+                "It needs Cross-Origin-Opener/Embedder-Policy headers, which shared hosting does not send — the build " +
+                "then fails to start. Turn it off unless you control the server headers.")
+                .WithFix("Turn off threads", () => { PlayerSettings.WebGL.threadsSupport = false; }));
+
+        // Dead engine code is pure download weight on a phone.
+        if (!PlayerSettings.stripEngineCode)
+            issues.Add(new PreBuildIssue(PreBuildLevel.Warn,
+                "Strip Engine Code is off.",
+                "Engine modules this campaign never touches are shipped anyway — usually several MB.")
+                .WithFix("Enable stripping", () => { PlayerSettings.stripEngineCode = true; }));
+
+        try
+        {
+            var lvl = PlayerSettings.GetManagedStrippingLevel(NamedBuildTarget.WebGL);
+            if (lvl == ManagedStrippingLevel.Disabled || lvl == ManagedStrippingLevel.Low)
+                issues.Add(new PreBuildIssue(PreBuildLevel.Warn,
+                    "Managed stripping level is " + lvl + ".",
+                    "These scenes are small and use no reflection — Medium trims a lot of unused .NET code with no risk.")
+                    .WithFix("Set Medium", () =>
+                        PlayerSettings.SetManagedStrippingLevel(NamedBuildTarget.WebGL, ManagedStrippingLevel.Medium)));
+        }
+        catch { /* API differs across versions — never block a build over it */ }
+
+        // Mobile GPUs render the camera feed every frame already; these are pure cost
+        // in a scene that is a few unlit quads.
+        if (QualitySettings.shadows != ShadowQuality.Disable)
+            issues.Add(new PreBuildIssue(PreBuildLevel.Warn,
+                "Realtime shadows are enabled (" + QualitySettings.shadows + ").",
+                "Nothing in an AR overlay casts a shadow worth the GPU time on a phone.")
+                .WithFix("Disable shadows", () => { QualitySettings.shadows = ShadowQuality.Disable; }));
+
+        if (QualitySettings.antiAliasing > 0)
+            issues.Add(new PreBuildIssue(PreBuildLevel.Warn,
+                "Anti-aliasing is " + QualitySettings.antiAliasing + "×.",
+                "MSAA costs real fill-rate on mobile; AR content is video-on-a-quad, which gains almost nothing.")
+                .WithFix("Turn off AA", () => { QualitySettings.antiAliasing = 0; }));
+
+        // Everything under a Resources folder ships whether or not it is used.
+        long resKb = 0;
+        foreach (var dir in Directory.GetDirectories("Assets", "Resources", SearchOption.AllDirectories))
+            foreach (var f in Directory.GetFiles(dir, "*", SearchOption.AllDirectories))
+                if (!f.EndsWith(".meta")) resKb += new FileInfo(f).Length / 1024;
+        if (resKb > 3000)
+            issues.Add(new PreBuildIssue(PreBuildLevel.Warn,
+                "Resources folders hold " + (resKb / 1024f).ToString("0.0") + " MB.",
+                "EVERYTHING under a Resources folder is built in, used or not. Move anything this campaign does not " +
+                "load by name out of Resources."));
     }
 
     private static void CheckTemplateFolder(string name, List<PreBuildIssue> issues)
@@ -570,6 +623,110 @@ public class PreBuildCheck : IPreprocessBuildWithReport
             issues.Add(new PreBuildIssue(PreBuildLevel.Error, "No ARCamera in this scene.",
                 "Nothing draws the camera feed — the build opens to a black screen. " +
                 "Imagine WebAR ▸ Create ▸ AR Camera, or re-run the scene builder."));
+
+        // ── AR-specific waste, all invisible in the editor ──────────────
+        if (arCam != null)
+        {
+            var cam = arCam.GetComponent<Camera>();
+            if (cam != null)
+            {
+                // The webcam feed is drawn UNDER the Unity canvas: a skybox paints over it.
+                if (cam.clearFlags == CameraClearFlags.Skybox)
+                    issues.Add(new PreBuildIssue(PreBuildLevel.Error,
+                        "The AR camera clears to Skybox.",
+                        "That paints over the webcam feed — the visitor sees a sky instead of the room. " +
+                        "Clear to a Solid Color with alpha 0.")
+                        .WithFix("Use transparent", () =>
+                        {
+                            Undo.RecordObject(cam, "AR camera clear flags");
+                            cam.clearFlags = CameraClearFlags.SolidColor;
+                            cam.backgroundColor = new Color(0, 0, 0, 0);
+                            EditorSceneManager.MarkSceneDirty(cam.gameObject.scene);
+                        }));
+
+                if (cam.allowHDR || cam.allowMSAA)
+                    issues.Add(new PreBuildIssue(PreBuildLevel.Warn,
+                        "The AR camera has " + (cam.allowHDR ? "HDR " : "") + (cam.allowMSAA ? "MSAA" : "") + " enabled.",
+                        "Extra full-screen buffers on a phone, for content that is unlit video quads.")
+                        .WithFix("Turn both off", () =>
+                        {
+                            Undo.RecordObject(cam, "AR camera buffers");
+                            cam.allowHDR = false; cam.allowMSAA = false;
+                            EditorSceneManager.MarkSceneDirty(cam.gameObject.scene);
+                        }));
+            }
+        }
+
+        if (RenderSettings.skybox != null)
+            issues.Add(new PreBuildIssue(PreBuildLevel.Warn,
+                "A skybox material is assigned to this scene.",
+                "It is never visible behind a camera feed, but its cubemap is still built and loaded.")
+                .WithFix("Remove skybox", () =>
+                {
+                    RenderSettings.skybox = null;
+                    EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
+                }));
+
+        if (LightmapSettings.lightmaps != null && LightmapSettings.lightmaps.Length > 0)
+            issues.Add(new PreBuildIssue(PreBuildLevel.Warn,
+                LightmapSettings.lightmaps.Length + " baked lightmap(s) are stored in this scene.",
+                "Unlit AR quads never sample them — it is pure download weight. Window ▸ Rendering ▸ Lighting ▸ " +
+                "Generate Lighting ▸ Clear Baked Data, and untick Auto Generate."));
+
+        int listeners = Object.FindObjectsOfType<AudioListener>(true).Length;
+        if (listeners > 1)
+            issues.Add(new PreBuildIssue(PreBuildLevel.Warn,
+                listeners + " AudioListeners in this scene.",
+                "Unity keeps one and logs a warning every frame in the browser console; audio can also go silent."));
+
+        // A video shipped INSIDE the build instead of streamed from the CDN is the
+        // single biggest download mistake available here.
+        foreach (var vp in Object.FindObjectsOfType<VideoPlayer>(true))
+        {
+            if (vp.clip == null) continue;
+            string cp = AssetDatabase.GetAssetPath(vp.clip);
+            long mb = (!string.IsNullOrEmpty(cp) && File.Exists(cp)) ? new FileInfo(cp).Length / 1048576 : 0;
+            issues.Add(new PreBuildIssue(PreBuildLevel.Error,
+                "'" + vp.gameObject.name + "' has a VideoClip baked into the build" + (mb > 0 ? " (" + mb + " MB)" : "") + ".",
+                "Every visitor downloads it before the experience starts. Put the file on the CDN and set the URL on " +
+                "CDNARVideoController instead — that is what streaming is for."));
+        }
+
+        // Read/Write doubles a texture's memory. Tracking images never need it: the
+        // build copies the ORIGINAL file into targets/ and the browser decodes that.
+        if (gs != null && gs.imageTargetInfos != null)
+        {
+            var rw = new List<string>();
+            foreach (var info in gs.imageTargetInfos)
+            {
+                if (info.texture == null) continue;
+                var imp = AssetImporter.GetAtPath(AssetDatabase.GetAssetPath(info.texture)) as TextureImporter;
+                if (imp != null && imp.isReadable) rw.Add(info.id);
+            }
+            if (rw.Count > 0)
+                issues.Add(new PreBuildIssue(PreBuildLevel.Warn,
+                    rw.Count + " target texture(s) have Read/Write enabled: " + string.Join(", ", rw.Take(5)) +
+                    (rw.Count > 5 ? " …" : ""),
+                    "That keeps a second uncompressed copy in memory for nothing — the tracker reads the original " +
+                    "file from targets/, not the imported texture.")
+                    .WithFix("Turn Read/Write off", () =>
+                    {
+                        foreach (var info in gs.imageTargetInfos)
+                        {
+                            if (info.texture == null) continue;
+                            var imp = AssetImporter.GetAtPath(AssetDatabase.GetAssetPath(info.texture)) as TextureImporter;
+                            if (imp != null && imp.isReadable) { imp.isReadable = false; imp.SaveAndReimport(); }
+                        }
+                    }));
+        }
+
+        // 60 fps doubles the tracking work and drains a phone that is already running
+        // a camera; the tracker's own default is 30.
+        var fps = so.FindProperty("trackerSettings.targetFrameRate");
+        if (fps != null && fps.intValue == -1)
+            issues.Add(new PreBuildIssue(PreBuildLevel.Info,
+                "Tracker frame rate is set to 60 FPS.",
+                "30 FPS tracks just as well for video-on-poster content and roughly halves CPU and battery use."));
 
         // Broken references survive in a scene file and only fail at runtime.
         var missingScripts = new List<string>();
