@@ -644,7 +644,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 70a194eeb239bea4ea4ec644d9ba84f3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CDNARVideoController
-  cdnVideoUrl: https://cdn.jsdelivr.net/gh/prashant1998gupta/AR_ImageTracking@main/videos/ARMemeHuntVideos/Target-4.mp4
+  cdnVideoUrl: https://cdn.jsdelivr.net/gh/prashant1998gupta/AR_ImageTracking@main/videos/ARMemeHuntVideos/Target-4New.mp4
   webGLSoundTargetKey: Target4
   resumeVideoOnRetrack: 1
   loopVideo: 1
@@ -678,7 +678,7 @@ VideoPlayer:
   - {fileID: 0}
   m_DirectAudioVolumes:
   - 1
-  m_Url: https://cdn.jsdelivr.net/gh/prashant1998gupta/AR_ImageTracking@main/videos/ARMemeHuntVideos/Target-4.mp4
+  m_Url: https://cdn.jsdelivr.net/gh/prashant1998gupta/AR_ImageTracking@main/videos/ARMemeHuntVideos/Target-4New.mp4
   m_EnabledAudioTracks: 01
   m_DirectAudioMutes: 00
   m_ControlledAudioTrackCount: 1
