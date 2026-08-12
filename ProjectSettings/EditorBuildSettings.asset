@@ -5,7 +5,7 @@ EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Scenes:
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes_1/MemeHunt.unity
     guid: 08d045d4ef685114880139fa0471ef26
   - enabled: 0
@@ -28,6 +28,6 @@ EditorBuildSettings:
     guid: 7c8b802983364d642a19a8308f1c0766
   - enabled: 1
     path: Assets/Scenes_1/Rishabh.unity
-    guid: 8724b27aed9de427f957bb4930b4f900
+    guid: 203e88e9cfd6044c5b4b860590d54e67
   m_configObjects: {}
   m_UseUCBPForAssetBundles: 0
