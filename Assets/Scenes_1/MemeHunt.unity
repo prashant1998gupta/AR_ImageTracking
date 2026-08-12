@@ -790,7 +790,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: bc45c8912c3e4ea39097672c23ba1d2f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ARContentScale
-  scale: 1
+  scale: 0.71
   urlKeys:
   - scale
   - ar_scale
@@ -1503,7 +1503,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: bc45c8912c3e4ea39097672c23ba1d2f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ARContentScale
-  scale: 1
+  scale: 0.71
   urlKeys:
   - scale
   - ar_scale
@@ -1645,7 +1645,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: bc45c8912c3e4ea39097672c23ba1d2f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ARContentScale
-  scale: 1
+  scale: 0.71
   urlKeys:
   - scale
   - ar_scale
@@ -1696,7 +1696,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: bc45c8912c3e4ea39097672c23ba1d2f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ARContentScale
-  scale: 1
+  scale: 0.71
   urlKeys:
   - scale
   - ar_scale
@@ -2160,7 +2160,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: bc45c8912c3e4ea39097672c23ba1d2f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ARContentScale
-  scale: 1
+  scale: 0.71
   urlKeys:
   - scale
   - ar_scale
