@@ -164,8 +164,16 @@ public class PreBuildCheck : IPreprocessBuildWithReport
         summary = new PreBuildSummary();
 
         CheckProject(issues, summary);
+        CheckPlayerSettings(issues);
 
         var active = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+        if (active.isDirty)
+            issues.Add(new PreBuildIssue(PreBuildLevel.Error,
+                "This scene has unsaved changes.",
+                "A build reads the scene FILE, not what is open — every edit since the last save would be missing " +
+                "from the build while looking correct in the editor.")
+                .WithFix("Save scene", () => EditorSceneManager.SaveScene(active)));
+
         summary.scenePath = string.IsNullOrEmpty(active.path) ? "(unsaved scene)" : active.path;
 
         string boot = EditorBuildSettings.scenes.Where(x => x.enabled).Select(x => x.path).FirstOrDefault();
@@ -265,6 +273,57 @@ public class PreBuildCheck : IPreprocessBuildWithReport
         }
     }
 
+    /// <summary>
+    /// Player/build settings that decide whether the build LOADS at all on a shared
+    /// host, and how long a visitor stares at a progress bar before the camera opens.
+    /// None of these break in the editor, so none of them are ever noticed here.
+    /// </summary>
+    private static void CheckPlayerSettings(List<PreBuildIssue> issues)
+    {
+        // A development build ships the profiler, no code stripping and full symbols:
+        // several times the download, on a phone, over event Wi-Fi.
+        if (EditorUserBuildSettings.development)
+            issues.Add(new PreBuildIssue(PreBuildLevel.Error,
+                "Development Build is ticked.",
+                "It ships a much larger, slower build with the profiler attached. Untick it for anything a visitor touches.")
+                .WithFix("Turn off", () => { EditorUserBuildSettings.development = false; }));
+
+        // Compressed builds need the server to send Content-Encoding. Shared hosting
+        // usually does not for .br/.gz, and the page then hangs on "Loading..." forever.
+        // The fallback loader decompresses in JS instead: slightly slower, always works.
+        if (PlayerSettings.WebGL.compressionFormat != WebGLCompressionFormat.Disabled &&
+            !PlayerSettings.WebGL.decompressionFallback)
+            issues.Add(new PreBuildIssue(PreBuildLevel.Error,
+                "Compression is " + PlayerSettings.WebGL.compressionFormat + " but Decompression Fallback is off.",
+                "On Hostinger-style shared hosting the browser never gets Content-Encoding and the build hangs at " +
+                "'Loading...'. Turning the fallback on makes the loader decompress it itself.")
+                .WithFix("Enable fallback", () => { PlayerSettings.WebGL.decompressionFallback = true; }));
+
+        // Every repeat scan re-downloads tens of MB without this — at an event most
+        // visitors open the same build more than once.
+        if (!PlayerSettings.WebGL.dataCaching)
+            issues.Add(new PreBuildIssue(PreBuildLevel.Warn,
+                "Data Caching is off.",
+                "The whole build is re-downloaded on every visit. With it on, the second scan starts almost instantly.")
+                .WithFix("Enable caching", () => { PlayerSettings.WebGL.dataCaching = true; }));
+
+        // Full exception support adds megabytes and slows every call — it exists for
+        // debugging, not for a poster someone scans once.
+        if (PlayerSettings.WebGL.exceptionSupport == WebGLExceptionSupport.FullWithStacktrace)
+            issues.Add(new PreBuildIssue(PreBuildLevel.Warn,
+                "Exception support is Full With Stacktrace.",
+                "Biggest, slowest option. 'Explicitly Thrown Exceptions Only' keeps real errors and drops the weight.")
+                .WithFix("Use explicit only", () =>
+                    { PlayerSettings.WebGL.exceptionSupport = WebGLExceptionSupport.ExplicitlyThrownExceptionsOnly; }));
+
+        // Linear colour on a WebGL AR build washes out the camera feed and chroma-key
+        // video on some phones; every campaign here is authored in Gamma.
+        if (PlayerSettings.colorSpace == ColorSpace.Linear)
+            issues.Add(new PreBuildIssue(PreBuildLevel.Warn,
+                "Colour space is Linear.",
+                "The camera feed and green-screen video are authored for Gamma — Linear can wash them out on mobile GPUs."));
+    }
+
     private static void CheckTemplateFolder(string name, List<PreBuildIssue> issues)
     {
         string dir = "Assets/WebGLTemplates/" + name;
@@ -289,6 +348,73 @@ public class PreBuildCheck : IPreprocessBuildWithReport
         if (!html.Contains("ar-analytics.js"))
             issues.Add(new PreBuildIssue(PreBuildLevel.Warn, "Template " + name + " has no analytics <script> tag.",
                 "AnalyticsKeyPostBuild has nothing to write the project key into."));
+
+        CheckOverlaySync(name, dir, html, issues);
+    }
+
+    /// <summary>
+    /// hunt-overlay.js lives in three places (both templates and the deployed build)
+    /// and is cache-busted by hand with ?v=N. Both of those have already gone wrong:
+    /// the copies drifted apart, and an edited overlay shipped under an old ?v=,
+    /// so phones kept serving the previous file from cache.
+    /// </summary>
+    private static void CheckOverlaySync(string name, string dir, string html, List<PreBuildIssue> issues)
+    {
+        string mine = dir + "/hunt-overlay.js";
+        if (!File.Exists(mine)) return;
+
+        // 1. The two templates must ship the same overlay.
+        string other = "Assets/WebGLTemplates/" + (name == "iTracker" ? "iTracker6" : "iTracker") + "/hunt-overlay.js";
+        if (File.Exists(other) && Hash(mine) != Hash(other))
+            issues.Add(new PreBuildIssue(PreBuildLevel.Warn,
+                "iTracker and iTracker6 have DIFFERENT hunt-overlay.js files.",
+                "Whichever template you build decides which behaviour ships. Copy the newer file over the other one.")
+                .WithFix("Copy mine to the other", () =>
+                {
+                    File.Copy(mine, other, true);
+                    AssetDatabase.Refresh();
+                    Debug.Log("[Pre-Flight] Copied " + mine + " → " + other);
+                }));
+
+        // 2. If the overlay changed but ?v= did not, phones keep the cached copy.
+        var m = Regex.Match(html, @"hunt-overlay\.js\?v=(\d+)");
+        if (!m.Success)
+        {
+            issues.Add(new PreBuildIssue(PreBuildLevel.Warn,
+                "Template " + name + " loads hunt-overlay.js with no ?v= cache-buster.",
+                "Phones will keep serving an old copy after you update it. Use <script src=\"hunt-overlay.js?v=1\">."));
+            return;
+        }
+
+        string version = m.Groups[1].Value;
+        string key = "ARRISE.overlay." + name + "." + Application.dataPath.GetHashCode() + ".v" + version;
+        string hash = Hash(mine);
+        string seen = EditorPrefs.GetString(key, "");
+
+        if (seen == "")
+            EditorPrefs.SetString(key, hash);      // first build of this version
+        else if (seen != hash)
+            issues.Add(new PreBuildIssue(PreBuildLevel.Error,
+                "hunt-overlay.js changed but it is still ?v=" + version + ".",
+                "Anyone who already opened this build keeps the OLD overlay from cache — the change would look like " +
+                "it never shipped. Bump it to ?v=" + (int.Parse(version) + 1) + " in the template (and in the uploaded build's index.html).")
+                .WithFix("Bump to v" + (int.Parse(version) + 1), () =>
+                {
+                    string index = dir + "/index.html";
+                    string next = "hunt-overlay.js?v=" + (int.Parse(version) + 1);
+                    File.WriteAllText(index, Regex.Replace(File.ReadAllText(index), @"hunt-overlay\.js\?v=\d+", next));
+                    EditorPrefs.SetString("ARRISE.overlay." + name + "." + Application.dataPath.GetHashCode() +
+                                          ".v" + (int.Parse(version) + 1), hash);
+                    AssetDatabase.Refresh();
+                    Debug.Log("[Pre-Flight] " + name + " now loads " + next);
+                }));
+    }
+
+    private static string Hash(string path)
+    {
+        using (var md5 = System.Security.Cryptography.MD5.Create())
+        using (var fs = File.OpenRead(path))
+            return System.BitConverter.ToString(md5.ComputeHash(fs));
     }
 
     private static void CheckScene(List<PreBuildIssue> issues, PreBuildSummary s)
@@ -431,6 +557,96 @@ public class PreBuildCheck : IPreprocessBuildWithReport
                                 "The export is stale — re-export it and re-paste it into the dashboard."));
                 }
             }
+        }
+
+        // The camera feed itself. ImageTracker finds it at runtime, so a scene with
+        // no ARCamera compiles, builds and opens to a black screen.
+#if UNITY_2023_1_OR_NEWER
+        var arCam = Object.FindFirstObjectByType<ARCamera>(FindObjectsInactive.Include);
+#else
+        var arCam = Object.FindObjectOfType<ARCamera>(true);
+#endif
+        if (arCam == null)
+            issues.Add(new PreBuildIssue(PreBuildLevel.Error, "No ARCamera in this scene.",
+                "Nothing draws the camera feed — the build opens to a black screen. " +
+                "Imagine WebAR ▸ Create ▸ AR Camera, or re-run the scene builder."));
+
+        // Broken references survive in a scene file and only fail at runtime.
+        var missingScripts = new List<string>();
+        foreach (var t in Object.FindObjectsOfType<Transform>(true))
+        {
+            var comps = t.GetComponents<Component>();
+            for (int i = 0; i < comps.Length; i++)
+                if (comps[i] == null) { missingScripts.Add(t.name); break; }
+        }
+        if (missingScripts.Count > 0)
+            issues.Add(new PreBuildIssue(PreBuildLevel.Error,
+                missingScripts.Count + " object(s) have a MISSING script: " +
+                string.Join(", ", missingScripts.Take(5)) + (missingScripts.Count > 5 ? " …" : ""),
+                "A deleted or renamed script leaves a null component behind. Whatever it did — a button, a video, a " +
+                "tracker hook — silently does nothing in the build. Remove it or restore the script."));
+
+        var pinkMaterials = new List<string>();
+        foreach (var rend in Object.FindObjectsOfType<Renderer>(true))
+            foreach (var mat in rend.sharedMaterials)
+                if (mat == null || mat.shader == null || mat.shader.name == "Hidden/InternalErrorShader")
+                { pinkMaterials.Add(rend.gameObject.name); break; }
+        if (pinkMaterials.Count > 0)
+            issues.Add(new PreBuildIssue(PreBuildLevel.Error,
+                pinkMaterials.Count + " renderer(s) have a missing material or shader: " +
+                string.Join(", ", pinkMaterials.Take(5)) + (pinkMaterials.Count > 5 ? " …" : ""),
+                "These draw as solid magenta in the build. Re-assign the material, or re-run the scene builder."));
+
+        // Every registered target image is DOWNLOADED and feature-extracted before the
+        // camera opens, so their combined weight is the visitor's wait.
+        if (gs != null && gs.imageTargetInfos != null)
+        {
+            long total = 0;
+            foreach (var info in gs.imageTargetInfos)
+            {
+                if (info.texture == null) continue;
+                string p = AssetDatabase.GetAssetPath(info.texture);
+                if (string.IsNullOrEmpty(p) || !File.Exists(p)) continue;
+
+                long kb = new FileInfo(p).Length / 1024;
+                total += kb;
+
+                if (kb > 1500)
+                    issues.Add(new PreBuildIssue(PreBuildLevel.Warn,
+                        "Target image '" + info.id + "' is " + (kb / 1024f).ToString("0.0") + " MB.",
+                        "It is downloaded before tracking can start. Re-export it around 1000-1600px wide as a " +
+                        "quality JPG — tracking uses features, not pixels, and 200-400 KB is plenty."));
+
+                int w = info.texture.width, h = info.texture.height;
+                if (w > 0 && System.Math.Max(w, h) < 500)
+                    issues.Add(new PreBuildIssue(PreBuildLevel.Warn,
+                        "Target image '" + info.id + "' is only " + w + "×" + h + ".",
+                        "Too few pixels to extract stable features — expect slow, jittery tracking. Use ~1000-1600px."));
+                else if (System.Math.Max(w, h) > 4096)
+                    issues.Add(new PreBuildIssue(PreBuildLevel.Warn,
+                        "Target image '" + info.id + "' is " + w + "×" + h + ".",
+                        "Oversized images cost seconds of feature extraction on a phone with no tracking benefit. " +
+                        "Downscale to ~1600px."));
+            }
+            if (total > 0)
+                issues.Add(new PreBuildIssue(total > 6000 ? PreBuildLevel.Warn : PreBuildLevel.Info,
+                    "Target images add up to " + (total / 1024f).ToString("0.0") + " MB, downloaded before the camera opens.",
+                    total > 6000
+                        ? "On event Wi-Fi that is a long stare at a progress bar. Trim unused targets and re-export the heavy ones."
+                        : "Fine — just so you know what the visitor waits for."));
+        }
+
+        // The iOS sound-unlock is keyed by target: a mismatched key means the first
+        // tap unlocks audio for a target that is not playing.
+        foreach (var cdn in Object.FindObjectsOfType<CDNARVideoController>(true))
+        {
+            string k = (cdn.webGLSoundTargetKey ?? "").Trim();
+            if (k.Length == 0) continue;                       // empty = derived at runtime, fine
+            var parent = cdn.transform.parent;
+            if (parent != null && sceneIds.Contains(parent.name) && k != parent.name)
+                issues.Add(new PreBuildIssue(PreBuildLevel.Warn,
+                    "'" + cdn.gameObject.name + "' has sound key '" + k + "' but sits under target '" + parent.name + "'.",
+                    "On iPhone the tap-for-sound unlock is stored per target key — a mismatch can leave that video muted."));
         }
 
         // Content that silently fails in a browser.
