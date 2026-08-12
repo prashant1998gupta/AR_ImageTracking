@@ -46,6 +46,25 @@ A self-hosted analytics dashboard for your WebAR experiences. Track every scan, 
 
 That's it! Analytics start flowing immediately.
 
+#### Per-campaign keys (this Unity project — automatic)
+
+The WebGL template already carries that tag, so the key would otherwise be the
+same for every campaign built from it. Instead **each scene declares its own**:
+
+| Where | What |
+|---|---|
+| `CampaignSettings ▸ analyticsApiKey` on the scene (scene builders set it from their own `AnalyticsApiKey` constant, so rebuilds keep it) | the project key for that campaign |
+| `Assets/Editor/AnalyticsKeyPostBuild.cs` | rewrites `data-project` in the built `index.html` at build time |
+
+- **Key set** → that campaign reports into its own project.
+- **Key empty** → the tracker `<script>` tag is **removed** from the build: no
+  analytics, no request to the dashboard.
+- **Scene without `CampaignSettings`** → the tag is left exactly as the template
+  ships it (older scenes keep working unchanged).
+
+Every outcome is logged in the Unity Console at build time, so a
+mis-pasted or forgotten key is visible before the build ships.
+
 ---
 
 ## URLs

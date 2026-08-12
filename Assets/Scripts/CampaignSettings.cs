@@ -33,4 +33,13 @@ public class CampaignSettings : MonoBehaviour
 
     [Tooltip("Free text, for humans reading the scene. Not used by the build.")]
     public string campaignName = "";
+
+    [Space]
+    [Tooltip("Analytics project API key for THIS campaign — copy it from the admin " +
+             "panel (Projects ▸ the project ▸ API Key). At build time " +
+             "AnalyticsKeyPostBuild writes it into the built index.html, so every " +
+             "campaign reports into its own project instead of sharing one.\n\n" +
+             "Leave EMPTY to ship with no analytics at all: the tracker script tag " +
+             "is removed from the build.")]
+    public string analyticsApiKey = "";
 }

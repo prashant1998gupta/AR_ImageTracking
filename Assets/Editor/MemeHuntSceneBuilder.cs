@@ -43,6 +43,14 @@ public static class MemeHuntSceneBuilder
     // fails these is DROPPED there, and a dropped poster is a silent failure — the
     // camera tracks it and the video plays, but the scan is rejected and the chip
     // never ticks. So the same rules are enforced here, at authoring time.
+    // Analytics project this campaign reports into (admin panel ▸ Projects ▸ API Key).
+    // It lives here as well as on the scene's CampaignSettings because rebuilding
+    // DELETES and re-creates the scene — a key typed only into the inspector would be
+    // lost on the next rebuild. Empty = ship with no analytics at all.
+    // This is the key the live Meme Hunt build already reports with.
+    private const string AnalyticsApiKey =
+        "e4cfcb9cfd6d120305bb7c268a981b8e8a65c32d0d5062563c8e2c1980ae769c";
+
     private const string PosterIdPattern = "^[A-Za-z0-9_-]{1,64}$";
     private const int MaxLabelChars = 20;
     private const int MaxHintChars  = 300;
@@ -283,6 +291,8 @@ public static class MemeHuntSceneBuilder
         var campaign = campaignGo.AddComponent<CampaignSettings>();
         campaign.huntEnabled  = true;
         campaign.campaignName = "AR Meme Hunt — Bharatiya Vyapar Mahotsav 2026";
+        // AnalyticsKeyPostBuild writes this into the built index.html's tracker tag.
+        campaign.analyticsApiKey = AnalyticsApiKey;
 
         // 8. Save + build settings
         Progress("Saving scene", 0.85f);

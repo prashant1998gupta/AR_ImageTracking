@@ -552,6 +552,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::CampaignSettings
   huntEnabled: 0
   campaignName: "Rishabh Rustagi \u2014 AR Smart Card"
+  analyticsApiKey: 2b0d2a356bf0192258f60aa661525800d087f1d0324476eb484ec13285312a08
 --- !u!4 &75163039
 Transform:
   m_ObjectHideFlags: 0

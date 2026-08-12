@@ -39,6 +39,14 @@ public static class RishabhSceneBuilder
     private static readonly string TemplatePath = "Assets/Scenes_1/Demo-VisitingCard.unity";
     private static readonly string NewScenePath = "Assets/Scenes_1/Rishabh.unity";
 
+    // Analytics project this card reports into: admin panel ▸ Projects ▸ (project)
+    // ▸ API Key. It lives here as well as on the scene's CampaignSettings because
+    // rebuilding DELETES and re-creates the scene, so a key typed only into the
+    // inspector would be lost on the next rebuild.
+    // EMPTY = this build ships with NO analytics (the tracker tag is removed).
+    private static readonly string AnalyticsApiKey =
+        "2b0d2a356bf0192258f60aa661525800d087f1d0324476eb484ec13285312a08";
+
     // ─── Asset locations ────────────────────────────────────────────────────
     private static readonly string SrcFolder     = "Assets/AR_Assets/Rishabh";
     private static readonly string MatFolder     = "Assets/AR_Assets/Materials";
@@ -506,6 +514,8 @@ public static class RishabhSceneBuilder
         var campaign = campaignGo.AddComponent<CampaignSettings>();
         campaign.huntEnabled  = false;
         campaign.campaignName = "Rishabh Rustagi — AR Smart Card";
+        // AnalyticsKeyPostBuild writes this into the built index.html's tracker tag.
+        campaign.analyticsApiKey = AnalyticsApiKey;
 
         // 11. vCard file + save + build settings
         string vcardInfo = "";
