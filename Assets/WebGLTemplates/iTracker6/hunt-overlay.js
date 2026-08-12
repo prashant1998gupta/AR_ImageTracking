@@ -542,8 +542,14 @@
       '  #hunt-top { position:absolute; top:calc(10px + env(safe-area-inset-top)); left:0; right:0; display:none; justify-content:center; gap:10px; align-items:center; }' +
       '  #hunt-timer, #hunt-count { background:rgba(8,8,8,0.72); border:1px solid rgba(var(--hbr),0.45); color:#fff; border-radius:20px; padding:6px 14px; font-size:12.5px; font-weight:700; letter-spacing:0.08em; font-variant-numeric:tabular-nums; }' +
       '  #hunt-count b { color:var(--hbl); }' +
-      '  #hunt-chips { position:absolute; bottom:calc(18px + env(safe-area-inset-bottom)); left:0; right:0; display:none; justify-content:center; gap:7px; padding:0 10px; flex-wrap:wrap; }' +
-      '  .hunt-chip { background:rgba(8,8,8,0.72); border:1px solid rgba(255,255,255,0.18); color:rgba(255,255,255,0.55); border-radius:16px; padding:6px 11px; font-size:11px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; }' +
+      // ONE LINE, always. Labels are admin-editable, so no fixed font size is right
+      // for every set — fitChips() shrinks --chip-fs until the row fits. Padding is
+      // in em so it scales with the text. flex:0 0 auto is load-bearing: chips must
+      // NOT shrink here, or the row never reports an overflow and fitChips has
+      // nothing to react to. .chips-tight enables ellipsis only as a last resort.
+      '  #hunt-chips { position:absolute; bottom:calc(18px + env(safe-area-inset-bottom)); left:0; right:0; display:none; justify-content:center; gap:5px; padding:0 8px; flex-wrap:nowrap; overflow:hidden; }' +
+      '  .hunt-chip { background:rgba(8,8,8,0.72); border:1px solid rgba(255,255,255,0.18); color:rgba(255,255,255,0.55); border-radius:16px; padding:0.42em 0.62em; font-size:var(--chip-fs,11px); font-weight:600; letter-spacing:0.04em; text-transform:uppercase; white-space:nowrap; flex:0 0 auto; }' +
+      '  #hunt-chips.chips-tight .hunt-chip { flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; }' +
       '  .hunt-chip.done { border-color:rgba(95,208,106,0.7); color:#5fd06a; }' +
       '  #hunt-toast { position:absolute; top:calc(56px + env(safe-area-inset-top)); left:50%; transform:translateX(-50%); background:rgba(8,8,8,0.85); border:1px solid rgba(var(--hbr),0.5); color:#fff; border-radius:12px; padding:10px 16px; font-size:12.5px; max-width:86vw; text-align:center; display:none; line-height:1.5; }' +
       // Hint = compact bottom sheet above the chips — never covers the AR view
@@ -825,9 +831,27 @@
       html += '<div class="hunt-chip' + (done ? ' done' : '') + '">' + (done ? '✓ ' : '') + p.label + '</div>';
     });
     chipsEl.innerHTML = html;
+    fitChips();
     document.getElementById('hunt-count').innerHTML = '<b>' + state.count + '</b>/' + (state.total || posters.length);
     updatePeek();
   }
+
+  // Shrink the chip text until the whole row fits on ONE line.
+  var CHIP_FS_MAX = 11, CHIP_FS_MIN = 8;
+  function fitChips() {
+    if (!chipsEl) { return; }
+    chipsEl.classList.remove('chips-tight');
+    var fs = CHIP_FS_MAX;
+    chipsEl.style.setProperty('--chip-fs', fs + 'px');
+    var guard = 0;
+    while (chipsEl.scrollWidth > chipsEl.clientWidth && fs > CHIP_FS_MIN && guard++ < 24) {
+      fs -= 0.25;
+      chipsEl.style.setProperty('--chip-fs', fs + 'px');
+    }
+    if (chipsEl.scrollWidth > chipsEl.clientWidth) { chipsEl.classList.add('chips-tight'); }
+  }
+  window.addEventListener('resize', function () { fitChips(); });
+  window.addEventListener('orientationchange', function () { setTimeout(fitChips, 250); });
 
   function toast(msg, ms) {
     if (!toastEl) { return; }
@@ -1036,18 +1060,35 @@
 
     // Poster chips row
     var posters = state.posters.length ? state.posters : FALLBACK_POSTERS;
-    ctx.font = '700 26px ' + FAM;
-    var pad = 34, gap = 14, chipH = 56;
-    var widths = posters.map(function (p) { return ctx.measureText('✓ ' + p.label.toUpperCase()).width + pad * 2; });
-    var totalW = widths.reduce(function (a, b) { return a + b; }, 0) + gap * (posters.length - 1);
-    var cx = W / 2 - totalW / 2;
+    // FIT TO WIDTH. At a fixed 26px a set like SHINCHAN / WELCOME 3 / BINOD /
+    // PANVEL BHAI / ONLY FANS measures 1231px on a 1080px card, and centring that
+    // bleeds chips off BOTH edges. Shrink until the row fits inside the frame.
+    var chipMaxW = W - 80;
+    var chipFs = 26, pad = 34, gap = 14;
+    function measureChips() {
+      ctx.font = '700 ' + chipFs + 'px ' + FAM;
+      var ws = posters.map(function (p) { return ctx.measureText('✓ ' + p.label.toUpperCase()).width + pad * 2; });
+      return { widths: ws, total: ws.reduce(function (a, b) { return a + b; }, 0) + gap * (posters.length - 1) };
+    }
+    var m = measureChips(), shrinkGuard = 0;
+    while (m.total > chipMaxW && chipFs > 11 && shrinkGuard++ < 40) {
+      chipFs -= 1;
+      pad = Math.max(9, pad - 1.2);
+      gap = Math.max(6, gap - 0.4);
+      m = measureChips();
+    }
+    var widths = m.widths;
+    var chipH = Math.round(chipFs * 2.15);
+    var chipY = 1030 + (56 - chipH) / 2;
+    var cx = W / 2 - m.total / 2;
+    ctx.font = '700 ' + chipFs + 'px ' + FAM;
     posters.forEach(function (p, idx) {
       ctx.strokeStyle = 'rgba(95,208,106,0.8)';
       ctx.lineWidth = 3;
-      vcRoundRect(ctx, cx, 1030, widths[idx], chipH, 28);
+      vcRoundRect(ctx, cx, chipY, widths[idx], chipH, chipH / 2);
       ctx.stroke();
       ctx.fillStyle = '#5fd06a';
-      ctx.fillText('✓ ' + p.label.toUpperCase(), cx + widths[idx] / 2, 1059);
+      ctx.fillText('✓ ' + p.label.toUpperCase(), cx + widths[idx] / 2, chipY + chipH / 2);
       cx += widths[idx] + gap;
     });
 

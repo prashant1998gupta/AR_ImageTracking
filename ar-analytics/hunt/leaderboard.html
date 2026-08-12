@@ -18,7 +18,7 @@
   table { width:100%; border-collapse:collapse; }
   th { text-align:left; font-size:10px; letter-spacing:0.15em; text-transform:uppercase; color:rgba(255,255,255,0.35); padding:8px 10px; border-bottom:1px solid rgba(255,255,255,0.1); }
   th:last-child, td:last-child { text-align:right; }
-  td { padding:13px 10px; font-size:14px; border-bottom:1px solid rgba(255,255,255,0.05); }
+  td { padding:13px 10px; font-size:14px; border-bottom:1px solid rgba(255,255,255,0.05); overflow-wrap:anywhere; }
   td.rank { font-weight:800; width:44px; }
   td .co { display:block; font-size:11px; color:rgba(255,255,255,0.4); margin-top:2px; }
   td.time { font-variant-numeric:tabular-nums; font-weight:600; color:rgba(255,255,255,0.85); }
@@ -28,7 +28,8 @@
   tr.me td { background:rgba(var(--red-rgb),0.1); }
   .you-card { display:none; align-items:center; justify-content:space-between; gap:12px; margin:0 0 18px; background:rgba(var(--red-rgb),0.08); border:1px solid rgba(var(--red-rgb),0.45); border-radius:12px; padding:12px 16px; }
   .you-card .yl { font-size:9.5px; letter-spacing:0.2em; text-transform:uppercase; color:var(--red-l); font-weight:800; margin-bottom:3px; }
-  .you-card .yn { font-size:14px; font-weight:600; }
+  .you-card > div:first-child { min-width:0; }   /* same flex-shrink trap as .fitem */
+  .you-card .yn { font-size:14px; font-weight:600; overflow-wrap:anywhere; }
   .you-card .yr { font-size:22px; font-weight:800; text-align:right; }
   .you-card .yt { font-size:11px; color:rgba(255,255,255,0.5); text-align:right; }
   /* Live hunt ticker */
@@ -44,7 +45,10 @@
   .fitem b { color:#fff; }
   .fitem.fin { background:rgba(255,215,0,0.06); color:#ffd700; }
   .fitem.fin b { color:#ffd700; }
-  .fitem .ago { font-size:10px; color:rgba(255,255,255,0.3); white-space:nowrap; }
+  .fitem .ago { font-size:10px; color:rgba(255,255,255,0.3); white-space:nowrap; flex:0 0 auto; }
+  /* A flex child will not shrink below its content width unless min-width is
+     cleared — and #feedWrap clips, so a long name was CUT OFF instead of wrapping. */
+  .fitem > span:first-child { min-width:0; overflow-wrap:anywhere; }
   .fitem.new { animation:fSlide 0.45s ease-out; }
   @keyframes fSlide { 0% { opacity:0; transform:translateY(-10px); } 100% { opacity:1; transform:translateY(0); } }
   .empty { text-align:center; color:rgba(255,255,255,0.35); font-size:13px; padding:40px 0; line-height:1.7; }
