@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content='width=device-width, height=device-height, initial-scale=1.0, minimum-scale=1.0, user-scalable=no, shrink-to-fit=yes, viewport-fit=cover'>
+    <title>ARRISE | Rionick Studios</title>
+    <link rel="stylesheet" href="TemplateData/style.css">
+    <style>
+        html{
+            height: -webkit-fill-available;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            min-height: -webkit-fill-available;
+            width: 100vw;
+            overflow: hidden;
+        }
+        .ctaDiv {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            background: #fffa;
+            z-index: 99;
+        }
+        /* ---- ADVANCED LOADING SCREEN STYLES ---- */
+        @keyframes loaderFadeIn { 0% { opacity:0; transform:translateY(18px); } 100% { opacity:1; transform:translateY(0); } }
+        @keyframes redPulse { 0%,100% { transform:translate(-50%,-50%) scale(0.95); opacity:0.5; } 50% { transform:translate(-50%,-50%) scale(1.05); opacity:1; } }
+        @keyframes ringRotate { 0% { transform:rotate(0deg); } 100% { transform:rotate(360deg); } }
+        @keyframes ringRotateR { 0% { transform:rotate(0deg); } 100% { transform:rotate(-360deg); } }
+        @keyframes particleRise { 0% { transform:translateY(0) translateX(0) scale(1); opacity:0; } 15% { opacity:0.8; } 100% { transform:translateY(-100vh) translateX(20px) scale(0.3); opacity:0; } }
+        @keyframes barShimmer { 0% { background-position:-200% 0; } 100% { background-position:200% 0; } }
+        @keyframes logoReveal { 0% { clip-path:inset(0 100% 0 0); } 100% { clip-path:inset(0 0% 0 0); } }
+        @keyframes scanLine { 0% { transform:translateY(0); } 100% { transform:translateY(100vh); } }
+        @keyframes hStreak { 0% { transform:translateX(-100%) scaleX(0.5); opacity:0; } 30% { opacity:1; } 100% { transform:translateX(100vw) scaleX(1.5); opacity:0; } }
+        @keyframes glowPulse { 0%,100% { opacity:0.4; filter:blur(40px); } 50% { opacity:0.7; filter:blur(50px); } }
+        @keyframes pctFlicker { 0%,95%,100% { opacity:1; } 96% { opacity:0.7; } 98% { opacity:0.5; } }
+        @keyframes dotBlink { 0%,33% { opacity:1; } 34%,100% { opacity:0.3; } }
+        #advanced-loader { position:absolute; top:0;left:0;right:0;bottom:0; background:#080808; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:999; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; overflow:hidden; }
+        #advanced-loader::after { content:''; position:absolute; left:0;right:0; top:0; height:2px; background:linear-gradient(90deg,transparent,rgba(220,30,30,0.15),transparent); animation:scanLine 4s linear infinite; pointer-events:none; z-index:10; }
+        .loader-glow { position:absolute; border-radius:50%; pointer-events:none; }
+        .loader-glow-1 { width:400px;height:400px; background:radial-gradient(circle,rgba(200,20,20,0.15) 0%,rgba(200,20,20,0.05) 40%,transparent 70%); top:50%;left:50%; animation:redPulse 3.5s ease-in-out infinite; }
+        .loader-glow-2 { width:600px;height:600px; background:radial-gradient(circle,rgba(180,15,15,0.06) 0%,transparent 60%); top:50%;left:50%; transform:translate(-50%,-50%); animation:glowPulse 5s ease-in-out infinite; }
+        .loader-streak { position:absolute; height:1px; background:linear-gradient(90deg,transparent,rgba(220,40,40,0.6),rgba(255,80,80,0.8),rgba(220,40,40,0.6),transparent); animation:hStreak 6s ease-in-out infinite; pointer-events:none; }
+        .loader-streak:nth-child(4) { top:30%; width:180px; animation-delay:0s; }
+        .loader-streak:nth-child(5) { top:65%; width:120px; animation-delay:2s; }
+        .loader-streak:nth-child(6) { top:48%; width:160px; animation-delay:4s; }
+        .loader-corner { position:absolute; width:30px;height:30px; pointer-events:none; z-index:5; }
+        .loader-corner::before,.loader-corner::after { content:''; position:absolute; background:rgba(220,30,30,0.25); }
+        .loader-corner::before { width:12px; height:1px; } .loader-corner::after { width:1px; height:12px; }
+        .corner-tl { top:24px;left:24px; } .corner-tl::before { top:0;left:0; } .corner-tl::after { top:0;left:0; }
+        .corner-tr { top:24px;right:24px; } .corner-tr::before { top:0;right:0; } .corner-tr::after { top:0;right:0; }
+        .corner-bl { bottom:24px;left:24px; } .corner-bl::before { bottom:0;left:0; } .corner-bl::after { bottom:0;left:0; }
+        .corner-br { bottom:24px;right:24px; } .corner-br::before { bottom:0;right:0; } .corner-br::after { bottom:0;right:0; }
+        .loader-particles { position:absolute; top:0;left:0;right:0;bottom:0; pointer-events:none; overflow:hidden; }
+        .loader-particle { position:absolute; background:#dc1e1e; border-radius:50%; animation:particleRise linear infinite; }
+        .loader-particle:nth-child(1)  { left:8%;bottom:-10px;width:2px;height:2px;animation-duration:5.0s;animation-delay:0.0s; }
+        .loader-particle:nth-child(2)  { left:18%;bottom:-10px;width:3px;height:3px;animation-duration:4.2s;animation-delay:0.8s; }
+        .loader-particle:nth-child(3)  { left:30%;bottom:-10px;width:2px;height:2px;animation-duration:5.5s;animation-delay:1.2s; }
+        .loader-particle:nth-child(4)  { left:42%;bottom:-10px;width:1px;height:1px;animation-duration:4.8s;animation-delay:0.4s; }
+        .loader-particle:nth-child(5)  { left:55%;bottom:-10px;width:3px;height:3px;animation-duration:5.2s;animation-delay:2.0s; }
+        .loader-particle:nth-child(6)  { left:65%;bottom:-10px;width:2px;height:2px;animation-duration:4.5s;animation-delay:1.5s; }
+        .loader-particle:nth-child(7)  { left:75%;bottom:-10px;width:2px;height:2px;animation-duration:5.8s;animation-delay:0.6s; }
+        .loader-particle:nth-child(8)  { left:85%;bottom:-10px;width:1px;height:1px;animation-duration:4.0s;animation-delay:3.0s; }
+        .loader-particle:nth-child(9)  { left:92%;bottom:-10px;width:2px;height:2px;animation-duration:6.0s;animation-delay:1.8s; }
+        .loader-particle:nth-child(10) { left:38%;bottom:-10px;width:3px;height:3px;animation-duration:5.3s;animation-delay:2.5s; }
+        .loader-particle:nth-child(11) { left:50%;bottom:-10px;width:1px;height:1px;animation-duration:4.6s;animation-delay:0.2s; }
+        .loader-particle:nth-child(12) { left:22%;bottom:-10px;width:2px;height:2px;animation-duration:5.1s;animation-delay:3.5s; }
+        .loader-brand { display:flex; align-items:center; gap:0; margin-bottom:12px; animation:loaderFadeIn 0.8s ease-out; position:relative; z-index:5; }
+        .loader-brand-ar { background:#dc1e1e; color:#fff; font-size:28px; font-weight:900; padding:5px 10px; line-height:1; letter-spacing:0.02em; box-shadow:0 0 20px rgba(220,30,30,0.3); }
+        .loader-brand-rise { color:#fff; font-size:28px; font-weight:800; letter-spacing:0.08em; padding-left:6px; animation:logoReveal 1s ease-out 0.3s both; }
+        .loader-tagline { color:rgba(255,255,255,0.25); font-size:9px; letter-spacing:0.5em; text-transform:uppercase; margin-bottom:48px; animation:loaderFadeIn 0.8s ease-out 0.4s both; padding-left:0.5em; position:relative; z-index:5; }
+        .loader-title { color:rgba(255,255,255,0.55); font-size:12px; letter-spacing:0.3em; margin-bottom:36px; text-transform:uppercase; text-align:center; font-weight:500; animation:loaderFadeIn 1s ease-out 0.5s both; padding-left:0.3em; position:relative; z-index:5; }
+        .loader-center-group { position:relative; display:flex; align-items:center; justify-content:center; margin-bottom:44px; width:160px; height:160px; animation:loaderFadeIn 0.8s ease-out 0.2s both; z-index:5; }
+        .loader-ring-outer { position:absolute; width:160px; height:160px; animation:ringRotate 12s linear infinite; }
+        .loader-ring-outer-circle { fill:none; stroke:rgba(220,30,30,0.10); stroke-width:0.8; stroke-dasharray:6 10; }
+        .loader-ring-deco { position:absolute; width:152px; height:152px; animation:ringRotateR 20s linear infinite; }
+        .loader-ring-deco-circle { fill:none; stroke:rgba(255,255,255,0.03); stroke-width:0.5; stroke-dasharray:3 15; }
+        .loader-svg-ring { position:absolute; width:140px; height:140px; }
+        .loader-ring-bg { fill:none; stroke:rgba(255,255,255,0.04); stroke-width:3; }
+        .loader-ring-progress { fill:none; stroke:url(#redGradient); stroke-width:2; stroke-linecap:round; stroke-dasharray:377; stroke-dashoffset:377; transform-origin:center; filter:drop-shadow(0 0 6px rgba(220,30,30,0.35)); transition:stroke-dashoffset 0.4s ease; }
+        #percentage-text { color:#fff; font-size:38px; font-weight:100; z-index:2; margin:0; letter-spacing:0.05em; animation:pctFlicker 4s linear infinite; }
+        #percentage-text span { font-size:14px; color:rgba(220,30,30,0.6); font-weight:400; margin-left:1px; }
+        .progress-container { width:50%; max-width:280px; height:1px; background:rgba(255,255,255,0.06); border-radius:1px; overflow:hidden; position:relative; animation:loaderFadeIn 0.8s ease-out 0.4s both; z-index:5; }
+        #advanced-progress-bar { width:0%; height:100%; background:linear-gradient(90deg,rgba(220,30,30,0.7),rgba(220,30,30,0.9),rgba(220,30,30,0.7)); background-size:200% 100%; border-radius:1px; transition:width 0.3s cubic-bezier(0.4,0,0.2,1); box-shadow:0 0 8px rgba(220,30,30,0.3); animation:barShimmer 1.5s linear infinite; }
+        .loader-status { margin-top:20px; font-size:11px; letter-spacing:0.2em; text-transform:uppercase; color:rgba(220,30,30,0.65); font-weight:500; animation:loaderFadeIn 0.8s ease-out 0.6s both; z-index:5; }
+        .loader-status-dots span { animation:dotBlink 1.5s infinite; font-size:14px; }
+        .loader-status-dots span:nth-child(2) { animation-delay:0.33s; }
+        .loader-status-dots span:nth-child(3) { animation-delay:0.66s; }
+        .loader-powered { position:absolute; bottom:20px; font-size:8px; letter-spacing:0.3em; color:rgba(255,255,255,0.12); text-transform:uppercase; z-index:5; }
+        @keyframes suRingPulse {
+            0%, 100% { box-shadow: 0 0 18px 4px rgba(220,30,30,0.25), inset 0 0 12px 2px rgba(220,30,30,0.10); }
+            50%      { box-shadow: 0 0 32px 8px rgba(220,30,30,0.40), inset 0 0 18px 4px rgba(220,30,30,0.18); }
+        }
+        @keyframes suNoteFloat {
+            0%, 100% { transform: translateY(0); }
+            50%      { transform: translateY(-3px); }
+        }
+        @keyframes suWaveBar {
+            0%, 100% { transform: scaleY(0.35); }
+            50%      { transform: scaleY(1); }
+        }
+        @keyframes suOuterRingSpin {
+            0%   { transform: translate(-50%,-50%) rotate(0deg); }
+            100% { transform: translate(-50%,-50%) rotate(360deg); }
+        }
+        .soundUnlockOverlay {
+            background: rgba(8,8,8,0.92);
+            overflow: hidden;
+        }
+        .soundUnlockOverlay::after {
+            content:''; position:absolute; left:0;right:0; top:0; height:2px; background:linear-gradient(90deg,transparent,rgba(220,30,30,0.15),transparent); animation:scanLine 4s linear infinite; pointer-events:none; z-index:10;
+        }
+        .soundUnlockCard {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0;
+            padding: 0;
+            background: transparent;
+            border: none;
+            box-shadow: none;
+            color: #333;
+            text-align: center;
+            -webkit-tap-highlight-color: transparent;
+        }
+        /* --- Concentric circle group --- */
+        .suCircleGroup {
+            position: relative;
+            width: 140px;
+            height: 140px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 4px;
+        }
+        /* Outer thin ring */
+        .suOuterRing {
+            position: absolute;
+            left: 50%; top: 50%;
+            width: 140px; height: 140px;
+            border-radius: 50%;
+            border: 1px solid rgba(220,30,30,0.18);
+            transform: translate(-50%,-50%);
+            pointer-events: none;
+        }
+        /* Dashed arc accent on outer ring */
+        .suOuterRing::after {
+            content: '';
+            position: absolute;
+            left: 50%; top: 50%;
+            width: 140px; height: 140px;
+            border-radius: 50%;
+            border: 1.5px dashed rgba(220,30,30,0.08);
+            animation: suOuterRingSpin 30s linear infinite;
+            transform: translate(-50%,-50%);
+        }
+        /* Middle thick glowing ring */
+        .suGlowRing {
+            position: absolute;
+            left: 50%; top: 50%;
+            width: 104px; height: 104px;
+            border-radius: 50%;
+            transform: translate(-50%,-50%);
+            background: conic-gradient(
+                from 0deg,
+                rgba(220,30,30,0.85) 0deg,
+                rgba(150,15,15,0.95) 90deg,
+                rgba(220,30,30,0.80) 180deg,
+                rgba(150,15,15,0.90) 270deg,
+                rgba(220,30,30,0.85) 360deg
+            );
+            animation: suRingPulse 3s ease-in-out infinite;
+            pointer-events: none;
+        }
+        .suGlowRing::after {
+            content: '';
+            position: absolute;
+            inset: 6px;
+            border-radius: 50%;
+            background: rgba(10,5,5,0.95);
+        }
+        /* Inner circle with note */
+        .suInnerCircle {
+            position: relative;
+            z-index: 2;
+            width: 84px; height: 84px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 40% 35%, rgba(40,10,10,0.95) 0%, rgba(20,5,5,0.95) 100%);
+            border: 2px solid rgba(220,30,30,0.25);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 24px rgba(220,30,30,0.10);
+            transition: transform 0.18s ease;
+            padding: 0;
+            margin: 0;
+            outline: none;
+            box-sizing: border-box;
+            -webkit-appearance: none;
+            appearance: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .suInnerCircle:active {
+            transform: scale(0.95);
+        }
+        .suNoteIcon {
+            display: none; /* Keep for backwards compatibility if needed, but we use svg now */
+        }
+        
+        /* Pulse Ripple Effect */
+        @keyframes suRippleAnim {
+            0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0.6; border-width: 4px; }
+            100% { transform: translate(-50%, -50%) scale(1.6); opacity: 0; border-width: 0px; }
+        }
+        .suRipple {
+            position: absolute;
+            left: 50%; top: 50%;
+            width: 84px; height: 84px;
+            border-radius: 50%;
+            border: solid #dc1e1e;
+            transform: translate(-50%, -50%);
+            animation: suRippleAnim 2s cubic-bezier(0.1, 0.8, 0.3, 1) infinite;
+            pointer-events: none;
+        }
+        /* SVG Speaker Icon */
+        .suSpeakerIcon {
+            width: 32px; height: 32px;
+            color: rgba(255,200,200,0.85);
+            animation: suNoteFloat 3s ease-in-out infinite;
+            filter: drop-shadow(0 0 4px rgba(220,30,30,0.6));
+            margin-left: 2px; /* visually center the triangle */
+        }
+        @keyframes suSpeakerWave {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; filter: drop-shadow(0 0 3px rgba(255,100,100,0.8)); }
+        }
+        .suSpeakerWave1 { animation: suSpeakerWave 2s infinite; animation-delay: 0.2s; }
+        .suSpeakerWave2 { animation: suSpeakerWave 2s infinite; animation-delay: 0.4s; }
+        /* --- Sound wave bars --- */
+        .suWaveGroup {
+            position: absolute;
+            top: 50%;
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            height: 34px;
+            transform: translateY(-50%);
+            pointer-events: none;
+        }
+        .suWaveGroup.left  { right: calc(50% + 74px); flex-direction: row-reverse; }
+        .suWaveGroup.right { left: calc(50% + 74px); }
+        .suWaveBar {
+            width: 2px;
+            border-radius: 1.5px;
+            background: rgba(220,30,30,0.50);
+            transform-origin: center;
+            animation: suWaveBar 1.2s ease-in-out infinite;
+        }
+        /* individual bar heights & delays for organic feel */
+        .suWaveBar:nth-child(1)  { height: 5px;  animation-delay: 0.00s; }
+        .suWaveBar:nth-child(2)  { height: 10px; animation-delay: 0.08s; }
+        .suWaveBar:nth-child(3)  { height: 15px; animation-delay: 0.16s; }
+        .suWaveBar:nth-child(4)  { height: 22px; animation-delay: 0.22s; }
+        .suWaveBar:nth-child(5)  { height: 28px; animation-delay: 0.30s; }
+        .suWaveBar:nth-child(6)  { height: 32px; animation-delay: 0.36s; }
+        .suWaveBar:nth-child(7)  { height: 28px; animation-delay: 0.42s; }
+        .suWaveBar:nth-child(8)  { height: 21px; animation-delay: 0.48s; }
+        .suWaveBar:nth-child(9)  { height: 14px; animation-delay: 0.54s; }
+        .suWaveBar:nth-child(10) { height: 8px;  animation-delay: 0.60s; }
+        .suWaveBar:nth-child(11) { height: 13px; animation-delay: 0.66s; }
+        .suWaveBar:nth-child(12) { height: 20px; animation-delay: 0.72s; }
+        .suWaveBar:nth-child(13) { height: 15px; animation-delay: 0.78s; }
+        .suWaveBar:nth-child(14) { height: 10px; animation-delay: 0.84s; }
+        .suWaveBar:nth-child(15) { height: 5px;  animation-delay: 0.90s; }
+        .suWaveBar:nth-child(16) { height: 3px;  animation-delay: 0.94s; }
+        /* Diamond accent dots at wave tips */
+        .suWaveDot {
+            width: 4px; height: 4px;
+            background: rgba(220,30,30,0.45);
+            transform: rotate(45deg);
+            flex-shrink: 0;
+        }
+        /* --- Typography --- */
+        .soundUnlockTitle {
+            margin: 14px 0 0;
+            font-size: 16px;
+            font-weight: 300;
+            letter-spacing: 0.38em;
+            text-transform: uppercase;
+            color: rgba(255,255,255,0.70);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        .soundUnlockTitle strong {
+            font-weight: 700;
+            color: #dc1e1e;
+            letter-spacing: 0.22em;
+        }
+        .soundUnlockCopy {
+            margin: 5px 0 0;
+            width: min(72vw, 280px);
+            color: rgba(255,255,255,0.45);
+            font-size: 11px;
+            line-height: 1.55;
+            font-style: normal;
+            letter-spacing: 0.05em;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <!--IMAGETARGETS-->
+		<imagetarget id='Target1' src='targets/Target-1.jpg'></imagetarget>
+		<imagetarget id='Target2' src='targets/Target-2.jpg'></imagetarget>
+		<imagetarget id='Target3' src='targets/Target-3.jpg'></imagetarget>
+		<imagetarget id='Target4' src='targets/Target-4.jpg'></imagetarget>
+		<imagetarget id='Target5' src='targets/Target-5.jpg'></imagetarget>
+
+    <!-- ADVANCED LOADING UI -->
+    <div id="advanced-loader">
+        <div class="loader-glow loader-glow-1"></div>
+        <div class="loader-glow loader-glow-2"></div>
+        <div class="loader-streak"></div><div class="loader-streak"></div><div class="loader-streak"></div>
+        <div class="loader-corner corner-tl"></div><div class="loader-corner corner-tr"></div>
+        <div class="loader-corner corner-bl"></div><div class="loader-corner corner-br"></div>
+        <div class="loader-particles">
+            <div class="loader-particle"></div><div class="loader-particle"></div>
+            <div class="loader-particle"></div><div class="loader-particle"></div>
+            <div class="loader-particle"></div><div class="loader-particle"></div>
+            <div class="loader-particle"></div><div class="loader-particle"></div>
+            <div class="loader-particle"></div><div class="loader-particle"></div>
+            <div class="loader-particle"></div><div class="loader-particle"></div>
+        </div>
+        <div class="loader-brand"><span class="loader-brand-ar">AR</span><span class="loader-brand-rise">RISE</span></div>
+        <div class="loader-tagline">By Rionick Studios</div>
+        <div class="loader-title">Loading Experience</div>
+        <div class="loader-center-group">
+            <svg class="loader-ring-outer" viewBox="0 0 160 160"><circle class="loader-ring-outer-circle" cx="80" cy="80" r="76"/></svg>
+            <svg class="loader-ring-deco" viewBox="0 0 152 152"><circle class="loader-ring-deco-circle" cx="76" cy="76" r="73"/></svg>
+            <svg class="loader-svg-ring" viewBox="0 0 140 140">
+                <defs><linearGradient id="redGradient" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#ff4444"/><stop offset="50%" stop-color="#dc1e1e"/><stop offset="100%" stop-color="#aa1111"/></linearGradient></defs>
+                <circle class="loader-ring-bg" cx="70" cy="70" r="60"/>
+                <circle id="loader-ring-fill" class="loader-ring-progress" cx="70" cy="70" r="60" transform="rotate(-90 70 70)"/>
+            </svg>
+            <div id="percentage-text">0<span>%</span></div>
+        </div>
+        <div class="progress-container"><div id="advanced-progress-bar"></div></div>
+        <div class="loader-status">Preparing AR Engine<span class="loader-status-dots"><span>.</span><span>.</span><span>.</span></span></div>
+    </div>
+    <video id="webcam-video" muted autoplay playsinline style="width:1px;position:absolute"></video>
+    <!-- <video id="webcam-video" muted autoplay playsinline style="width:100%; height:100%; object-fit:cover; position:absolute"></video> -->
+    <canvas id="video-canvas" style="width:100%; height:100%; object-fit:cover; position:absolute"></canvas>
+    <select id="chooseCamSel" style="display: none; position:absolute; z-index:-999;" onchange="SelectCam()"></select>
+    <div id="soundUnlockDiv" class="ctaDiv soundUnlockOverlay" style="display: none;">
+        <!-- ARRISE HUD Elements reused -->
+        <div class="loader-glow loader-glow-1"></div>
+        <div class="loader-glow loader-glow-2"></div>
+        <div class="loader-streak"></div><div class="loader-streak"></div><div class="loader-streak"></div>
+        <div class="loader-corner corner-tl"></div><div class="loader-corner corner-tr"></div>
+        <div class="loader-corner corner-bl"></div><div class="loader-corner corner-br"></div>
+        <div class="soundUnlockCard">
+            <!-- Concentric circles and waves -->
+            <div class="suCircleGroup">
+                <!-- Sound-wave bars LEFT -->
+                <div class="suWaveGroup left">
+                    <span class="suWaveDot"></span>
+                    <span class="suWaveBar"></span><span class="suWaveBar"></span><span class="suWaveBar"></span>
+                    <span class="suWaveBar"></span><span class="suWaveBar"></span><span class="suWaveBar"></span>
+                    <span class="suWaveBar"></span><span class="suWaveBar"></span><span class="suWaveBar"></span>
+                    <span class="suWaveBar"></span><span class="suWaveBar"></span><span class="suWaveBar"></span>
+                    <span class="suWaveBar"></span><span class="suWaveBar"></span><span class="suWaveBar"></span>
+                    <span class="suWaveBar"></span>
+                </div>
+                <div class="suOuterRing"></div>
+                <div class="suGlowRing"></div>
+                <div class="suRipple"></div>
+                <button id="soundUnlockButton" class="suInnerCircle" onclick="OnUserTapEnableSound()">
+                    <svg class="suSpeakerIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                        <path class="suSpeakerWave1" d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                        <path class="suSpeakerWave2" d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+                    </svg>
+                </button>
+                <!-- Sound-wave bars RIGHT -->
+                <div class="suWaveGroup right">
+                    <span class="suWaveBar"></span><span class="suWaveBar"></span><span class="suWaveBar"></span>
+                    <span class="suWaveBar"></span><span class="suWaveBar"></span><span class="suWaveBar"></span>
+                    <span class="suWaveBar"></span><span class="suWaveBar"></span><span class="suWaveBar"></span>
+                    <span class="suWaveBar"></span><span class="suWaveBar"></span><span class="suWaveBar"></span>
+                    <span class="suWaveBar"></span><span class="suWaveBar"></span><span class="suWaveBar"></span>
+                    <span class="suWaveBar"></span>
+                    <span class="suWaveDot"></span>
+                </div>
+            </div>
+            <!-- Text -->
+            <p class="soundUnlockTitle">Enable <strong>Sound</strong></p>
+            <p id="soundUnlockText" class="soundUnlockCopy">Tap to unlock the full AR experience</p>
+        </div>
+    </div>
+    <div id="screenshotDiv" style="display: none;" class="ctaDiv">
+        <div style="position:relative; background-color:white; padding:10px; box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.3), 0 6px 20px 0 rgba(0, 0, 0, 0.25);">
+            <img id="screenshotImg" src="" alt="screenshot" style="width:80vw; height:80vh">
+            <button onclick="document.getElementById('screenshotDiv').style.display = 'none';" style="position:absolute; transform:translateY(-100%); right:0; top:0">Close</button>
+        </div>
+    </div>
+    <div id="confirmUrlDiv" style="display: none;" class="ctaDiv">
+        <div style="position:relative; background-color:white; padding:10px; box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.3), 0 6px 20px 0 rgba(0, 0, 0, 0.25); width: 80vw; display:flex; flex-direction: column; align-items: center;">
+            <p id="confirmUrlText" style="text-align: center; width:80%; overflow: hidden; text-overflow: ellipsis;">Are you sure you want to visit url.com?</p>
+            <div>
+                <button onclick="var w=window.open(newUrlString,'_blank'); if(w){try{w.opener=null;}catch(e){} try{w.focus();}catch(e){}} else {window.location.assign(newUrlString);} document.getElementById('confirmUrlDiv').style.display='none'">VISIT SITE</button>
+                <button onclick="document.getElementById('confirmUrlDiv').style.display = 'none'">GO BACK</button>
+            </div>
+        </div>
+    </div>
+    <div id="errorDiv" class="ctaDiv" style="display: none; background:#aaa">
+        <p id="errorText" style="text-align: center; width:60vw; color:white"></p>
+    </div>
+    <div id="unity-container" class="unity-mobile">
+        <canvas id="unity-canvas" style="width: 100%; height: 100%; background: #0000; z-index: -99; touch-action: none;"></canvas>
+        <div id="unity-loading-bar">
+            <div id="unity-logo"></div>
+            <div id="unity-progress-bar-empty">
+                <div id="unity-progress-bar-full"></div>
+            </div>
+        </div>
+        <canvas id="video-canvas"></canvas>
+    </div>
+    <!-- AR Analytics Tracker -->
+    <script src="https://dashboard.rionick.com/tracker/ar-analytics.js" data-project="a68cd3cfe727efb4c7259ca4814fc8e8ffcc61cbbab72511df79154d6c69f1f9"></script>
+    <script src="arcamera.js" type="text/javascript"></script>
+    <script src="itracker.js" type="text/javascript"></script>
+    <!-- ─── AR MEME HUNT (opt-in) ───────────────────────────────────────
+         enabled: true  → this build IS the Meme Hunt: chips, timer, hints,
+                          completion card, registration gate, leaderboard.
+         enabled: false → plain AR experience (visiting cards, posters,
+                          product demos). The overlay loads but builds nothing.
+         Flip this ONE line before building a Meme Hunt WebGL build.
+         ?hunt=1 on the URL also forces it on, for testing. -->
+    <script>window.HUNT_CONFIG = { enabled: true };</script>
+    <script src="hunt-overlay.js?v=20" type="text/javascript"></script>
+    <script src="Build/MemeHunt.loader.js"></script>
+    <script>
+            var initialize = async() =>{
+                var unityCanvas = document.querySelector("#unity-canvas");
+                var videoCanvas = document.querySelector("#video-canvas");
+                window.arCamera = new ARCamera(unityCanvas, videoCanvas);
+                window.iTracker = new ImageTracker(arCamera);
+                try{
+                    await window.iTracker.initialize();
+                    console.log("ImageTracker initialized!");
+                }
+                catch(error){
+                    console.error("Failed to initialize ImageTracker. Are you missing opencv.js? " + error);
+                    ShowError("Failed to initialize the experience.");
+                    return;
+                }
+                
+                await LoadWebcams();
+                StartAR();
+            }
+            var container = document.querySelector("#unity-container");
+            var canvas = document.querySelector("#unity-canvas");
+            var loadingBar = document.querySelector("#unity-loading-bar");
+            var progressBarFull = document.querySelector("#unity-progress-bar-full");
+            var soundUnlockDiv = document.getElementById("soundUnlockDiv");
+            var soundUnlockButton = document.getElementById("soundUnlockButton");
+            var requiresTapToStart = IsAppleMobileBrowser();
+            var arExperienceStarted = false;
+            var mediaUnlockAudioContext = null;
+            var trackedContentVideos = [];
+            var currentSoundUnlockVideo = null;
+            window.__AR_REQUIRE_SOUND_GESTURE = requiresTapToStart;
+            window.__AR_SOUND_UNLOCK_SERIAL = window.__AR_SOUND_UNLOCK_SERIAL || 0;
+            window.__AR_CURRENT_TARGET_KEY = window.__AR_CURRENT_TARGET_KEY || "";
+            window.__AR_TARGET_SOUND_UNLOCKS = window.__AR_TARGET_SOUND_UNLOCKS || {};
+            PatchSafariColorWriteMaskQuery();
+            EnsureInlineVideoPlayback(document.querySelector("#webcam-video"));
+            WatchVideoElementsForInlinePlayback();
+            document.querySelectorAll("video").forEach(RegisterContentVideo);
+            document.addEventListener("touchend", HandleGlobalMediaUnlockGesture, { passive: true });
+            document.addEventListener("click", HandleGlobalMediaUnlockGesture, true);
+            function IsAppleMobileBrowser() {
+                return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+                    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+            }
+            function PatchSafariColorWriteMaskQuery() {
+                if (!requiresTapToStart) {
+                    return;
+                }
+                PatchWebGLGetParameter(window.WebGLRenderingContext && window.WebGLRenderingContext.prototype);
+                PatchWebGLGetParameter(window.WebGL2RenderingContext && window.WebGL2RenderingContext.prototype);
+            }
+            function PatchWebGLGetParameter(glPrototype) {
+                if (!glPrototype || glPrototype.__arColorWriteMaskGuardPatched) {
+                    return;
+                }
+                glPrototype.__arColorWriteMaskGuardPatched = true;
+                var originalGetParameter = glPrototype.getParameter;
+                glPrototype.getParameter = function(parameterName) {
+                    var value = originalGetParameter.call(this, parameterName);
+                    if (value == null && parameterName === this.COLOR_WRITEMASK) {
+                        if (!window.__AR_COLOR_WRITEMASK_PATCH_HIT) {
+                            window.__AR_COLOR_WRITEMASK_PATCH_HIT = true;
+                            console.warn("[AR] Safari returned null for COLOR_WRITEMASK. Applying fallback to avoid Unity WebGL crash.");
+                        }
+                        return [true, true, true, true];
+                    }
+                    return value;
+                };
+            }
+            function IsContentVideo(videoElement) {
+                return !!videoElement && videoElement.tagName === "VIDEO" && videoElement.id !== "webcam-video";
+            }
+            function EnsureInlineVideoPlayback(videoElement) {
+                if (!videoElement) {
+                    return;
+                }
+                videoElement.setAttribute("playsinline", "");
+                videoElement.setAttribute("webkit-playsinline", "");
+                videoElement.playsInline = true;
+            }
+            function GetVideoTargetKey(videoElement) {
+                if (!videoElement) {
+                    return "";
+                }
+                if (window.__AR_CURRENT_TARGET_KEY) {
+                    videoElement.__arTargetKey = window.__AR_CURRENT_TARGET_KEY;
+                }
+                return videoElement.__arTargetKey || "";
+            }
+            function IsTargetSoundUnlocked(targetKey) {
+                return !!(targetKey && window.__AR_TARGET_SOUND_UNLOCKS[targetKey]);
+            }
+            function RegisterContentVideo(videoElement) {
+                if (!IsContentVideo(videoElement)) {
+                    return;
+                }
+                EnsureInlineVideoPlayback(videoElement);
+                GetVideoTargetKey(videoElement);
+                if (trackedContentVideos.indexOf(videoElement) === -1) {
+                    trackedContentVideos.push(videoElement);
+                }
+                if (videoElement.__arContentVideoRegistered) {
+                    return;
+                }
+                videoElement.__arContentVideoRegistered = true;
+                videoElement.addEventListener("playing", function() {
+                    var targetKey = GetVideoTargetKey(videoElement);
+                    var needsUnlock = requiresTapToStart && !IsTargetSoundUnlocked(targetKey);
+                    if (videoElement.__arAllowNextPlayWithSound) {
+                        videoElement.__arAllowNextPlayWithSound = false;
+                        return;
+                    }
+                    if (needsUnlock) {
+                        currentSoundUnlockVideo = videoElement;
+                        ShowSoundUnlockPrompt();
+                    }
+                });
+            }
+            function WatchVideoElementsForInlinePlayback() {
+                if (!window.MutationObserver || !document.body) {
+                    return;
+                }
+                var observer = new MutationObserver(function(mutations) {
+                    mutations.forEach(function(mutation) {
+                        mutation.addedNodes.forEach(function(node) {
+                            if (node.tagName === "VIDEO") {
+                                RegisterContentVideo(node);
+                                return;
+                            }
+                            if (node.querySelectorAll) {
+                                node.querySelectorAll("video").forEach(RegisterContentVideo);
+                            }
+                        });
+                    });
+                });
+                observer.observe(document.body, { childList: true, subtree: true });
+            }
+            if (!window.__AR_MEDIA_PLAY_PATCHED) {
+                window.__AR_MEDIA_PLAY_PATCHED = true;
+                var originalMediaPlay = HTMLMediaElement.prototype.play;
+                HTMLMediaElement.prototype.play = function() {
+                    if (this.tagName === "VIDEO") {
+                        RegisterContentVideo(this);
+                        var targetKey = GetVideoTargetKey(this);
+                        var needsUnlock = IsContentVideo(this) && requiresTapToStart && !IsTargetSoundUnlocked(targetKey);
+                        if (needsUnlock && !this.__arAllowNextPlayWithSound) {
+                            currentSoundUnlockVideo = this;
+                            this.muted = true;
+                            this.defaultMuted = true;
+                            ShowSoundUnlockPrompt();
+                        }
+                    }
+                    return originalMediaPlay.apply(this, arguments);
+                };
+            }
+            function ShowSoundUnlockPrompt() {
+                var targetKey = currentSoundUnlockVideo ? GetVideoTargetKey(currentSoundUnlockVideo) : "";
+                if (!requiresTapToStart || !soundUnlockDiv || !currentSoundUnlockVideo || IsTargetSoundUnlocked(targetKey)) {
+                    return;
+                }
+                if (soundUnlockButton) {
+                    soundUnlockButton.disabled = false;
+                }
+                soundUnlockDiv.style.display = "flex";
+            }
+            function HideSoundUnlockPrompt() {
+                if (soundUnlockDiv) {
+                    soundUnlockDiv.style.display = "none";
+                }
+            }
+            function HasPendingSoundUnlock() {
+                return !!currentSoundUnlockVideo;
+            }
+            function HandleGlobalMediaUnlockGesture(event) {
+                if (!requiresTapToStart || !HasPendingSoundUnlock()) {
+                    return;
+                }
+                if (event && event.target && event.target === soundUnlockButton) {
+                    return;
+                }
+                OnUserTapEnableSound();
+            }
+            async function UnlockMediaPlayback() {
+                var AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContext) {
+                    return;
+                }
+                if (!mediaUnlockAudioContext) {
+                    mediaUnlockAudioContext = new AudioContext();
+                }
+                if (mediaUnlockAudioContext.state === "suspended") {
+                    await mediaUnlockAudioContext.resume();
+                }
+                var buffer = mediaUnlockAudioContext.createBuffer(1, 1, 22050);
+                var source = mediaUnlockAudioContext.createBufferSource();
+                source.buffer = buffer;
+                source.connect(mediaUnlockAudioContext.destination);
+                source.start(0);
+            }
+            async function OnUserTapEnableSound() {
+                var video = currentSoundUnlockVideo;
+                if (!video) {
+                    return;
+                }
+                var targetKey = GetVideoTargetKey(video);
+                if (soundUnlockButton) {
+                    soundUnlockButton.disabled = true;
+                }
+                window.__AR_SOUND_UNLOCK_SERIAL += 1;
+                try {
+                    await UnlockMediaPlayback();
+                } catch (error) {
+                    console.warn("[AR] Sound unlock failed:", error);
+                }
+                try {
+                    EnsureInlineVideoPlayback(video);
+                    video.pause();
+                    video.__arAllowNextPlayWithSound = true;
+                    video.muted = false;
+                    video.defaultMuted = false;
+                    video.volume = 1;
+                    var playPromise = video.play();
+                    if (playPromise && playPromise.catch) {
+                        await playPromise.catch(function(error) {
+                            console.warn("[AR] Video replay with sound failed:", error);
+                        });
+                    }
+                    if (targetKey) {
+                        window.__AR_TARGET_SOUND_UNLOCKS[targetKey] = true;
+                    }
+                } catch (error) {
+                    video.__arAllowNextPlayWithSound = false;
+                    currentSoundUnlockVideo = video;
+                    console.warn("[AR] Unable to enable sound on video:", error);
+                    return;
+                }
+                currentSoundUnlockVideo = null;
+                HideSoundUnlockPrompt();
+            }
+            // --- WakeLock and Visibility handling ---
+            var wakeLock = null;
+            async function requestWakeLock() {
+                try {
+                    if ('wakeLock' in navigator) {
+                        wakeLock = await navigator.wakeLock.request('screen');
+                        console.log('Wake Lock acquired!');
+                    }
+                } catch (err) {
+                    console.log('Wake Lock error: ' + err.name + ', ' + err.message);
+                }
+            }
+            document.addEventListener("visibilitychange", function() {
+                if (document.visibilityState === "visible") {
+                    requestWakeLock();
+                    var video = document.querySelector("#webcam-video");
+                    if (video && video.srcObject) {
+                        video.play().catch(function(e) { console.error("Could not resume webcam video", e); });
+                    }
+                }
+            });
+            function StartAR() {
+                if (arExperienceStarted) {
+                    return;
+                }
+                arExperienceStarted = true;
+                requestWakeLock();
+                canvas.style.width = window.innerWidth + "px";
+                canvas.style.height = window.innerHeight + "px";
+                var advLoader = document.getElementById("advanced-loader");
+                if (advLoader) {
+                    advLoader.style.display = "flex";
+                }
+                HideSoundUnlockPrompt();
+                // PERFORMANCE OPTIMIZATION: Cache DOM queries outside the high-frequency progress callback
+                var _cachedAdvBar = document.getElementById('advanced-progress-bar');
+                var _cachedPctText = document.getElementById('percentage-text');
+                var _cachedRingFill = document.getElementById('loader-ring-fill');
+                var _cachedStatusEl = document.querySelector('.loader-status');
+                var _cachedTitleEl = document.querySelector('.loader-title');
+                var _lastPercent = -1;
+                createUnityInstance(document.querySelector("#unity-canvas"), {
+                    dataUrl: "Build/MemeHunt.data.unityweb",
+                    frameworkUrl: "Build/MemeHunt.framework.js.unityweb",
+                    codeUrl: "Build/MemeHunt.wasm.unityweb",
+                    streamingAssetsUrl: "StreamingAssets",
+                    companyName: "DefaultCompany",
+                    productName: "AR_imageTracking",
+                    productVersion: "0.1",
+                    //webglContextAttributes: { "preserveDrawingBuffer": true },
+                    // matchWebGLToCanvasSize: false, // Uncomment this to separately control WebGL canvas render size and DOM element size.
+                    // devicePixelRatio: 1, // Uncomment this to override low DPI rendering on high DPI displays.
+                    },
+                    (progress) => {
+                        var displayProgress = Math.min(1, progress / 0.9);
+                        var percent = Math.round(displayProgress * 100);
+                        
+                        // Avoid DOM updates if percentage hasn't changed (reduces layout thrashing)
+                        if (percent === _lastPercent) return;
+                        _lastPercent = percent;
+                        
+                        if (progressBarFull) progressBarFull.style.width = percent + "%";
+                        if (_cachedAdvBar) _cachedAdvBar.style.width = percent + "%";
+                        if (_cachedPctText) _cachedPctText.innerHTML = percent + "<span>%</span>";
+                        if (_cachedRingFill) {
+                            var circumference = 2 * Math.PI * 60;
+                            var offset = circumference - (displayProgress * circumference);
+                            _cachedRingFill.style.strokeDasharray = circumference;
+                            _cachedRingFill.style.strokeDashoffset = offset;
+                        }
+                        if (_cachedStatusEl) {
+                            var dots = '<span class="loader-status-dots"><span>.</span><span>.</span><span>.</span></span>';
+                            if (percent < 30) _cachedStatusEl.innerHTML = "Preparing AR Engine" + dots;
+                            else if (percent < 60) _cachedStatusEl.innerHTML = "Loading Assets" + dots;
+                            else if (percent < 90) _cachedStatusEl.innerHTML = "Almost Ready" + dots;
+                            else _cachedStatusEl.innerHTML = "Starting Experience" + dots;
+                        }
+                        if (progress >= 0.9 && _cachedTitleEl && _cachedTitleEl.innerText !== "Launching") {
+                            _cachedTitleEl.innerText = "Launching";
+                        }
+                    }
+                ).then((unityInstance) => {
+                    window.unityInstance = unityInstance;
+                    RequestWebcam();
+                    loadingBar.style.display = "none";
+                    var advLoader = document.getElementById('advanced-loader');
+                    if (advLoader) advLoader.style.display = "none";
+                }).catch((error) => {
+                    arExperienceStarted = false;
+                    console.error("Failed to create Unity instance:", error);
+                    ShowError("Failed to load the experience.");
+                });
+                loadingBar.style.display = "block";
+            }
+            //Set Facing Mode here ('environment', 'user', '')
+		window.unityFacingMode = "environment"
+            window.WEBCAM_SETTINGS = {
+                video: {
+                    facingMode: unityFacingMode,
+                },
+                audio: false
+            };
+            window.requestingForPermissions = false;
+            async function RequestWebcam(){
+                window.requestingForPermissions = true;
+                try{
+                    window.webcamStream = await navigator.mediaDevices.getUserMedia(window.WEBCAM_SETTINGS);
+                    console.log("Webcam access granted");
+                    requestingForPermissions = false;
+                }
+                catch (err) {
+                    //user denied camera permission - show error panel
+                    console.error("getUserMedia error - " , err);
+                    ShowError("Failed to start the experience. Camera permission was denied");
+                    window.requestingForPermissions = false;
+                }           
+            }
+            async function StartWebcam(){
+                console.log("StartWebcam")
+                while (window.requestingForPermissions) {
+                    // Wait until requestingForPermissions becomes true.
+                    console.log("Waiting for permissions...");
+                    await new Promise(resolve => setTimeout(resolve, 100)); // Adjust the delay time as needed.
+                }
+                console.log("Got Permissions");
+                if(window.webcamStream)
+                {
+                    const video = document.querySelector("#webcam-video");
+                    EnsureInlineVideoPlayback(video);
+                    video.srcObject = webcamStream;
+                    try {
+                        await arCamera.startWebcam(video);
+                        console.log("Webcam started successfully");
+                        window.unityInstance.SendMessage('ARCamera', 'OnStartWebcamSuccess');
+                    }
+                    catch(err){
+                        console.error("Webcam failed to start - ", err);
+                        window.unityInstance.SendMessage('ARCamera', 'OnStartWebcamFail');
+                    }   
+                }
+                else{
+                    console.error("Webcam failed to start - permission not yet granted");
+                    window.unityInstance.SendMessage('ARCamera', 'OnStartWebcamFail');
+                }  
+            }
+            async function LoadWebcams(){
+                let camDevices = [];
+                // let backCams = [];
+                let devices = await navigator.mediaDevices.enumerateDevices();
+                var ctr = 0;
+                devices.forEach(mediaDevice => {
+                    if (mediaDevice.kind === 'videoinput') {
+                        if(window.unityFacingMode == 'environment' && !mediaDevice.label.includes('facing front')){
+                            //back cam only
+                            camDevices.push(mediaDevice);
+                        }
+                        else if(window.unityFacingMode == 'user' && mediaDevice.label.includes('facing front')){
+                            //front cam only
+                            camDevices.push(mediaDevice);
+                        }
+                        else{
+                            //back and front
+                            camDevices.push(mediaDevice);
+                        }   
+                        
+                        ctr++;
+                    }
+                });
+                var select = document.getElementById("chooseCamSel");
+                select.style.display = "block";
+                var count = 0;
+                //reverse array because some Android phones can't distinguish front and back cams at first load
+                //and when this happens, most of the time, front cam goes first and back cam goes last
+                camDevices = camDevices.reverse();
+                camDevices.forEach(mediaDevice => {
+                    const option = document.createElement('option');
+                    option.value = mediaDevice.deviceId;
+                    let label = `Camera ${count}`;
+                    if (mediaDevice.label) {
+                        label = mediaDevice.label
+                    }
+                    const textNode = document.createTextNode(label);
+                    option.appendChild(textNode);
+                    select.appendChild(option);
+                    count++;
+                });
+                iTracker.WEBCAM_NAME = select.options[select.selectedIndex].innerHTML;
+            }
+            function SelectCam(){
+                var select = document.getElementById("chooseCamSel");
+                window.deviceId = select.value;
+                window.WEBCAM_SETTINGS.video['deviceId'] = deviceId;
+                //console.log(window.WEBCAM_SETTINGS);
+                iTracker.WEBCAM_NAME = select.options[select.selectedIndex].innerHTML;
+            }
+            async function FlipCam(){
+                arCamera.stopWebcam();
+                window.WEBCAM_SETTINGS.video.deviceId = '';
+                if(window.WEBCAM_SETTINGS.video.facingMode == 'user'){
+                    window.WEBCAM_SETTINGS.video.facingMode = 'environment';
+                    arCamera.setFlipped(false);
+                }
+                else{
+                    window.WEBCAM_SETTINGS.video.facingMode = 'user';
+                    arCamera.setFlipped(true);
+                }
+                window.webcamStream = await navigator.mediaDevices.getUserMedia(window.WEBCAM_SETTINGS);
+                const video = document.querySelector("#webcam-video");
+                EnsureInlineVideoPlayback(video);
+                video.srcObject = webcamStream;
+                await arCamera.startWebcam(video);
+            }
+            function ShowError(error){
+                var advLoader = document.getElementById("advanced-loader");
+                if (advLoader) {
+                    advLoader.style.display = "none";
+                }
+                HideSoundUnlockPrompt();
+                document.getElementById("errorDiv").style.display = "flex";
+                document.getElementById("errorText").innerHTML = error;
+            }
+            function ShowScreenshot(dataUrl){
+                document.getElementById("screenshotDiv").style.display = "flex";
+                document.getElementById("screenshotImg").src = dataUrl;
+                document.getElementById("screenshotImg").style.width = "80vw";
+                document.getElementById("screenshotImg").style.height = 80 / window.innerWidth * window.innerHeight + "vw";
+            }
+            // Hosts/schemes whose links a phone hands to an installed app instead of
+            // loading in the browser (Universal Links on iOS, App Links on Android).
+            function OpensInInstalledApp(url){
+                try {
+                    var u = new URL(url, window.location.href);
+                    // tel:, mailto:, sms:, whatsapp:, intent:... never render a page
+                    if (u.protocol !== 'http:' && u.protocol !== 'https:') { return true; }
+                    var host = u.hostname.replace(/^www\./, '').toLowerCase();
+                    var apps = ['instagram.com','wa.me','whatsapp.com','api.whatsapp.com',
+                                'linkedin.com','lnkd.in','youtube.com','youtu.be',
+                                'facebook.com','fb.com','fb.me','m.me','messenger.com',
+                                'twitter.com','x.com','t.me','telegram.me','tiktok.com',
+                                'snapchat.com','threads.net','pinterest.com','spotify.com',
+                                'maps.app.goo.gl','goo.gl','maps.google.com'];
+                    for (var i = 0; i < apps.length; i++) {
+                        if (host === apps[i] || host.slice(-(apps[i].length + 1)) === '.' + apps[i]) {
+                            return true;
+                        }
+                    }
+                } catch (e) {}
+                return false;
+            }
+            function OpenInGuardedTab(url){
+                var w = window.open('', '_blank');
+                if (!w) { return false; }                 // blocked -> confirm sheet
+                // The opener link is deliberately LEFT INTACT here: it is what tells
+                // Chrome which tab to show when this one closes, and it lets the guard
+                // below focus the AR tab explicitly. Cutting it here is what made the
+                // browser surface some unrelated older tab instead of the AR session.
+                // The guard drops the link itself the instant a real page starts
+                // loading — the only moment it could be abused.
+                try {
+                    w.document.open();
+                    w.document.write(
+                        '<!DOCTYPE html><meta charset="utf-8">' +
+                        '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+                        '<title>Opening…</title>' +
+                        '<style>html,body{margin:0;height:100%;background:#0a0a0a;' +
+                        'color:rgba(255,255,255,.45);font:14px -apple-system,BlinkMacSystemFont,' +
+                        '"Segoe UI",Roboto,sans-serif;display:flex;align-items:center;' +
+                        'justify-content:center}</style><body>Opening…<' + 'script>' +
+                        'var t=Date.now();' +
+                        // Send the visitor back to the AR tab, then get out of the way.
+                        'function bye(){' +
+                        'try{if(window.opener&&!window.opener.closed){window.opener.focus();}}catch(e){}' +
+                        'try{window.close();}catch(e){}}' +
+                        // A real page is replacing this guard: cut the opener link so the
+                        // destination site can never reach back into the AR tab.
+                        'window.addEventListener("pagehide",function(){' +
+                        'try{window.opener=null;}catch(e){}});' +
+                        // Can only fire while this placeholder IS the document: a real
+                        // page load replaces it. The 900ms floor ignores the visibility
+                        // flip that happens while the tab is still being created.
+                        'document.addEventListener("visibilitychange",function(){' +
+                        'if(!document.hidden&&Date.now()-t>900){bye();}});' +
+                        'window.addEventListener("pageshow",function(){' +
+                        'if(Date.now()-t>900){bye();}});' +
+                        '<' + '/script>');
+                    w.document.close();
+                } catch (e) {}                            // seeding failed: tab still opens
+                try { w.location.href = url; }
+                catch (e) { try { w.location.replace(url); } catch (e2) {} }
+                try { w.focus(); } catch (e) {}
+                return true;
+            }
+            function ShowConfirmUrl(url){
+                // Open in a NEW TAB, never in this one: navigating this tab tears down
+                // the AR session, so every tap on a social / Save Contact button would
+                // cost the visitor a rescan.
+                //
+                // Try window.open first — that is the instant, no-extra-tap path. It can
+                // be blocked, because Unity dispatches Button.onClick from
+                // EventSystem.Update() rather than straight out of the DOM handler, and
+                // iOS Safari in particular only trusts a window.open made inside a real
+                // gesture. When it IS blocked, fall back to the confirm sheet, whose
+                // VISIT SITE button is a genuine tap and therefore always allowed.
+                // Links that an installed app will swallow (instagram.com, wa.me,
+                // linkedin.com, tel:, mailto:...) are opened in THIS tab on purpose.
+                //
+                // Opening them in a new tab looks right until an app is actually
+                // installed: the OS takes the URL, the fresh tab never navigates, and
+                // the visitor comes back to a stray blank tab — or, once that tab
+                // closes itself, to whichever OTHER tab the browser decides to show.
+                // A page cannot choose the tab a mobile browser returns to, so the
+                // only reliable fix is to never create the tab.
+                //
+                // In this tab the trade is a good one: the OS intercepts the URL and
+                // this page never navigates at all, so the AR session is exactly where
+                // the visitor left it. Only when the app is NOT installed does the page
+                // actually go to the site, and Back returns here.
+                if (OpensInInstalledApp(url)) {
+                    try { window.location.href = url; return; } catch (e) {}
+                }
+                // Everything else — plain websites, the .vcf contact file — genuinely
+                // benefits from a new tab, and cannot be swallowed by an app. The
+                // guarded opener is still used, as a safety net for app links this
+                // list does not know about yet.
+                try {
+                    if (OpenInGuardedTab(url)) { return; }
+                } catch (e) {}
+                try {
+                    newUrlString = url;
+                    var txt = document.getElementById('confirmUrlText');
+                    if (txt) {
+                        var shown = url;
+                        try {
+                            var u = new URL(url);
+                            shown = (u.protocol === 'data:') ? 'this contact card' : u.hostname;
+                        } catch (e) {}
+                        txt.textContent = 'Open ' + shown + ' in a new tab?';
+                    }
+                    var div = document.getElementById('confirmUrlDiv');
+                    if (div) { div.style.display = 'flex'; return; }
+                } catch (e) {}
+                window.location.assign(url);   // last resort only
+            }
+            initialize();
+            window.ITRACKER_GLOBALS = {
+                //place global settings here
+                INTERNAL_SMOOTHFACTOR_POS: .075,
+            }
+            
+    </script>
+</body>
+</html>

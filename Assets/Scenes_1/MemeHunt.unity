@@ -1876,7 +1876,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::CampaignSettings
   huntEnabled: 1
   campaignName: "AR Meme Hunt \u2014 Bharatiya Vyapar Mahotsav 2026"
-  analyticsApiKey: e4cfcb9cfd6d120305bb7c268a981b8e8a65c32d0d5062563c8e2c1980ae769c
+  analyticsApiKey: a68cd3cfe727efb4c7259ca4814fc8e8ffcc61cbbab72511df79154d6c69f1f9
 --- !u!4 &1963132887
 Transform:
   m_ObjectHideFlags: 0
