@@ -13,6 +13,34 @@ MonoBehaviour:
   m_Name: ImageTrackerGlobalSettings
   m_EditorClassIdentifier: 
   imageTargetInfos:
+  - id: flower
+    texture: {fileID: 2800000, guid: 22e6e002c40714983b84e5721851d377, type: 3}
+  - id: Modi
+    texture: {fileID: 2800000, guid: 6a9fe2192cd58ad4c903dcdff19c3678, type: 3}
+  - id: StatueOfLiberty
+    texture: {fileID: 2800000, guid: 43b6876aa4db14f5099cfe90e175dc12, type: 3}
+  - id: weddingInvitation
+    texture: {fileID: 2800000, guid: c2a503b81bc3d43c8ab76fd17d38a982, type: 3}
+  - id: card
+    texture: {fileID: 2800000, guid: 8dd5d9ab5683db44fa0c70ce2ba63494, type: 3}
+  - id: Shoes
+    texture: {fileID: 2800000, guid: aba25f718463f40caa47795087b8b0c5, type: 3}
+  - id: The Vice Streets
+    texture: {fileID: 2800000, guid: 8577714372b454ceeb748cd3f63dfb5a, type: 3}
+  - id: CultGym
+    texture: {fileID: 2800000, guid: 648133636efa0a24cb0c17a031f671b8, type: 3}
+  - id: BookCover
+    texture: {fileID: 2800000, guid: 44232fcdfe17b9e43aa6d116c18519ca, type: 3}
+  - id: Post  Card
+    texture: {fileID: 2800000, guid: d0fdea8bbec84f84689b1aa82c2160cb, type: 3}
+  - id: FIFA_Target
+    texture: {fileID: 2800000, guid: 372f4ce167f10e94b9a3ffd1f9465010, type: 3}
+  - id: One8Traget
+    texture: {fileID: 2800000, guid: 94a803c8fc5745e419c1cbaa654b8ce0, type: 3}
+  - id: Rishabh_Card
+    texture: {fileID: 2800000, guid: 3107ce75d280241f78831c7fa172692f, type: 3}
+  - id: Rishabh_Card_Back
+    texture: {fileID: 2800000, guid: b43faa83102e9462b855123dd9954a77, type: 3}
   - id: Target1
     texture: {fileID: 2800000, guid: 3cd156fd52209471ba35d61d0759d012, type: 3}
   - id: Target2
