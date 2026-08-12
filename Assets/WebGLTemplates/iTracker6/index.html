@@ -1127,6 +1127,30 @@
             }
 
 
+
+            // Hosts/schemes whose links a phone hands to an installed app instead of
+            // loading in the browser (Universal Links on iOS, App Links on Android).
+            function OpensInInstalledApp(url){
+                try {
+                    var u = new URL(url, window.location.href);
+                    // tel:, mailto:, sms:, whatsapp:, intent:... never render a page
+                    if (u.protocol !== 'http:' && u.protocol !== 'https:') { return true; }
+                    var host = u.hostname.replace(/^www\./, '').toLowerCase();
+                    var apps = ['instagram.com','wa.me','whatsapp.com','api.whatsapp.com',
+                                'linkedin.com','lnkd.in','youtube.com','youtu.be',
+                                'facebook.com','fb.com','fb.me','m.me','messenger.com',
+                                'twitter.com','x.com','t.me','telegram.me','tiktok.com',
+                                'snapchat.com','threads.net','pinterest.com','spotify.com',
+                                'maps.app.goo.gl','goo.gl','maps.google.com'];
+                    for (var i = 0; i < apps.length; i++) {
+                        if (host === apps[i] || host.slice(-(apps[i].length + 1)) === '.' + apps[i]) {
+                            return true;
+                        }
+                    }
+                } catch (e) {}
+                return false;
+            }
+
             function OpenInGuardedTab(url){
                 var w = window.open('', '_blank');
                 if (!w) { return false; }                 // blocked -> confirm sheet
@@ -1182,15 +1206,28 @@
                 // iOS Safari in particular only trusts a window.open made inside a real
                 // gesture. When it IS blocked, fall back to the confirm sheet, whose
                 // VISIT SITE button is a genuine tap and therefore always allowed.
-                // The tapped link may be a Universal Link / App Link (instagram.com,
-                // linkedin.com, a wa.me number...). When the matching app is INSTALLED
-                // the OS hands the URL to it, and the tab we just opened never
-                // navigates — the visitor returns to the browser and finds a blank tab.
+                // Links that an installed app will swallow (instagram.com, wa.me,
+                // linkedin.com, tel:, mailto:...) are opened in THIS tab on purpose.
                 //
-                // So the tab is seeded with a tiny self-closing page BEFORE it is
-                // pointed at the URL. A real page load replaces that page and the guard
-                // goes with it; if an app took over instead, the guard is still the
-                // tab's document when the visitor comes back, and closes it.
+                // Opening them in a new tab looks right until an app is actually
+                // installed: the OS takes the URL, the fresh tab never navigates, and
+                // the visitor comes back to a stray blank tab — or, once that tab
+                // closes itself, to whichever OTHER tab the browser decides to show.
+                // A page cannot choose the tab a mobile browser returns to, so the
+                // only reliable fix is to never create the tab.
+                //
+                // In this tab the trade is a good one: the OS intercepts the URL and
+                // this page never navigates at all, so the AR session is exactly where
+                // the visitor left it. Only when the app is NOT installed does the page
+                // actually go to the site, and Back returns here.
+                if (OpensInInstalledApp(url)) {
+                    try { window.location.href = url; return; } catch (e) {}
+                }
+
+                // Everything else — plain websites, the .vcf contact file — genuinely
+                // benefits from a new tab, and cannot be swallowed by an app. The
+                // guarded opener is still used, as a safety net for app links this
+                // list does not know about yet.
                 try {
                     if (OpenInGuardedTab(url)) { return; }
                 } catch (e) {}
