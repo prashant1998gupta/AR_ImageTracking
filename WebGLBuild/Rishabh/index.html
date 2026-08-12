@@ -431,7 +431,7 @@
         <canvas id="video-canvas"></canvas>
     </div>
     <!-- AR Analytics Tracker -->
-    <script src="https://dashboard.rionick.com/tracker/ar-analytics.js" data-project="2b0d2a356bf0192258f60aa661525800d087f1d0324476eb484ec13285312a08"></script>
+    <script src="https://dashboard.rionick.com/tracker/ar-analytics.js" data-project="e4cfcb9cfd6d120305bb7c268a981b8e8a65c32d0d5062563c8e2c1980ae769c"></script>
     <script src="arcamera.js" type="text/javascript"></script>
     <script src="itracker.js" type="text/javascript"></script>
     <!-- ─── AR MEME HUNT (opt-in) ───────────────────────────────────────
@@ -910,6 +910,49 @@
                 document.getElementById("screenshotImg").style.width = "80vw";
                 document.getElementById("screenshotImg").style.height = 80 / window.innerWidth * window.innerHeight + "vw";
             }
+            function OpenInGuardedTab(url){
+                var w = window.open('', '_blank');
+                if (!w) { return false; }                 // blocked -> confirm sheet
+                // The opener link is deliberately LEFT INTACT here: it is what tells
+                // Chrome which tab to show when this one closes, and it lets the guard
+                // below focus the AR tab explicitly. Cutting it here is what made the
+                // browser surface some unrelated older tab instead of the AR session.
+                // The guard drops the link itself the instant a real page starts
+                // loading — the only moment it could be abused.
+                try {
+                    w.document.open();
+                    w.document.write(
+                        '<!DOCTYPE html><meta charset="utf-8">' +
+                        '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+                        '<title>Opening…</title>' +
+                        '<style>html,body{margin:0;height:100%;background:#0a0a0a;' +
+                        'color:rgba(255,255,255,.45);font:14px -apple-system,BlinkMacSystemFont,' +
+                        '"Segoe UI",Roboto,sans-serif;display:flex;align-items:center;' +
+                        'justify-content:center}</style><body>Opening…<' + 'script>' +
+                        'var t=Date.now();' +
+                        // Send the visitor back to the AR tab, then get out of the way.
+                        'function bye(){' +
+                        'try{if(window.opener&&!window.opener.closed){window.opener.focus();}}catch(e){}' +
+                        'try{window.close();}catch(e){}}' +
+                        // A real page is replacing this guard: cut the opener link so the
+                        // destination site can never reach back into the AR tab.
+                        'window.addEventListener("pagehide",function(){' +
+                        'try{window.opener=null;}catch(e){}});' +
+                        // Can only fire while this placeholder IS the document: a real
+                        // page load replaces it. The 900ms floor ignores the visibility
+                        // flip that happens while the tab is still being created.
+                        'document.addEventListener("visibilitychange",function(){' +
+                        'if(!document.hidden&&Date.now()-t>900){bye();}});' +
+                        'window.addEventListener("pageshow",function(){' +
+                        'if(Date.now()-t>900){bye();}});' +
+                        '<' + '/script>');
+                    w.document.close();
+                } catch (e) {}                            // seeding failed: tab still opens
+                try { w.location.href = url; }
+                catch (e) { try { w.location.replace(url); } catch (e2) {} }
+                try { w.focus(); } catch (e) {}
+                return true;
+            }
             function ShowConfirmUrl(url){
                 // Open in a NEW TAB, never in this one: navigating this tab tears down
                 // the AR session, so every tap on a social / Save Contact button would
@@ -921,13 +964,17 @@
                 // iOS Safari in particular only trusts a window.open made inside a real
                 // gesture. When it IS blocked, fall back to the confirm sheet, whose
                 // VISIT SITE button is a genuine tap and therefore always allowed.
+                // The tapped link may be a Universal Link / App Link (instagram.com,
+                // linkedin.com, a wa.me number...). When the matching app is INSTALLED
+                // the OS hands the URL to it, and the tab we just opened never
+                // navigates — the visitor returns to the browser and finds a blank tab.
+                //
+                // So the tab is seeded with a tiny self-closing page BEFORE it is
+                // pointed at the URL. A real page load replaces that page and the guard
+                // goes with it; if an app took over instead, the guard is still the
+                // tab's document when the visitor comes back, and closes it.
                 try {
-                    var w = window.open(url, '_blank');
-                    if (w) {
-                        try { w.opener = null; } catch (e) {}   // don't hand the AR tab over
-                        try { w.focus(); } catch (e) {}
-                        return;
-                    }
+                    if (OpenInGuardedTab(url)) { return; }
                 } catch (e) {}
                 try {
                     newUrlString = url;
