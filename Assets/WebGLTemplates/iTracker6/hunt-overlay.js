@@ -109,12 +109,17 @@
     nextHint: null,       // latest {id,label,hint} — clue stays recoverable
     name: ''              // participant name (for the victory card)
   };
+  // Offline/timeout fallback ONLY — boot()'s .catch path uses these when the status
+  // call fails or hits the 8s timeout (routine on venue Wi-Fi). They MUST match the
+  // ids the current build actually ships, or a phone on bad Wi-Fi silently records
+  // nothing: onImageFound() drops any id not in this list before it is ever sent.
+  // Keep in step with Tools ▸ Meme Hunt ▸ 3. Copy Poster List JSON.
   var FALLBACK_POSTERS = [
-    { id: 'FIFA_Target', label: 'FIFA' },
-    { id: 'One8Traget', label: 'One8' },
-    { id: 'BookCover', label: 'Book' },
-    { id: 'CultGym', label: 'Gym' },
-    { id: 'Shoes', label: 'Shoes' }
+    { id: 'Target1', label: 'Target 1' },
+    { id: 'Target2', label: 'Target 2' },
+    { id: 'Target3', label: 'Target 3' },
+    { id: 'Target4', label: 'Target 4' },
+    { id: 'Target5', label: 'Target 5' }
   ];
 
   // ─── arAnalytics wrap (must happen synchronously at load) ───────────
