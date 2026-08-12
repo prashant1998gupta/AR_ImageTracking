@@ -71,6 +71,40 @@ public static class HuntFlagPostBuild
 
         if (target != BuildTarget.WebGL) return;
 
+        // OnPostProcessScene above is NOT guaranteed to run — Unity skips scene
+        // processing when an incremental build reuses cached scene data, and it
+        // stays skipped on every later build. That used to leave `declared` false
+        // and silently write enabled:false into a Meme Hunt build: no registration,
+        // no chips, no scoring, and nothing in the page to hint at it. So when the
+        // callback did not fire, read the boot scene off disk instead — the same
+        // file the player was built from.
+        string source = "scene callback";
+        if (!declared)
+        {
+            var disk = BootSceneCampaign.ReadFromDisk();
+            if (!string.IsNullOrEmpty(disk.Error))
+            {
+                Debug.LogError("[HuntFlag] Could not determine whether this is a hunt build. " +
+                               disk.Error + "\n            The hunt flag was left at the template " +
+                               "default (OFF). If this build IS the Meme Hunt, fix the above and " +
+                               "rebuild, or set window.HUNT_CONFIG = { enabled: true } by hand.");
+            }
+            else if (disk.Found)
+            {
+                isHunt   = disk.HuntEnabled;
+                declared = true;
+                scene    = disk.ScenePath;
+                source   = "scene file on disk — PostProcessScene did not run this build";
+                if (disk.Count > 1)
+                    Debug.LogWarning("[HuntFlag] " + disk.Count + " CampaignSettings components in " +
+                                     disk.ScenePath + " — using the first (huntEnabled=" + isHunt + ").");
+            }
+            else if (!string.IsNullOrEmpty(disk.ScenePath))
+            {
+                scene = disk.ScenePath;             // genuinely has no CampaignSettings
+            }
+        }
+
         string indexPath = Path.Combine(buildPath, "index.html");
         if (!File.Exists(indexPath))
         {
@@ -99,11 +133,11 @@ public static class HuntFlagPostBuild
         if (patched != html) File.WriteAllText(indexPath, patched);
 
         string msg = string.Format(
-            "[HuntFlag] {0} → Meme Hunt {1}\n            scene: {2}",
+            "[HuntFlag] {0} → Meme Hunt {1}\n            scene: {2}\n            read from: {3}",
             Path.GetFileName(buildPath.TrimEnd('/', '\\')),
             isHunt ? "ENABLED — registration, chips, timer, leaderboard"
                    : "disabled — plain AR experience",
-            scene);
+            scene, source);
 
         if (declared)
         {
@@ -113,8 +147,10 @@ public static class HuntFlagPostBuild
         {
             // Silence here is the dangerous case: a hunt scene built without the
             // component ships with NO registration and NO scoring, and looks fine.
-            Debug.LogWarning(msg +
-                "\n            NOTE: this scene has no CampaignSettings component, so the hunt " +
+            // LogError, not LogWarning — a warning scrolled past unnoticed for six
+            // builds in a row while the live event had no registration.
+            Debug.LogError(msg +
+                "\n            NOTE: no CampaignSettings could be read for this build, so the hunt " +
                 "was switched OFF by default.\n            If this build IS a hunt, add one " +
                 "(Add Component ▸ ARRISE ▸ Campaign Settings) and tick huntEnabled, or re-run " +
                 "its scene builder — then build again.");

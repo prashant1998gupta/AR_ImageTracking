@@ -77,6 +77,31 @@ public static class AnalyticsKeyPostBuild
 
         if (target != BuildTarget.WebGL) return;
 
+        // Same failure as HuntFlagPostBuild: [PostProcessScene] does not always run,
+        // and when it does not, every build silently shipped the template's own
+        // hard-coded data-project key — so a client's build reported into the wrong
+        // analytics project. Read the boot scene off disk in that case.
+        if (!declared)
+        {
+            var disk = BootSceneCampaign.ReadFromDisk();
+            if (!string.IsNullOrEmpty(disk.Error))
+            {
+                Debug.LogError("[Analytics] Could not determine this build's analytics key. " +
+                               disk.Error + "\n            The tracker tag was left as the template " +
+                               "ships it, so this build may report into the wrong project.");
+            }
+            else if (disk.Found)
+            {
+                key      = (disk.ApiKey ?? "").Trim();
+                declared = true;
+                scene    = disk.ScenePath + " (read from disk — PostProcessScene did not run)";
+            }
+            else if (!string.IsNullOrEmpty(disk.ScenePath))
+            {
+                scene = disk.ScenePath;
+            }
+        }
+
         string indexPath = Path.Combine(buildPath, "index.html");
         if (!File.Exists(indexPath))
         {
