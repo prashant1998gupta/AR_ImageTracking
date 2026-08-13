@@ -337,6 +337,11 @@ switch ($action) {
         Auth::requireAuth(['admin', 'super_admin']);
         handleAdminVerify($db);
         break;
+    case 'admin-remove':
+        if ($method !== 'POST') Response::error('Method not allowed', 405);
+        Auth::requireAuth(['admin', 'super_admin']);
+        handleAdminRemove($db);
+        break;
     case 'admin-reset':
         if ($method !== 'POST') Response::error('Method not allowed', 405);
         Auth::requireAuth(['admin', 'super_admin']);
@@ -955,6 +960,22 @@ function handleAdminSaveSettings($db) {
         ]);
     }
     Response::success(null, 'Settings saved — live immediately');
+}
+
+/** Remove ONE participant — for staff/test runs that would take real players'
+ *  prizes. Ranks are computed per request, so the leaderboard shifts up
+ *  instantly; the freed phone number can register again as a fresh player. */
+function handleAdminRemove($db) {
+    $input = json_decode(file_get_contents('php://input'), true);
+    if (!$input) Response::error('Invalid JSON body', 400);
+    $id = intval($input['id'] ?? 0);
+    if ($id <= 0) Response::error('Missing participant id', 400);
+
+    $row = $db->queryOne("SELECT name FROM hunt_participants WHERE id = ?", [$id]);
+    if (!$row) Response::error('Participant not found', 404);
+
+    $db->execute("DELETE FROM hunt_participants WHERE id = ?", [$id]);   // hunt_scans cascades
+    Response::success(null, 'Removed ' . $row['name'] . ' — ranks updated');
 }
 
 /** Pre-event reset: wipes ALL participants + scans (test data cleanup). */

@@ -42,6 +42,8 @@
   .poster-row .phint { flex:1; min-width:240px; }
   .vbtn { background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); color:#fff; border-radius:8px; font-size:10.5px; padding:6px 10px; cursor:pointer; }
   .vbtn.on { background:rgba(95,208,106,0.15); border-color:rgba(95,208,106,0.6); color:#5fd06a; font-weight:700; }
+  .rmbtn { background:none; border:1px solid rgba(220,30,30,0.45); color:#e05555; border-radius:8px; font-size:10.5px; padding:6px 10px; cursor:pointer; }
+  .rmbtn:hover { background:rgba(220,30,30,0.15); }
   #adminView { display:none; }
 </style>
 </head>
@@ -409,6 +411,19 @@ $('resetBtn').addEventListener('click', function () {
   }).catch(function () { alert('Reset failed'); });
 });
 
+function removeParticipant(id, name, phone) {
+  var ok = confirm('Remove "' + name + '" (' + phone + ') permanently?\n\nTheir scans are deleted, ranks below shift up instantly, and this phone number can register again as a new player.');
+  if (!ok) return;
+  fetch(API + '?action=admin-remove', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token() },
+    body: JSON.stringify({ id: id })
+  }).then(function (r) { return r.json(); }).then(function (res) {
+    if (!res.success) alert(res.message || 'Remove failed');
+    load();
+  }).catch(function () { alert('Remove failed — network error'); });
+}
+
 function setVerified(id, verified) {
   fetch(API + '?action=admin-verify', {
     method: 'POST',
@@ -444,7 +459,7 @@ function render(data) {
   var posters = data.posters || [];
   var head = '<tr><th>#</th><th>Participant</th><th>Phone</th><th>Business</th>';
   posters.forEach(function (p) { head += '<th>' + esc(p.label) + '</th>'; });
-  head += '<th>Progress</th><th>Time</th><th>Verified</th><th>Registered</th><th>Completed</th></tr>';
+  head += '<th>Progress</th><th>Time</th><th>Verified</th><th>Registered</th><th>Completed</th><th></th></tr>';
   $('thead').innerHTML = head;
 
   var html = '';
@@ -466,13 +481,20 @@ function render(data) {
       '<td>' + (p.time_formatted || '') + '</td>' +
       '<td>' + verifyCell + '</td>' +
       '<td class="muted">' + esc(fmtDate(p.registered_at)) + '</td>' +
-      '<td class="muted">' + esc(fmtDate(p.completed_at)) + '</td></tr>';
+      '<td class="muted">' + esc(fmtDate(p.completed_at)) + '</td>' +
+      '<td><button class="rmbtn" data-rid="' + p.id + '" data-rname="' + esc(p.name) + '" data-rphone="' + esc(p.phone) + '">Remove</button></td></tr>';
   });
   $('tbody').innerHTML = html || '<tr><td colspan="20" class="muted" style="padding:30px; text-align:center;">No participants yet</td></tr>';
 
   $('tbody').querySelectorAll('.vbtn').forEach(function (btn) {
     btn.addEventListener('click', function () {
       setVerified(parseInt(btn.getAttribute('data-vid'), 10), btn.getAttribute('data-von') !== '1');
+    });
+  });
+
+  $('tbody').querySelectorAll('.rmbtn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      removeParticipant(parseInt(btn.getAttribute('data-rid'), 10), btn.getAttribute('data-rname'), btn.getAttribute('data-rphone'));
     });
   });
 
