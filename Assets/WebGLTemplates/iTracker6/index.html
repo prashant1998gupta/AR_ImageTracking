@@ -406,6 +406,153 @@
     </style>
 </head>
 <body>
+    <script>
+        /* AR Watchdog — must be the FIRST script on the page.
+           The tracking engine (opencv.js WASM) can abort mid-session — the error
+           surfaces as a bare pointer number ("13834976 at opencv.js:31"), Unity's
+           loader catches it on window.error and alert()s "An error occurred
+           running the Unity content...", and the tracking loop is left dead.
+           Registered before the loader, this listener sees the error first:
+           it silences the popup, soft-restarts the tracker, and if the engine
+           is truly dead performs a guarded automatic reload. */
+        (function () {
+            var TRACKER_SRC = /opencv\.js|itracker\.js|arcamera\.js/i;
+            var reloadNote = null, lastSoftRestart = 0, reloading = false, noiseCount = 0;
+
+            // Root cause of "AbortError: The operation was aborted." popups:
+            // Unity's WebGL video path calls video.play() and ignores the
+            // returned promise; pausing/removing a meme video while it is
+            // still buffering rejects that promise unhandled, and the Unity
+            // loader alert()s on every unhandled rejection. Attach a silent
+            // catch branch so the rejection never reaches window at all
+            // (callers keep their own then/catch behavior).
+            try {
+                var origPlay = HTMLMediaElement.prototype.play;
+                HTMLMediaElement.prototype.play = function () {
+                    var p = origPlay.apply(this, arguments);
+                    if (p && typeof p.catch === 'function') { p.catch(function () {}); }
+                    return p;
+                };
+            } catch (e) {}
+
+            // A session that stays healthy for 5 minutes earns its reload
+            // budget back (longer than the 90s repeat window, so crash loops
+            // can never outrun the cap).
+            setTimeout(function () {
+                try { sessionStorage.removeItem('ar_wd_reloads'); } catch (e) {}
+            }, 300000);
+
+            // Benign browser DOMExceptions (interrupted video.play(), aborted
+            // fetch, autoplay gate) — never fatal, but Unity's loader would
+            // alert on them. Silence the popup, change nothing else.
+            function isBenignNoise(msg, name) {
+                msg = String(msg == null ? '' : msg);
+                if (name === 'AbortError' || name === 'NotAllowedError') { return true; }
+                return /AbortError|operation was aborted|play\(\) request was interrupted|fetching process for the media resource was aborted|The user aborted a request|user didn't interact with the document/i.test(msg);
+            }
+
+            function squelch(e, label) {
+                e.stopImmediatePropagation();
+                e.preventDefault();
+                console.info('[AR-Watchdog] benign browser noise ignored:', label);
+                if (noiseCount < 5) {
+                    noiseCount++;
+                    report('benign: ' + label, '');
+                }
+            }
+
+            function isWasmAbort(msg, src) {
+                msg = String(msg == null ? '' : msg);
+                if (src && TRACKER_SRC.test(src)) { return true; }
+                if (/^\s*(Uncaught\s+)?\d{6,}\s*$/.test(msg)) { return true; }   // bare pointer
+                if (/Aborted\s*\(/.test(msg)) { return true; }                   // emscripten abort
+                if (/Cannot enlarge memory|out of memory/i.test(msg)) { return true; }
+                if (/memory access out of bounds|unreachable executed|index out of bounds/i.test(msg)) { return true; } // wasm RuntimeError
+                return false;
+            }
+
+            function report(msg, src) {
+                try {
+                    if (window.arAnalytics && window.arAnalytics.track) {
+                        window.arAnalytics.track('ar_error', { watchdog: 1, msg: String(msg).slice(0, 120), src: String(src || '').slice(-60) });
+                    }
+                } catch (e) {}
+            }
+
+            function softRestartTracker() {
+                // A dead emscripten runtime makes every exported call throw,
+                // so a throwing (or missing) unityInstance is our liveness
+                // probe: no point restarting the tracker — reload instead.
+                if (!window.unityInstance) { autoReload(); return; }
+                try {
+                    window.unityInstance.SendMessage('ImageTracker', 'StopTracker');
+                } catch (e) { autoReload(); return; }
+                setTimeout(function () {
+                    try { window.unityInstance.SendMessage('ImageTracker', 'StartTracker'); }
+                    catch (e) { autoReload(); }
+                }, 200);
+            }
+
+            function autoReload() {
+                if (reloading) { return; }
+                var n = 0;
+                try { n = parseInt(sessionStorage.getItem('ar_wd_reloads') || '0', 10); } catch (e) {}
+                if (n >= 2) { showNote('AR stopped — tap here to restart', true); return; }
+                reloading = true;
+                try { sessionStorage.setItem('ar_wd_reloads', String(n + 1)); } catch (e) {}
+                showNote('Refreshing AR\u2026', false);
+                setTimeout(function () { try { location.reload(); } catch (e) {} }, 900);
+            }
+
+            function showNote(text, tappable) {
+                try {
+                    if (reloadNote && reloadNote.parentNode) { reloadNote.parentNode.removeChild(reloadNote); }
+                    reloadNote = document.createElement('div');
+                    reloadNote.textContent = text;
+                    reloadNote.style.cssText = 'position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));' +
+                        'transform:translateX(-50%);background:rgba(8,8,8,.92);color:#fff;' +
+                        'border:1px solid rgba(220,30,30,.6);border-radius:12px;padding:10px 18px;' +
+                        'font:13px -apple-system,Roboto,sans-serif;z-index:2147483647;';
+                    if (tappable) { reloadNote.onclick = function () { try { sessionStorage.removeItem('ar_wd_reloads'); } catch (e) {} location.reload(); }; }
+                    (document.body || document.documentElement).appendChild(reloadNote);
+                } catch (e) {}
+            }
+
+            function recover(msg, src) {
+                report(msg, src);
+                var now = Date.now();
+                // First abort in a while: the engine may only have dropped one
+                // frame loop — a tracker stop/start often brings it back.
+                if (now - lastSoftRestart > 90000) {
+                    lastSoftRestart = now;
+                    softRestartTracker();
+                    return;
+                }
+                autoReload();   // aborting repeatedly: the WASM heap is gone, reload
+            }
+
+            window.addEventListener('error', function (e) {
+                if (isBenignNoise(e.message, '')) { squelch(e, String(e.message)); return; }
+                if (!isWasmAbort(e.message, e.filename)) { return; }   // real JS bugs stay visible
+                e.stopImmediatePropagation();                          // Unity's alert never fires
+                e.preventDefault();
+                console.warn('[AR-Watchdog] engine abort suppressed:', e.message, (e.filename || '') + ':' + (e.lineno || 0));
+                recover(e.message, e.filename);
+            }, true);
+
+            window.addEventListener('unhandledrejection', function (e) {
+                var r = e.reason, msg = (r && (r.message !== undefined ? r.message : r)) || '';
+                var src = (r && (r.fileName || r.sourceURL)) || '';
+                var name = (r && r.name) || '';
+                if (isBenignNoise(msg, name)) { squelch(e, name + ': ' + msg); return; }
+                if (!isWasmAbort(msg, src)) { return; }
+                e.stopImmediatePropagation();
+                e.preventDefault();
+                console.warn('[AR-Watchdog] engine abort (promise) suppressed:', msg);
+                recover(msg, src);
+            }, true);
+        })();
+    </script>
     <!--IMAGETARGETS-->
 
     <!-- ADVANCED LOADING UI -->
