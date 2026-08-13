@@ -670,7 +670,16 @@
     adEl.addEventListener('click', hideAd);   // tap anywhere outside the image closes
     adImgEl.addEventListener('click', function (e) {
       e.stopPropagation();
-      if (currentAdLink) { window.open(currentAdLink, '_blank'); }
+      if (!currentAdLink) { return; }
+      // Same handling as the AR link buttons: app links (Instagram, WhatsApp…)
+      // must navigate THIS tab — the OS intercepts and opens the app, the page
+      // never actually unloads, and no blank tab is left behind. Plain
+      // websites keep opening in a new tab.
+      if (opensInApp(currentAdLink)) {
+        window.location.href = currentAdLink;
+      } else {
+        window.open(currentAdLink, '_blank');
+      }
     });
     nextBtnEl = document.getElementById('hunt-hint-next');
     nextBtnEl.addEventListener('click', advanceToClue);
@@ -886,6 +895,33 @@
       }
     });
   }
+  // App-link hosts deep-link into the native app, so the OS intercepts the
+  // navigation before this page ever unloads — same-tab is the only way to
+  // avoid a leftover blank tab. Prefers the template's classifier when the
+  // page provides one; falls back to a built-in copy so the overlay stays
+  // self-contained on any deployment.
+  function opensInApp(url) {
+    if (typeof window.OpensInInstalledApp === 'function') {
+      try { return window.OpensInInstalledApp(url); } catch (e) {}
+    }
+    try {
+      var u = new URL(url, window.location.href);
+      // tel:, mailto:, sms:, whatsapp:, intent:... never render a page
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') { return true; }
+      var host = u.hostname.replace(/^www\./, '').toLowerCase();
+      var apps = ['instagram.com', 'wa.me', 'whatsapp.com', 'api.whatsapp.com',
+                  'linkedin.com', 'lnkd.in', 'youtube.com', 'youtu.be',
+                  'facebook.com', 'fb.com', 'fb.me', 'm.me', 'messenger.com',
+                  'twitter.com', 'x.com', 't.me', 'telegram.me', 'tiktok.com',
+                  'snapchat.com', 'threads.net', 'pinterest.com', 'spotify.com',
+                  'maps.app.goo.gl', 'goo.gl', 'maps.google.com'];
+      for (var i = 0; i < apps.length; i++) {
+        if (host === apps[i] || host.slice(-(apps[i].length + 1)) === '.' + apps[i]) { return true; }
+      }
+    } catch (e) {}
+    return false;
+  }
+
   function maybeShowAd() {
     if (!adEl || !CFG.ads || !CFG.ads.length) { return; }
     var ad = CFG.ads[adShownCount % CFG.ads.length];
