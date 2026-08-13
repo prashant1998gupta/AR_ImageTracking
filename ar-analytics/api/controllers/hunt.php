@@ -337,6 +337,11 @@ switch ($action) {
         Auth::requireAuth(['admin', 'super_admin']);
         handleAdminVerify($db);
         break;
+    case 'admin-add-player':
+        if ($method !== 'POST') Response::error('Method not allowed', 405);
+        Auth::requireAuth(['admin', 'super_admin']);
+        handleAdminAddPlayer($db);
+        break;
     case 'admin-remove':
         if ($method !== 'POST') Response::error('Method not allowed', 405);
         Auth::requireAuth(['admin', 'super_admin']);
@@ -960,6 +965,72 @@ function handleAdminSaveSettings($db) {
         ]);
     }
     Response::success(null, 'Settings saved — live immediately');
+}
+
+/** Seed a finished player straight onto the leaderboard (demo/booth entries).
+ *  Inserts a complete, pre-verified run finishing "now" with the given total
+ *  time, plus evenly-spread scan rows so the admin table shows a normal 5/5.
+ *  Auto-generated phones start with "00": no real device number normalizes to
+ *  that, so seeded rows can't collide and are easy to spot for Remove later. */
+function handleAdminAddPlayer($db) {
+    $input = json_decode(file_get_contents('php://input'), true);
+    if (!$input) Response::error('Invalid JSON body', 400);
+
+    $name = trim(mb_substr($input['name'] ?? '', 0, 100, 'UTF-8'));
+    if (mb_strlen($name, 'UTF-8') < 2) Response::error('Please enter a name', 400);
+    $company = trim(mb_substr($input['company'] ?? '', 0, 150, 'UTF-8'));
+
+    $totalMs = intval($input['total_ms'] ?? 0);
+    if ($totalMs < 10000 || $totalMs > 86400000) {
+        Response::error('Time must be between 10 seconds and 24 hours', 400);
+    }
+
+    $phone = normalizePhone($input['phone'] ?? '');
+    if ($phone === '') {
+        do {
+            $phone = '00' . str_pad(strval(random_int(0, 99999999)), 8, '0', STR_PAD_LEFT);
+        } while ($db->queryOne("SELECT id FROM hunt_participants WHERE phone = ?", [$phone]));
+    } else {
+        if (strlen($phone) < 8 || strlen($phone) > 15) Response::error('Please enter a valid phone number', 400);
+        if ($db->queryOne("SELECT id FROM hunt_participants WHERE phone = ?", [$phone])) {
+            Response::error('That phone number is already registered', 409);
+        }
+    }
+
+    $token = bin2hex(random_bytes(16));
+    try {
+        $db->insert(
+            "INSERT INTO hunt_participants
+                (name, phone, company, business_type, token, consent,
+                 started_at, completed_at, total_ms, is_verified, is_suspect)
+             VALUES (?, ?, ?, '', ?, 1,
+                 DATE_SUB(NOW(3), INTERVAL ? MICROSECOND), NOW(3), ?, TRUE, FALSE)",
+            [$name, $phone, $company, $token, $totalMs * 1000, $totalMs]
+        );
+    } catch (Exception $e) {
+        Response::error('Could not add player — phone may already be registered', 409);
+    }
+    $row = $db->queryOne("SELECT id FROM hunt_participants WHERE token = ?", [$token]);
+    if (!$row) Response::error('Insert failed', 500);
+    $pid = intval($row['id']);
+
+    // First scan sits at started_at, last at completed_at (matching the real
+    // timer semantics: first scan → fifth scan), the rest spread evenly.
+    $posters = huntPosters();
+    $n = count($posters);
+    $i = 1;
+    foreach ($posters as $p) {
+        $offsetMs = ($n > 1) ? intval($totalMs * ($i - 1) / ($n - 1)) : $totalMs;
+        try {
+            $db->execute(
+                "INSERT INTO hunt_scans (participant_id, poster_id, scanned_at)
+                 VALUES (?, ?, DATE_SUB(NOW(3), INTERVAL ? MICROSECOND))",
+                [$pid, strval($p['id']), ($totalMs - $offsetMs) * 1000]
+            );
+        } catch (Exception $e) {}
+        $i++;
+    }
+    Response::success(null, 'Added ' . $name . ' (' . $phone . ') — on the leaderboard now');
 }
 
 /** Remove ONE participant — for staff/test runs that would take real players'

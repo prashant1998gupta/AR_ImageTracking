@@ -34,6 +34,7 @@
   .rank1 { color:#ffd700; font-weight:800; } .rank2 { color:#c0c0c0; font-weight:800; } .rank3 { color:#cd7f32; font-weight:800; }
   .muted { color:rgba(255,255,255,0.35); font-size:11px; }
   .suspect { color:#e8c36a; font-size:10px; font-weight:800; letter-spacing:0.08em; }
+  .seeded { color:#4da3ff; font-size:10px; font-weight:800; letter-spacing:0.08em; }
   textarea { width:100%; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); border-radius:10px; color:#fff; font-size:14px; padding:10px 12px; outline:none; resize:vertical; min-height:52px; font-family:inherit; }
   textarea:focus { border-color:var(--red); }
   .poster-row { display:flex; gap:12px; margin-bottom:12px; flex-wrap:wrap; align-items:flex-start; }
@@ -79,6 +80,21 @@
     <div class="stats">
       <div class="stat"><div class="v" id="stJoined">0</div><div class="l">Joined</div></div>
       <div class="stat"><div class="v" id="stDone">0</div><div class="l">Completed</div></div>
+    </div>
+
+    <!-- ─── Add player directly to the leaderboard (seed/demo entries) ─── -->
+    <div style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.09); border-radius:12px; padding:16px 20px; margin-bottom:20px;">
+      <h2 style="font-size:12px; letter-spacing:0.12em; text-transform:uppercase; margin-bottom:4px;">Add Player to Leaderboard</h2>
+      <p class="muted" style="margin-bottom:12px;">Inserts a finished, verified run directly — it appears on the public leaderboard and live feed instantly. Leave phone empty to auto-generate one starting with <b>00</b> (impossible for a real number, so seeded rows are easy to spot and Remove later). <b>Do not type a real person's phone number</b> — it would block them from playing until this row is Removed. Also leave the seeded row's ✓ Verified button alone: switching it off can hide the entry as SUSPECT.</p>
+      <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+        <div style="flex:2; min-width:160px;"><label>Name</label><input id="apName" type="text" maxlength="100" placeholder="Player name"></div>
+        <div style="flex:1; min-width:140px;"><label>Time (M:SS or seconds)</label><input id="apTime" type="text" placeholder="e.g. 2:45"></div>
+        <div style="flex:1; min-width:140px;"><label>Phone (optional)</label><input id="apPhone" type="tel" maxlength="16" placeholder="auto"></div>
+        <div style="flex:1; min-width:140px;"><label>Company (optional)</label><input id="apCompany" type="text" maxlength="150"></div>
+        <button class="btn ghost" id="genPlayerBtn" style="white-space:nowrap;" title="Fill the fields with a realistic random player — review, then click Add Player">🎲 Generate</button>
+        <button class="btn" id="addPlayerBtn" style="white-space:nowrap;">Add Player</button>
+      </div>
+      <div style="margin-top:8px;"><span class="muted" id="apMsg"></span></div>
     </div>
 
     <!-- ─── Settings (labels, hints, anti-cheat floors) ─── -->
@@ -411,6 +427,82 @@ $('resetBtn').addEventListener('click', function () {
   }).catch(function () { alert('Reset failed'); });
 });
 
+// "2:45" / "165" / "1:02:45" -> milliseconds, null if unparseable
+function parseTimeToMs(s) {
+  if (!s) return null;
+  var h = s.match(/^(\d{1,2}):([0-5]\d):([0-5]\d)$/);
+  if (h) return ((+h[1]) * 3600 + (+h[2]) * 60 + (+h[3])) * 1000;
+  var m = s.match(/^(\d{1,3}):([0-5]?\d)$/);
+  if (m) return (parseInt(m[1], 10) * 60 + parseInt(m[2], 10)) * 1000;
+  if (/^\d+$/.test(s)) return parseInt(s, 10) * 1000;
+  return null;
+}
+
+// ─── Random player generator (Indian names) — fills the form, does NOT submit ───
+var GEN_FIRST = ['Aarav','Vivaan','Aditya','Arjun','Reyansh','Krishna','Ishaan','Rohan','Kunal','Siddharth',
+                 'Rahul','Amit','Vikram','Nikhil','Manish','Deepak','Sanjay','Harsh','Yash','Pranav',
+                 'Ananya','Diya','Aadhya','Ishita','Kavya','Priya','Sneha','Pooja','Neha','Riya',
+                 'Shreya','Meera','Anjali','Divya','Nisha','Tanvi','Sakshi','Payal','Ritika','Simran'];
+var GEN_LAST  = ['Sharma','Verma','Gupta','Mehta','Patel','Reddy','Nair','Iyer','Joshi','Desai',
+                 'Kulkarni','Chauhan','Malhotra','Kapoor','Khanna','Bhatia','Saxena','Tripathi','Mishra','Pandey',
+                 'Agarwal','Bansal','Singhal','Rathore','Chopra','Sethi','Dubey','Tiwari','Yadav','Menon'];
+var GEN_CO_SUFFIX = ['Traders','Enterprises','Textiles','Foods','Creations','Exports','Industries','Handicrafts','Sweets','Fashions'];
+
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+function generatePlayer() {
+  // Avoid repeating a name already on the board (seenNames is refreshed by render())
+  var name = pick(GEN_FIRST) + ' ' + pick(GEN_LAST);
+  if (window.seenNames && window.seenNames[name.toLowerCase()]) {
+    var free = [];
+    for (var i = 0; i < GEN_FIRST.length; i++) {
+      for (var j = 0; j < GEN_LAST.length; j++) {
+        var c = GEN_FIRST[i] + ' ' + GEN_LAST[j];
+        if (!window.seenNames[c.toLowerCase()]) free.push(c);
+      }
+    }
+    if (free.length) name = pick(free);   // only repeats once all 1200 combos are used
+  }
+  // Believable finish: 1:35 – 7:00, weighted toward the middle by averaging
+  var secs = Math.round((95 + Math.random() * 325 + 95 + Math.random() * 325) / 2);
+  var time = Math.floor(secs / 60) + ':' + ('0' + (secs % 60)).slice(-2);
+  // Company on most entries; some players naturally leave it blank
+  var company = Math.random() < 0.75 ? pick(GEN_LAST) + ' ' + pick(GEN_CO_SUFFIX) : '';
+
+  $('apName').value = name;
+  $('apTime').value = time;
+  $('apCompany').value = company;
+  $('apPhone').value = '';   // stays empty -> server assigns the "00" seed marker
+  $('apMsg').textContent = 'Generated — review and click Add Player.';
+}
+
+$('genPlayerBtn').addEventListener('click', generatePlayer);
+
+$('addPlayerBtn').addEventListener('click', function () {
+  var name = $('apName').value.trim();
+  var msg = $('apMsg');
+  msg.textContent = '';
+  if (name.length < 2) { msg.textContent = 'Enter a name (2+ characters).'; return; }
+  var totalMs = parseTimeToMs($('apTime').value.trim());
+  if (totalMs === null || totalMs < 10000) { msg.textContent = 'Time must look like 2:45 or 165 (seconds), minimum 10s.'; return; }
+  fetch(API + '?action=admin-add-player', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token() },
+    body: JSON.stringify({
+      name: name,
+      total_ms: totalMs,
+      phone: $('apPhone').value.trim(),
+      company: $('apCompany').value.trim()
+    })
+  }).then(function (r) { return r.json(); }).then(function (res) {
+    msg.textContent = res.message || (res.success ? 'Added' : 'Add failed');
+    if (res.success) {
+      $('apName').value = ''; $('apTime').value = ''; $('apPhone').value = ''; $('apCompany').value = '';
+    }
+    load();
+  }).catch(function () { msg.textContent = 'Add failed — network error'; });
+});
+
 function removeParticipant(id, name, phone) {
   var ok = confirm('Remove "' + name + '" (' + phone + ') permanently?\n\nTheir scans are deleted, ranks below shift up instantly, and this phone number can register again as a new player.');
   if (!ok) return;
@@ -462,12 +554,15 @@ function render(data) {
   head += '<th>Progress</th><th>Time</th><th>Verified</th><th>Registered</th><th>Completed</th><th></th></tr>';
   $('thead').innerHTML = head;
 
+  window.seenNames = {};   // lets the generator avoid names already on the board
   var html = '';
   (data.participants || []).forEach(function (p) {
+    window.seenNames[String(p.name || '').toLowerCase()] = true;
     var rankCls = p.rank >= 1 && p.rank <= 3 ? ' class="rank' + p.rank + '"' : '';
     var suspectTag = p.is_suspect && !p.is_verified ? ' <span class="suspect" title="Implausibly fast completion — hidden from the public leaderboard until verified">⚠ SUSPECT</span>' : '';
+    var seedTag = String(p.phone || '').slice(0, 2) === '00' ? ' <span class="seeded" title="Added from the admin panel (auto 00-phone) — shows as a normal player on the public leaderboard; only you see this badge">● ADDED</span>' : '';
     html += '<tr><td' + rankCls + '>' + (p.rank ? '#' + p.rank : '—') + '</td>' +
-      '<td>' + esc(p.name) + suspectTag + (p.company ? '<span class="co">' + esc(p.company) + '</span>' : '') + '</td>' +
+      '<td>' + esc(p.name) + suspectTag + seedTag + (p.company ? '<span class="co">' + esc(p.company) + '</span>' : '') + '</td>' +
       '<td>' + esc(p.phone) + '</td>' +
       '<td>' + esc(p.business_type) + '</td>';
     posters.forEach(function (po) {
