@@ -50,7 +50,7 @@
   <!-- ─── View: registration ─── -->
   <div class="view active" id="view-register">
     <h1>AR Meme Hunt</h1>
-    <p class="sub">Find 5 posters. Scan them all.<br>Top 3 win prizes.</p>
+    <p class="sub">Find <span id="posterCount">5</span> posters. Scan them all.<br>Top 3 win prizes.</p>
     <form id="regForm">
       <label>Full Name *</label>
       <input id="fName" type="text" autocomplete="name" required maxlength="100" placeholder="Your name">
@@ -198,6 +198,12 @@ function applyBranding(b) {
 }
 fetch(API + '?action=config').then(function (r) { return r.json(); }).then(function (res) {
   if (res && res.success && res.data && res.data.ui) { applyBranding(res.data.ui.branding); }
+  // Live poster count — the admin can close targets mid-event, so "5" is
+  // whatever the server says is open right now.
+  if (res && res.success && res.data && typeof res.data.total === 'number' && res.data.total > 0) {
+    var pc = document.getElementById('posterCount');
+    if (pc) { pc.textContent = res.data.total; }
+  }
 }).catch(function () {});
 
 function api(action, method, body) {

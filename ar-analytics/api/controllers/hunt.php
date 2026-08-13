@@ -232,6 +232,94 @@ function huntPosterIds() {
     return $ids;
 }
 
+// ─── Per-target open/close (admin kill-switch) ───────────────────────
+// The admin can CLOSE any target mid-event (poster damaged, area crowded…)
+// and every player instantly plays with the remaining ones: closed targets
+// vanish from the chips, the counter becomes x/(open count), completion and
+// the leaderboard work with the open set. Scan rows are never deleted, so
+// re-opening restores everyone's credit. Stored as setting 'closed_posters'
+// = array of poster ids; ids not in the live list are ignored on read.
+
+/** Ids of currently CLOSED targets (always a subset of the live poster ids). */
+function closedPosterIds($refresh = false) {
+    static $cached = null;
+    if ($refresh) { $cached = null; }
+    if ($cached !== null) { return $cached; }
+    $out = [];
+    $raw = huntSetting('closed_posters');
+    if (is_array($raw)) {
+        $live = huntPosterIds();
+        foreach ($raw as $id) {
+            if (!is_scalar($id)) { continue; }
+            $id = strval($id);
+            if (in_array($id, $live, true) && !in_array($id, $out, true)) { $out[] = $id; }
+        }
+    }
+    $cached = $out;
+    return $cached;
+}
+
+/** The posters players actually hunt right now — the live list minus closed. */
+function openPosters() {
+    $closed = closedPosterIds();
+    if (!count($closed)) { return huntPosters(); }
+    $out = [];
+    foreach (huntPosters() as $p) {
+        if (!in_array($p['id'], $closed, true)) { $out[] = $p; }
+    }
+    return $out;
+}
+
+function openPosterIds() {
+    $ids = [];
+    foreach (openPosters() as $p) { $ids[] = $p['id']; }
+    return $ids;
+}
+
+/**
+ * Mark the participant completed if every OPEN poster is scanned — exactly once
+ * (guarded UPDATE). Called from scan, but ALSO from status/resume/start: when the
+ * admin closes a target, a player who already has all the remaining ones is done
+ * WITHOUT scanning anything else, and this is where that gets noticed.
+ *
+ * completed_at / total_ms use the LAST COUNTED scan, not NOW() — a player who
+ * finished 10 minutes before the closure must not have those 10 minutes added.
+ * Returns true when this call performed the completion.
+ */
+function maybeFinalizeCompletion($db, $participantId) {
+    $openIds = openPosterIds();
+    if (!count($openIds)) { return false; }   // nothing open — never auto-complete everyone
+
+    // Only ON-THE-CLOCK scans count (scanned_at >= started_at). handleScan
+    // refuses to record off-clock rows, but this guard must hold on its own:
+    // without it, a row that predates the timer would (a) hand out a poster
+    // whose walk time was never counted and (b) let completed_at land BEFORE
+    // started_at, going negative. No clock running -> nothing to finalize.
+    $p = $db->queryOne("SELECT started_at FROM hunt_participants WHERE id = ?", [$participantId]);
+    if (!$p || $p['started_at'] === null) { return false; }
+    $startedAt = $p['started_at'];
+
+    $ph = implode(',', array_fill(0, count($openIds), '?'));
+    $count = intval($db->scalar(
+        "SELECT COUNT(*) FROM hunt_scans WHERE participant_id = ? AND poster_id IN ($ph) AND scanned_at >= ?",
+        array_merge([$participantId], $openIds, [$startedAt])
+    ));
+    if ($count < count($openIds)) { return false; }
+    $changed = $db->execute(
+        "UPDATE hunt_participants
+         SET completed_at = (SELECT MAX(scanned_at) FROM hunt_scans WHERE participant_id = ? AND poster_id IN ($ph) AND scanned_at >= ?),
+             total_ms = TIMESTAMPDIFF(MICROSECOND, started_at,
+                 (SELECT MAX(scanned_at) FROM hunt_scans WHERE participant_id = ? AND poster_id IN ($ph) AND scanned_at >= ?)) DIV 1000
+         WHERE id = ? AND completed_at IS NULL AND started_at IS NOT NULL",
+        array_merge([$participantId], $openIds, [$startedAt], [$participantId], $openIds, [$startedAt], [$participantId])
+    );
+    if ($changed > 0) {
+        flagIfImplausible($db, $participantId);
+        return true;
+    }
+    return false;
+}
+
 $db = Database::getInstance();
 
 // ─── Auto-migration: create hunt tables if missing ───────────────────
@@ -316,7 +404,12 @@ switch ($action) {
         handleStatus($db);
         break;
     case 'config':
-        Response::success(['posters' => publicPosters(), 'total' => count(huntPosters()), 'ui' => huntUi()]);
+        Response::success([
+            'posters' => publicPosters(),
+            'total' => count(openPosters()),
+            'inactive' => closedPosterIds(),
+            'ui' => huntUi(),
+        ]);
         break;
     case 'leaderboard':
         handleLeaderboard($db);
@@ -361,6 +454,11 @@ switch ($action) {
         Auth::requireAuth(['admin', 'super_admin']);
         handleAdminSaveSettings($db);
         break;
+    case 'admin-set-target-state':
+        if ($method !== 'POST') Response::error('Method not allowed', 405);
+        Auth::requireAuth(['admin', 'super_admin']);
+        handleAdminSetTargetState($db);
+        break;
     default:
         Response::error('Unknown action', 404);
 }
@@ -368,8 +466,10 @@ switch ($action) {
 // ─── Public actions ──────────────────────────────────────────────────
 
 function publicPosters() {
+    // Players only ever see the OPEN set — a closed target simply does not
+    // exist for them: no chip, no hint, not required to finish.
     $out = [];
-    foreach (huntPosters() as $p) {
+    foreach (openPosters() as $p) {
         $out[] = ['id' => $p['id'], 'label' => $p['label']];
     }
     return $out;
@@ -431,6 +531,9 @@ function handleRegister($db) {
  */
 function resumeExisting($db, $existing, $name) {
     if (mb_strtolower(trim($existing['name']), 'UTF-8') === mb_strtolower($name, 'UTF-8')) {
+        if ($existing['completed_at'] === null && maybeFinalizeCompletion($db, $existing['id'])) {
+            $existing = $db->queryOne("SELECT * FROM hunt_participants WHERE id = ?", [$existing['id']]);
+        }
         Response::success(participantState($db, $existing, true), 'Welcome back');
     }
     Response::error('This phone number is already registered under a different name. Resume on the device you registered with, or visit the ARRISE team for help.', 409);
@@ -468,6 +571,9 @@ function handleStart($db) {
     if (!$input) Response::error('Invalid JSON body', 400);
     $participant = requireParticipant($db, $input['token'] ?? '');
 
+    if ($participant['completed_at'] === null && maybeFinalizeCompletion($db, $participant['id'])) {
+        $participant = $db->queryOne("SELECT * FROM hunt_participants WHERE id = ?", [$participant['id']]);
+    }
     if ($participant['completed_at'] !== null) {
         Response::success(participantState($db, $participant, true), 'Already completed');
     }
@@ -484,6 +590,12 @@ function handleScan($db) {
     $posterId = trim($input['poster_id'] ?? '');
     if (!in_array($posterId, huntPosterIds(), true)) Response::error('Unknown poster', 400);
 
+    // A scan of an admin-CLOSED target is recorded (credit survives a re-open)
+    // but changes nothing for the player right now: it must not start the
+    // timer, must not trip the sequential gate, and can never count toward
+    // completion — the player is hunting the open set only.
+    $isOpen = in_array($posterId, openPosterIds(), true);
+
     if ($participant['completed_at'] !== null) {
         $state = participantState($db, $participant, true);
         $state['duplicate'] = true;
@@ -493,16 +605,17 @@ function handleScan($db) {
     // Sequential mode (admin toggle): posters must be found in order. Checked
     // BEFORE the timer auto-start, so a rejected out-of-order first scan does
     // not start anyone's clock. Re-scans of already-counted posters fall
-    // through to the normal duplicate path.
+    // through to the normal duplicate path. The order walks the OPEN set —
+    // a closed target is skipped in the sequence (after 2 comes 4).
     $uiCfg = huntUi();
-    if (!empty($uiCfg['sequential'])) {
+    if ($isOpen && !empty($uiCfg['sequential'])) {
         $have = [];
         foreach ($db->query("SELECT poster_id FROM hunt_scans WHERE participant_id = ?", [$participant['id']]) as $s) {
             $have[$s['poster_id']] = true;
         }
         if (empty($have[$posterId])) {
             $expected = null;
-            foreach (huntPosters() as $p) {
+            foreach (openPosters() as $p) {
                 if (empty($have[$p['id']])) { $expected = $p; break; }
             }
             if ($expected && $posterId !== $expected['id']) {
@@ -512,11 +625,25 @@ function handleScan($db) {
     }
 
     // Auto-start the timer on first scan (robustness: user skipped the Start screen)
-    if ($participant['started_at'] === null) {
+    if ($isOpen && $participant['started_at'] === null) {
         $db->execute("UPDATE hunt_participants SET started_at = NOW(3) WHERE id = ? AND started_at IS NULL", [$participant['id']]);
     }
 
     $duplicate = false;
+    // A closed-poster scan from a player whose clock has NOT started is not
+    // recorded at all. A row here would be off the clock: after a re-open it
+    // would count toward completion with none of its walk time in total_ms
+    // (unfair advantage), and it is the only way to reach "all open posters
+    // scanned but started_at NULL" — a state that can never finalize.
+    // Mid-hunt closed scans (clock running) ARE recorded: on re-open they
+    // count with their true on-clock timestamp, which is exactly fair.
+    if (!$isOpen && $participant['started_at'] === null) {
+        $state = participantState($db, $participant, true);
+        $state['duplicate'] = false;
+        $state['poster_id'] = $posterId;
+        $state['counted'] = false;
+        Response::success($state, 'Poster seen');
+    }
     try {
         $db->execute(
             "INSERT INTO hunt_scans (participant_id, poster_id, scanned_at) VALUES (?, ?, NOW(3))",
@@ -533,38 +660,25 @@ function handleScan($db) {
         }
     }
 
-    // Completion check — set completed_at exactly once (guarded UPDATE).
-    // Counts only scans for posters that are CURRENTLY in the list: once the list
-    // can change (a saved poster_list), rows left over from removed posters would
-    // otherwise count toward completion and mark someone finished early.
-    $liveIds = huntPosterIds();
-    $ph = implode(',', array_fill(0, count($liveIds), '?'));
-    $count = intval($db->scalar(
-        "SELECT COUNT(*) FROM hunt_scans WHERE participant_id = ? AND poster_id IN ($ph)",
-        array_merge([$participant['id']], $liveIds)
-    ));
-    if ($count >= count($liveIds)) {
-        $changed = $db->execute(
-            "UPDATE hunt_participants
-             SET completed_at = (SELECT MAX(scanned_at) FROM hunt_scans WHERE participant_id = ?),
-                 total_ms = TIMESTAMPDIFF(MICROSECOND, started_at, (SELECT MAX(scanned_at) FROM hunt_scans WHERE participant_id = ?)) DIV 1000
-             WHERE id = ? AND completed_at IS NULL AND started_at IS NOT NULL",
-            [$participant['id'], $participant['id'], $participant['id']]
-        );
-        if ($changed > 0) {
-            flagIfImplausible($db, $participant['id']);
-        }
-    }
+    // Completion check — counts only scans for posters that are CURRENTLY OPEN
+    // (closed and removed posters never count), sets completed_at exactly once.
+    maybeFinalizeCompletion($db, $participant['id']);
 
     $participant = $db->queryOne("SELECT * FROM hunt_participants WHERE id = ?", [$participant['id']]);
     $state = participantState($db, $participant, true);
     $state['duplicate'] = $duplicate;
     $state['poster_id'] = $posterId;
+    $state['counted'] = $isOpen;
     Response::success($state, $duplicate ? 'Poster already scanned' : 'Poster scanned');
 }
 
 function handleStatus($db) {
     $participant = requireParticipant($db, $_GET['token'] ?? '');
+    // A closure can complete someone who never scans again — notice it here,
+    // on the boot/status fetch, not just on the next scan.
+    if ($participant['completed_at'] === null && maybeFinalizeCompletion($db, $participant['id'])) {
+        $participant = $db->queryOne("SELECT * FROM hunt_participants WHERE id = ?", [$participant['id']]);
+    }
     Response::success(participantState($db, $participant, true));
 }
 
@@ -579,9 +693,13 @@ function flagIfImplausible($db, $participantId) {
 
     $floors = huntFloors();
     $suspect = intval($row['total_ms']) < $floors['total'];
-    if (!$suspect) {
+    // Gap check runs over COUNTED (open-poster) scans only: a stray scan of an
+    // admin-closed target seconds after a real one must not flag a fair player.
+    $openIds = openPosterIds();
+    if (!$suspect && count($openIds)) {
+        $ph = implode(',', array_fill(0, count($openIds), '?'));
         $times = [];
-        foreach ($db->query("SELECT scanned_at FROM hunt_scans WHERE participant_id = ? ORDER BY scanned_at ASC", [$participantId]) as $s) {
+        foreach ($db->query("SELECT scanned_at FROM hunt_scans WHERE participant_id = ? AND poster_id IN ($ph) ORDER BY scanned_at ASC", array_merge([$participantId], $openIds)) as $s) {
             $dt = DateTime::createFromFormat('Y-m-d H:i:s.u', $s['scanned_at'])
                ?: DateTime::createFromFormat('Y-m-d H:i:s', $s['scanned_at']);
             if ($dt) $times[] = floatval($dt->format('U.u'));
@@ -624,11 +742,17 @@ function participantState($db, $participant, $includeProgress) {
         "SELECT poster_id FROM hunt_scans WHERE participant_id = ? ORDER BY scanned_at ASC",
         [$participant['id']]
     );
+    // Report only scans of OPEN posters: closed ones are invisible to the
+    // player, so a scanned-then-closed target drops out of count and chips
+    // (the row stays in hunt_scans — it comes back if the admin re-opens).
+    $openIds = openPosterIds();
     $scanned = [];
-    foreach ($scannedRows as $row) { $scanned[] = $row['poster_id']; }
+    foreach ($scannedRows as $row) {
+        if (in_array($row['poster_id'], $openIds, true)) { $scanned[] = $row['poster_id']; }
+    }
 
     $next = null;
-    foreach (huntPosters() as $p) {
+    foreach (openPosters() as $p) {
         if (!in_array($p['id'], $scanned, true)) {
             $next = ['id' => $p['id'], 'label' => $p['label'], 'hint' => $p['hint']];
             break;
@@ -656,7 +780,8 @@ function participantState($db, $participant, $includeProgress) {
         'completed' => $completed,
         'scanned' => $scanned,
         'count' => count($scanned),
-        'total' => count(huntPosters()),
+        'total' => count(openPosters()),
+        'inactive' => closedPosterIds(),
         'next' => $completed ? null : $next,
         'total_ms' => $totalMs,
         'elapsed_ms' => $elapsedMs,
@@ -724,16 +849,24 @@ function handleActivity($db) {
                      'time' => formatMs(intval($r['total_ms'])), 'at' => $r['completed_at'],
                      'ago_s' => max(0, intval($r['ago_s']))];
     }
-    foreach ($db->query(
-        "SELECT s.scanned_at, s.poster_id, p.name,
-                TIMESTAMPDIFF(SECOND, s.scanned_at, NOW()) AS ago_s
-         FROM hunt_scans s
-         JOIN hunt_participants p ON p.id = s.participant_id
-         ORDER BY s.scanned_at DESC LIMIT 12") as $r) {
-        $events[] = ['type' => 'scan', 'name' => firstName($r['name']),
-                     'poster' => isset($labels[$r['poster_id']]) ? $labels[$r['poster_id']] : $r['poster_id'],
-                     'at' => $r['scanned_at'],
-                     'ago_s' => max(0, intval($r['ago_s']))];
+    // Only OPEN posters appear on the public ticker — announcing "X found the
+    // Gym meme" for a target the admin just closed would advertise the very
+    // area being closed off and confuse everyone hunting the open set.
+    $openIds = openPosterIds();
+    if (count($openIds)) {
+        $ph = implode(',', array_fill(0, count($openIds), '?'));
+        foreach ($db->query(
+            "SELECT s.scanned_at, s.poster_id, p.name,
+                    TIMESTAMPDIFF(SECOND, s.scanned_at, NOW()) AS ago_s
+             FROM hunt_scans s
+             JOIN hunt_participants p ON p.id = s.participant_id
+             WHERE s.poster_id IN ($ph)
+             ORDER BY s.scanned_at DESC LIMIT 12", $openIds) as $r) {
+            $events[] = ['type' => 'scan', 'name' => firstName($r['name']),
+                         'poster' => isset($labels[$r['poster_id']]) ? $labels[$r['poster_id']] : $r['poster_id'],
+                         'at' => $r['scanned_at'],
+                         'ago_s' => max(0, intval($r['ago_s']))];
+        }
     }
     foreach ($db->query(
         "SELECT name, registered_at,
@@ -789,15 +922,28 @@ function adminRows($db) {
             $row['posters'][$pid] = isset($scanMap[$p['id']][$pid]) ? $scanMap[$p['id']][$pid] : null;
         }
         $row['scan_count'] = count(isset($scanMap[$p['id']]) ? $scanMap[$p['id']] : []);
+        // What the PLAYER needs to finish: scans of currently-open posters.
+        // scan_count alone reads misleading in the admin table when a target
+        // is closed ("4/5" for someone who is genuinely done at 4/4).
+        $row['open_scan_count'] = 0;
+        foreach (openPosterIds() as $oid) {
+            if (isset($scanMap[$p['id']][$oid])) { $row['open_scan_count']++; }
+        }
         $rows[] = $row;
     }
     return $rows;
 }
 
 function handleAdminParticipants($db) {
+    // The admin sees the FULL list (publicPosters() is open-only): the table
+    // keeps its column for a closed target, and the open/close toggle card
+    // needs every target plus the current closed set.
+    $allPosters = [];
+    foreach (huntPosters() as $p) { $allPosters[] = ['id' => $p['id'], 'label' => $p['label']]; }
     Response::success([
         'participants' => adminRows($db),
-        'posters' => publicPosters(),
+        'posters' => $allPosters,
+        'closed' => closedPosterIds(),
         'stats' => [
             'total_participants' => intval($db->scalar("SELECT COUNT(*) FROM hunt_participants")),
             'total_completed' => intval($db->scalar("SELECT COUNT(*) FROM hunt_participants WHERE completed_at IS NOT NULL")),
@@ -864,6 +1010,7 @@ function handleAdminSettings($db) {
     $manifest = huntPosterList();
     Response::success([
         'posters' => huntPosters(),
+        'closed' => closedPosterIds(),
         // What the server believes the AR build ships: 'custom' = a Unity
         // manifest is saved (poster_list holds it), 'builtin' = the hardcoded
         // defaults are live and poster_list is null.
@@ -915,6 +1062,26 @@ function handleAdminSaveSettings($db) {
             Response::error('poster_list must be an array of {id, label, hint} objects', 400);
         }
         huntPosters(true);   // drop the per-request cache so the new ids apply below
+
+        // Prune closed ids that no longer exist in the new list — and if the
+        // swap would leave EVERY new target closed, clear the closed set
+        // entirely (a fresh campaign starts fully open, never fully dead).
+        $closed = huntSetting('closed_posters');
+        if (is_array($closed)) {
+            $live = huntPosterIds();
+            $keep = [];
+            foreach ($closed as $cid) {
+                if (is_scalar($cid) && in_array(strval($cid), $live, true) && !in_array(strval($cid), $keep, true)) {
+                    $keep[] = strval($cid);
+                }
+            }
+            if (count($keep) >= count($live)) { $keep = []; }
+            if (count($keep) !== count($closed)) {
+                if (count($keep)) { saveHuntSetting($db, 'closed_posters', $keep); }
+                else { deleteHuntSetting($db, 'closed_posters'); }
+            }
+            closedPosterIds(true);
+        }
     }
     if (isset($input['posters']) && is_array($input['posters'])) {
         $clean = [];
@@ -965,6 +1132,53 @@ function handleAdminSaveSettings($db) {
         ]);
     }
     Response::success(null, 'Settings saved — live immediately');
+}
+
+/**
+ * Open or close ONE target for all players — the event-time kill-switch.
+ * POST body: { "id": "<poster id>", "open": true|false }.
+ *
+ * Closing never deletes anything: scan rows stay, so re-opening restores
+ * everyone's credit instantly. Players already holding every remaining open
+ * poster are completed lazily (maybeFinalizeCompletion on their next
+ * status/scan touch) with their LAST counted scan as the finish time.
+ * The last open target can never be closed — a hunt with zero posters would
+ * otherwise auto-complete every participant who ever scanned anything.
+ */
+function handleAdminSetTargetState($db) {
+    $input = json_decode(file_get_contents('php://input'), true);
+    if (!$input) Response::error('Invalid JSON body', 400);
+    $id = trim(strval($input['id'] ?? ''));
+    if ($id === '') Response::error('Missing poster id', 400);
+    if (!array_key_exists('open', $input)) Response::error('Missing "open" (true/false)', 400);
+    // Strict: the string "false" must not read as truthy and OPEN a target.
+    $open = filter_var($input['open'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+    if ($open === null) Response::error('"open" must be true or false', 400);
+
+    $label = null;
+    foreach (huntPosters() as $p) {
+        if ($p['id'] === $id) { $label = $p['label']; break; }
+    }
+    if ($label === null) Response::error('Unknown poster id', 404);
+
+    $closed = closedPosterIds();
+    if ($open) {
+        $closed = array_values(array_diff($closed, [$id]));
+    } elseif (!in_array($id, $closed, true)) {
+        $closed[] = $id;
+    }
+    if (count($closed) >= count(huntPosterIds())) {
+        Response::error('At least one target must stay open — re-open another target first', 400);
+    }
+
+    if (count($closed)) { saveHuntSetting($db, 'closed_posters', $closed); }
+    else { deleteHuntSetting($db, 'closed_posters'); }
+    closedPosterIds(true);
+
+    Response::success(
+        ['closed' => $closed, 'open_count' => count(huntPosterIds()) - count($closed)],
+        'Target "' . $label . '" is now ' . ($open ? 'OPEN' : 'CLOSED') . ' — live for all players immediately'
+    );
 }
 
 /** Seed a finished player straight onto the leaderboard (demo/booth entries).

@@ -98,8 +98,9 @@
 
   // ─── State ──────────────────────────────────────────────────────────
   var state = {
-    posters: [],          // [{id,label}] from server (fallback: built-in)
+    posters: [],          // [{id,label}] from server — OPEN targets only (fallback: built-in)
     scanned: {},          // id -> true
+    inactive: {},         // id -> true for admin-CLOSED targets (recorded silently, never shown)
     count: 0,
     total: CFG.totalPosters,
     started: false,
@@ -109,6 +110,18 @@
     nextHint: null,       // latest {id,label,hint} — clue stays recoverable
     name: ''              // participant name (for the victory card)
   };
+
+  // Scanned count over the CURRENT poster list only. state.scanned can hold ids
+  // the list no longer has (a target the admin closed mid-hunt, or a stale
+  // queued id) — raw Object.keys().length would show 3/4 where the truth is 2/4.
+  function countScanned() {
+    var posters = state.posters.length ? state.posters : FALLBACK_POSTERS;
+    var n = 0;
+    for (var i = 0; i < posters.length; i++) {
+      if (state.scanned[posters[i].id]) { n++; }
+    }
+    return n;
+  }
   // Offline/timeout fallback ONLY — boot()'s .catch path uses these when the status
   // call fails or hits the 8s timeout (routine on venue Wi-Fi). They MUST match the
   // ids the current build actually ships, or a phone on bad Wi-Fi silently records
@@ -182,7 +195,7 @@
         // retrying forever would wedge a fake green chip and block completion.
         dropPending(posterId);
         delete state.scanned[posterId];
-        state.count = Object.keys(state.scanned).length;
+        state.count = countScanned();
         renderChips();
         toast((res.message || 'Scan rejected') + ' — please scan ' + labelOf(posterId) + ' again', 3500);
       }
@@ -195,6 +208,7 @@
   var inFlight = {};
   var earlyFound = [];      // found-events that arrived before boot() settled
   var bootSettled = false;
+  var silentSent = {};      // admin-closed targets already reported this session
 
   function onImageFound(id) {
     if (state.completed) { return; }
@@ -208,7 +222,28 @@
     }
     var posters = state.posters.length ? state.posters : FALLBACK_POSTERS;
     var known = posters.some(function (p) { return p.id === id; });
-    if (!known) { return; }
+    if (!known) {
+      // Admin-CLOSED target: it is not part of the hunt right now, so nothing
+      // is announced and no chip ticks — but the scan is still recorded
+      // (fire-and-forget, no offline queue) so the player keeps the credit
+      // if the admin re-opens it later. The server dedups repeats.
+      if (state.inactive[id] && !silentSent[id] && getToken()) {
+        silentSent[id] = true;   // set BEFORE send: found-events fire in bursts
+        api('scan', 'POST', { token: getToken(), poster_id: id }).then(function (res) {
+          if (res && res.success && res.data) {
+            applyState(res.data, false);
+            // Server refuses off-clock records (timer not started) — allow a
+            // re-send after the clock starts so the sighting is not lost.
+            if (!res.data.started) { silentSent[id] = false; }
+          }
+        }).catch(function () {
+          // Network failure (routine on venue Wi-Fi): let the next tracking
+          // re-trigger retry instead of discarding the sighting for the session.
+          silentSent[id] = false;
+        });
+      }
+      return;
+    }
     if (state.scanned[id]) {
       toast('✓ ' + labelOf(id) + ' already scanned — find the next poster!', 2600);
       return;
@@ -219,7 +254,20 @@
     api('scan', 'POST', { token: getToken(), poster_id: id }).then(function (res) {
       inFlight[id] = false;
       if (res && res.success) {
-        applyState(res.data, true);
+        if (res.data && res.data.counted === false) {
+          // The admin closed this target AFTER our poster list loaded (the
+          // overlay never polls, so a stale list is normal). The server
+          // accepted the scan but it does not count — celebrating it with the
+          // enjoy card + Next Clue while the counter visibly does not move
+          // would read as a broken game. Resync quietly and say why.
+          applyState(res.data, false);
+          if (!res.data.completed) {
+            toast('This poster just left the hunt — ' +
+                  Math.max(0, (res.data.total || 0) - (res.data.count || 0)) + ' more to find!', 3200);
+          }
+        } else {
+          applyState(res.data, true);
+        }
       } else if (res && res.success === false) {
         // Definitive rejection — do NOT tick the chip
         toast(res.message || 'Scan rejected — please try again', 3000);
@@ -239,7 +287,7 @@
   function queueAndTick(id) {
     queueScan(id);
     state.scanned[id] = true;   // optimistic tick so the HUD moves on
-    state.count = Object.keys(state.scanned).length;
+    state.count = countScanned();
     renderChips();
     toast('✓ ' + labelOf(id) + ' saved — syncing when network returns', 3200);
   }
@@ -393,12 +441,18 @@
   function applyState(data, announce) {
     if (!data) { return; }
     if (data.posters && data.posters.length) { state.posters = data.posters; checkPosterIds(data.posters); }
+    // Admin-closed target ids — known-but-hidden, so scans of them can be
+    // recorded silently instead of dropped (credit survives a re-open).
+    if (Object.prototype.toString.call(data.inactive) === '[object Array]') {
+      state.inactive = {};
+      data.inactive.forEach(function (id) { state.inactive[id] = true; });
+    }
     state.total = data.total || state.total;
     state.scanned = {};
     (data.scanned || []).forEach(function (id) { state.scanned[id] = true; });
     // keep optimistic (queued) ticks
     loadPending().forEach(function (id) { state.scanned[id] = true; });
-    state.count = Object.keys(state.scanned).length;
+    state.count = countScanned();
     state.started = !!data.started;
     state.completed = !!data.completed;
     if (typeof data.elapsed_ms === 'number') {
@@ -429,6 +483,16 @@
       if (peekLabel) { peekLabel.textContent = peekCaption(peekEl && peekEl.classList.contains('big')); }
     }
     renderChips();
+
+    // A background sync (queue flush, silent closed-scan response) can change
+    // the world mid-"enjoy" phase — the admin closed a target, count/total
+    // shifted. Refresh the pending Next-Clue payload so tapping the button
+    // never shows a stale total or a clue for a poster that just vanished.
+    if (!announce && pendingNext && !data.completed) {
+      pendingNext = data.next
+        ? { count: data.count, total: data.total, hint: data.next.hint }
+        : null;
+    }
 
     if (state.completed) {
       if (announce && !data.duplicate && data.poster_id) {
@@ -624,7 +688,7 @@
       '<div id="hunt-gate">' +
       '  <div class="hunt-brand" id="hunt-gate-brand">AR<b>RISE</b></div>' +
       '  <div class="hunt-h" id="hunt-gate-title">AR Meme Hunt</div>' +
-      '  <p class="hunt-p">Find 5 posters. Scan them all. Top 3 win prizes. Register first to join the challenge!</p>' +
+      '  <p class="hunt-p" id="hunt-gate-sub">Find 5 posters. Scan them all. Top 3 win prizes. Register first to join the challenge!</p>' +
       '  <a class="hunt-btn" id="hunt-gate-btn">Register To Play</a>' +
       '  <a class="hunt-resume" id="hunt-gate-resume">Already registered? Resume your hunt →</a>' +
       '  <button class="hunt-skip" id="hunt-gate-skip">Continue without the hunt</button>' +
@@ -1078,7 +1142,7 @@
     ctx.fillText(data.time_formatted || '--:--', W / 2, 745);
     ctx.fillStyle = 'rgba(255,255,255,0.45)';
     ctx.font = '600 26px ' + FAM;
-    ctx.fillText('HUNT TIME · ALL 5 MEMES FOUND', W / 2, 850);
+    ctx.fillText('HUNT TIME · ALL ' + (state.posters.length ? state.posters : FALLBACK_POSTERS).length + ' MEMES FOUND', W / 2, 850);
 
     // Rank pill
     if (data.rank) {
@@ -1257,6 +1321,12 @@
       // Brand the registration gate too (no participant state to piggyback on)
       api('config').then(function (res) {
         if (res && res.success && res.data && res.data.ui) { applyBranding(res.data.ui.branding); }
+        // Live poster count — the admin can close targets, so "5" is whatever
+        // the server says is open right now.
+        if (res && res.success && res.data && typeof res.data.total === 'number' && res.data.total > 0) {
+          var gs = document.getElementById('hunt-gate-sub');
+          if (gs) { gs.textContent = 'Find ' + res.data.total + ' posters. Scan them all. Top 3 win prizes. Register first to join the challenge!'; }
+        }
       }).catch(function () {});
       return;
     }
@@ -1272,7 +1342,7 @@
       chipsEl.style.display = 'flex';
       if (res.data.completed) {
         showCompletion(res.data);
-      } else if (res.data.next && res.data.count === 0) {
+      } else if (res.data.next && res.data.count === 0 && !res.data.started) {
         hintCard('Find your first poster — your timer starts at the first scan!', res.data.next.hint);
       } else if (res.data.next) {
         hintCard(res.data.count + '/' + res.data.total + ' completed', res.data.next.hint);

@@ -45,6 +45,12 @@
   .vbtn.on { background:rgba(95,208,106,0.15); border-color:rgba(95,208,106,0.6); color:#5fd06a; font-weight:700; }
   .rmbtn { background:none; border:1px solid rgba(220,30,30,0.45); color:#e05555; border-radius:8px; font-size:10.5px; padding:6px 10px; cursor:pointer; }
   .rmbtn:hover { background:rgba(220,30,30,0.15); }
+  /* Per-target open/close toggles (event-time kill-switch card) */
+  .tgbtn { display:inline-flex; align-items:center; gap:8px; background:rgba(95,208,106,0.12); border:1px solid rgba(95,208,106,0.55); color:#5fd06a; border-radius:10px; font-size:12px; font-weight:700; padding:9px 14px; cursor:pointer; letter-spacing:0.04em; }
+  .tgbtn .st { font-size:9.5px; font-weight:600; letter-spacing:0.14em; opacity:0.75; }
+  .tgbtn.closed { background:rgba(220,30,30,0.10); border-color:rgba(220,30,30,0.55); color:#e05555; text-decoration:line-through; }
+  .tgbtn.closed .st { text-decoration:none; }
+  .tgbtn:disabled { opacity:0.45; cursor:wait; }
   #adminView { display:none; }
 </style>
 </head>
@@ -95,6 +101,14 @@
         <button class="btn" id="addPlayerBtn" style="white-space:nowrap;">Add Player</button>
       </div>
       <div style="margin-top:8px;"><span class="muted" id="apMsg"></span></div>
+    </div>
+
+    <!-- ─── Per-target open/close (event-time kill-switch) ─── -->
+    <div style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.09); border-radius:12px; padding:16px 20px; margin-bottom:20px;">
+      <h2 style="font-size:12px; letter-spacing:0.12em; text-transform:uppercase; margin-bottom:4px;">Targets — Open / Close</h2>
+      <p class="muted" style="margin-bottom:12px;">Close a target (poster damaged, area blocked…) and it is skipped for <b>all players instantly</b> — hidden from their chips, not required to finish, counter becomes x/(open count). Nothing is deleted: scans already made stay saved, so re-opening restores everyone's credit. Players holding all remaining targets finish automatically with their last scan as the finish time.</p>
+      <div id="tgRow" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;"><span class="muted">Loading…</span></div>
+      <div style="margin-top:8px;"><span class="muted" id="tgMsg"></span></div>
     </div>
 
     <!-- ─── Settings (labels, hints, anti-cheat floors) ─── -->
@@ -547,10 +561,76 @@ function fmtDate(s) {
   return s.replace(/\.\d+$/, '');   // trim milliseconds for display
 }
 
+// Progress = what the player needs to FINISH: scans of open posters out of the
+// open count. With a closed target, raw scan_count/full-length reads wrong
+// exactly where prize winners get verified ("4/5" for someone done at 4/4).
+function progressCell(p, posters, closedMap) {
+  var openTotal = posters.filter(function (po) { return !closedMap[po.id]; }).length;
+  var openHave = typeof p.open_scan_count === 'number' ? p.open_scan_count : p.scan_count;
+  var cell = openHave + '/' + openTotal;
+  // Extra rows beyond the open set (closed or removed posters) shown as a hint
+  var extra = p.scan_count - openHave;
+  if (extra > 0) { cell += ' <span class="muted" title="Scans of closed/removed posters — kept, not required">(+' + extra + ')</span>'; }
+  return cell;
+}
+
+// ─── Per-target open/close toggles ───────────────────────────────────
+// Rendered from the same admin-participants payload as the table, so the
+// 15s auto-refresh keeps two admins' screens in sync.
+var tgBusy = false;
+function renderTargets(posters, closed) {
+  if (tgBusy) { return; }   // don't repaint under a click in flight
+  var closedMap = {};
+  (closed || []).forEach(function (id) { closedMap[id] = true; });
+  var html = '';
+  (posters || []).forEach(function (p) {
+    var isClosed = !!closedMap[p.id];
+    html += '<button class="tgbtn' + (isClosed ? ' closed' : '') + '" data-tid="' + esc(p.id) + '" data-topen="' + (isClosed ? 1 : 0) + '" title="' + esc(p.id) + '">' +
+      esc(p.label) + ' <span class="st">' + (isClosed ? 'CLOSED' : 'OPEN') + '</span></button>';
+  });
+  $('tgRow').innerHTML = html || '<span class="muted">No targets</span>';
+  $('tgRow').querySelectorAll('.tgbtn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var id = btn.getAttribute('data-tid');
+      var open = btn.getAttribute('data-topen') === '1';   // currently closed → open it
+      if (!open && !confirm('Close "' + btn.textContent.replace(/\s*(OPEN|CLOSED)\s*$/, '').trim() + '" for ALL players?\n\nIt disappears from everyone’s chips immediately and is not required to finish. Scans already made stay saved.')) { return; }
+      tgBusy = true;
+      $('tgRow').querySelectorAll('.tgbtn').forEach(function (b) { b.disabled = true; });
+      fetch(API + '?action=admin-set-target-state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token() },
+        body: JSON.stringify({ id: id, open: open })
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          tgBusy = false;
+          // Re-enable immediately — if the follow-up load() refresh fails on
+          // flaky Wi-Fi, the card must not stay dead until the next 15s tick.
+          $('tgRow').querySelectorAll('.tgbtn').forEach(function (b) { b.disabled = false; });
+          $('tgMsg').textContent = res.message || (res.success ? 'Saved' : 'Failed');
+          $('tgMsg').style.color = res.success ? '#5fd06a' : '#e05555';
+          load();
+        })
+        .catch(function () {
+          tgBusy = false;
+          $('tgRow').querySelectorAll('.tgbtn').forEach(function (b) { b.disabled = false; });
+          $('tgMsg').textContent = 'Network error — nothing changed';
+          $('tgMsg').style.color = '#e05555';
+          load();
+        });
+    });
+  });
+}
+
 function render(data) {
   var posters = data.posters || [];
+  var closedMap = {};
+  (data.closed || []).forEach(function (id) { closedMap[id] = true; });
+  renderTargets(posters, data.closed || []);
   var head = '<tr><th>#</th><th>Participant</th><th>Phone</th><th>Business</th>';
-  posters.forEach(function (p) { head += '<th>' + esc(p.label) + '</th>'; });
+  posters.forEach(function (p) {
+    head += '<th>' + esc(p.label) + (closedMap[p.id] ? ' <span title="Closed — skipped for all players; scans of it do not count right now">⛔</span>' : '') + '</th>';
+  });
   head += '<th>Progress</th><th>Time</th><th>Verified</th><th>Registered</th><th>Completed</th><th></th></tr>';
   $('thead').innerHTML = head;
 
@@ -572,7 +652,7 @@ function render(data) {
     var verifyCell = p.completed_at
       ? '<button class="vbtn' + (p.is_verified ? ' on' : '') + '" data-vid="' + p.id + '" data-von="' + (p.is_verified ? 1 : 0) + '">' + (p.is_verified ? '✓ Verified' : 'Verify') + '</button>'
       : '';
-    html += '<td>' + p.scan_count + '/' + posters.length + '</td>' +
+    html += '<td>' + progressCell(p, posters, closedMap) + '</td>' +
       '<td>' + (p.time_formatted || '') + '</td>' +
       '<td>' + verifyCell + '</td>' +
       '<td class="muted">' + esc(fmtDate(p.registered_at)) + '</td>' +
@@ -598,10 +678,16 @@ function render(data) {
   $('stDone').textContent = s.total_completed || 0;
 }
 
+var loadSeq = 0;
 function load() {
+  // Sequence guard: on venue Wi-Fi responses arrive out of order — a slow
+  // pre-toggle response landing AFTER the post-toggle refresh would repaint
+  // the targets card with stale open/closed state. Only the newest wins.
+  var seq = ++loadSeq;
   fetch(API + '?action=admin-participants', { headers: { 'Authorization': 'Bearer ' + token() } })
     .then(function (r) { return r.json(); })
     .then(function (res) {
+      if (seq !== loadSeq) { return; }   // superseded by a newer load()
       if (!res.success) { localStorage.removeItem(TOKEN_KEY); setView(false); return; }
       render(res.data);
     })
