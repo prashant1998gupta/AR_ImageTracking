@@ -45,6 +45,9 @@
   .vbtn.on { background:rgba(95,208,106,0.15); border-color:rgba(95,208,106,0.6); color:#5fd06a; font-weight:700; }
   .rmbtn { background:none; border:1px solid rgba(220,30,30,0.45); color:#e05555; border-radius:8px; font-size:10.5px; padding:6px 10px; cursor:pointer; }
   .rmbtn:hover { background:rgba(220,30,30,0.15); }
+  .mvbtn { background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); color:#fff; border-radius:7px; font-size:11px; padding:3px 9px; cursor:pointer; }
+  .mvbtn:hover { background:rgba(255,255,255,0.16); }
+  .mvbtn:disabled { opacity:0.25; cursor:default; }
   /* Per-target open/close toggles (event-time kill-switch card) */
   .tgbtn { display:inline-flex; align-items:center; gap:8px; background:rgba(95,208,106,0.12); border:1px solid rgba(95,208,106,0.55); color:#5fd06a; border-radius:10px; font-size:12px; font-weight:700; padding:9px 14px; cursor:pointer; letter-spacing:0.04em; }
   .tgbtn .st { font-size:9.5px; font-weight:600; letter-spacing:0.14em; opacity:0.75; }
@@ -250,20 +253,52 @@ $('settingsBtn').addEventListener('click', function () {
   if (opening) loadSettings();
 });
 
+// Re-enable the reorder arrows after a failed save/reload — otherwise a
+// network hiccup leaves them frozen until the panel is closed and reopened.
+// Blanket re-enable is safe: movePoster() bounds-checks, so an edge arrow
+// that comes back enabled is just a no-op.
+function unfreezeArrows() {
+  document.querySelectorAll('#setPosters .mvbtn').forEach(function (b) { b.disabled = false; });
+}
+
+// Guards against out-of-order responses on slow venue Wi-Fi (same pattern as
+// load()'s loadSeq): only the newest in-flight request may repaint the panel,
+// so a stale pre-save response can never resurrect the old poster order.
+var settingsSeq = 0;
+
 function loadSettings() {
+  var seq = ++settingsSeq;
   fetch(API + '?action=admin-settings', { headers: { 'Authorization': 'Bearer ' + token() } })
     .then(function (r) { return r.json(); })
     .then(function (res) {
-      if (!res.success) { $('settingsMsg').textContent = res.message || 'Load failed'; return; }
+      if (seq !== settingsSeq) return;
+      if (!res.success) { $('settingsMsg').textContent = res.message || 'Load failed'; unfreezeArrows(); return; }
+      // The manifest the reorder arrows will re-save: the saved Unity list when
+      // one exists, else the built-ins in their current shape. List ORDER is
+      // the hunt order (and what sequential mode enforces).
+      spManifest = (res.data.poster_list && res.data.poster_list.length)
+        ? res.data.poster_list
+        : (res.data.posters || []).map(function (p) { return { id: p.id, label: p.label, hint: p.hint || '' }; });
       var html = '';
-      (res.data.posters || []).forEach(function (p) {
+      var lastIdx = (res.data.posters || []).length - 1;
+      (res.data.posters || []).forEach(function (p, idx) {
         html += '<div class="poster-row" data-pid="' + esc(p.id) + '">' +
-          '<div class="pid">' + esc(p.id) + '</div>' +
+          '<div class="pid">' + esc(p.id) +
+            '<div style="margin-top:6px; display:flex; gap:6px;">' +
+              '<button class="mvbtn" data-mvi="' + idx + '" data-mvd="-1"' + (idx === 0 ? ' disabled' : '') + ' title="Move this poster earlier in the hunt order — saves instantly">▲</button>' +
+              '<button class="mvbtn" data-mvi="' + idx + '" data-mvd="1"' + (idx === lastIdx ? ' disabled' : '') + ' title="Move this poster later in the hunt order — saves instantly">▼</button>' +
+            '</div>' +
+          '</div>' +
           '<div class="plabel"><label>Label (chips)</label><input class="inLabel" type="text" maxlength="20" value="' + esc(p.label) + '"></div>' +
           '<div class="phint"><label>Hint (shown after the previous scan)</label><textarea class="inHint" maxlength="300">' + esc(p.hint) + '</textarea></div>' +
           '</div>';
       });
       $('setPosters').innerHTML = html;
+      $('setPosters').querySelectorAll('.mvbtn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          movePoster(parseInt(btn.getAttribute('data-mvi'), 10), parseInt(btn.getAttribute('data-mvd'), 10));
+        });
+      });
       renderPosterList(res.data);
       $('setMinTotal').value = res.data.floors.min_total_s;
       $('setMinGap').value = res.data.floors.min_gap_s;
@@ -286,12 +321,30 @@ function loadSettings() {
       lnkInputs.forEach(function (inp, i) { inp.value = ads[i] ? (ads[i].link || '') : ''; });
       $('settingsMsg').textContent = '';
     })
-    .catch(function () { $('settingsMsg').textContent = 'Network error'; });
+    .catch(function () { if (seq !== settingsSeq) return; $('settingsMsg').textContent = 'Network error'; unfreezeArrows(); });
 }
 
 // ─── Poster list (the Unity manifest — ids are the source of truth) ───
 // Same rule the server enforces in normalizePosterList().
 var POSTER_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+
+// Latest effective manifest, kept by loadSettings() for the reorder arrows.
+var spManifest = [];
+
+// Swap a poster with its neighbour and save immediately. Order changes are
+// safe mid-event: scans are keyed by id, so players keep their progress and
+// sequential mode simply starts expecting the new order.
+function movePoster(i, dir) {
+  var j = i + dir;
+  if (!spManifest || j < 0 || j >= spManifest.length) { return; }
+  var next = spManifest.slice();
+  var tmp = next[i]; next[i] = next[j]; next[j] = tmp;
+  // Freeze the arrows until loadSettings() re-renders them — a fast second tap
+  // would otherwise re-save against the pre-swap order and undo the first tap.
+  document.querySelectorAll('#setPosters .mvbtn').forEach(function (b) { b.disabled = true; });
+  $('plMsg').textContent = 'Saving new order…';
+  savePosterList(next);
+}
 
 function plError(msg) {
   var el = $('plErr');
@@ -356,8 +409,8 @@ function savePosterList(list) {
   }).then(function (r) { return r.json(); }).then(function (res) {
     $('plMsg').textContent = res.message || 'Saved';
     if (res.success) { plError(''); loadSettings(); load(); }
-    else { plError(res.message || 'Save failed'); }
-  }).catch(function () { $('plMsg').textContent = 'Save failed — network error'; });
+    else { plError(res.message || 'Save failed'); unfreezeArrows(); }
+  }).catch(function () { $('plMsg').textContent = 'Save failed — network error'; unfreezeArrows(); });
 }
 
 $('savePosterListBtn').addEventListener('click', function () {
