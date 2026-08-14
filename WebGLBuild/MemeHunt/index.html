@@ -329,7 +329,6 @@
         (function () {
             var TRACKER_SRC = /opencv\.js|itracker\.js|arcamera\.js/i;
             var reloadNote = null, lastSoftRestart = 0, reloading = false, noiseCount = 0;
-
             // Root cause of "AbortError: The operation was aborted." popups:
             // Unity's WebGL video path calls video.play() and ignores the
             // returned promise; pausing/removing a meme video while it is
@@ -345,14 +344,12 @@
                     return p;
                 };
             } catch (e) {}
-
             // A session that stays healthy for 5 minutes earns its reload
             // budget back (longer than the 90s repeat window, so crash loops
             // can never outrun the cap).
             setTimeout(function () {
                 try { sessionStorage.removeItem('ar_wd_reloads'); } catch (e) {}
             }, 300000);
-
             // Benign browser DOMExceptions (interrupted video.play(), aborted
             // fetch, autoplay gate) — never fatal, but Unity's loader would
             // alert on them. Silence the popup, change nothing else.
@@ -361,7 +358,6 @@
                 if (name === 'AbortError' || name === 'NotAllowedError') { return true; }
                 return /AbortError|operation was aborted|play\(\) request was interrupted|fetching process for the media resource was aborted|The user aborted a request|user didn't interact with the document/i.test(msg);
             }
-
             function squelch(e, label) {
                 e.stopImmediatePropagation();
                 e.preventDefault();
@@ -371,7 +367,6 @@
                     report('benign: ' + label, '');
                 }
             }
-
             function isWasmAbort(msg, src) {
                 msg = String(msg == null ? '' : msg);
                 if (src && TRACKER_SRC.test(src)) { return true; }
@@ -381,7 +376,6 @@
                 if (/memory access out of bounds|unreachable executed|index out of bounds/i.test(msg)) { return true; } // wasm RuntimeError
                 return false;
             }
-
             function report(msg, src) {
                 try {
                     if (window.arAnalytics && window.arAnalytics.track) {
@@ -389,7 +383,6 @@
                     }
                 } catch (e) {}
             }
-
             function softRestartTracker() {
                 // A dead emscripten runtime makes every exported call throw,
                 // so a throwing (or missing) unityInstance is our liveness
@@ -403,7 +396,6 @@
                     catch (e) { autoReload(); }
                 }, 200);
             }
-
             function autoReload() {
                 if (reloading) { return; }
                 var n = 0;
@@ -414,7 +406,6 @@
                 showNote('Refreshing AR\u2026', false);
                 setTimeout(function () { try { location.reload(); } catch (e) {} }, 900);
             }
-
             function showNote(text, tappable) {
                 try {
                     if (reloadNote && reloadNote.parentNode) { reloadNote.parentNode.removeChild(reloadNote); }
@@ -428,7 +419,6 @@
                     (document.body || document.documentElement).appendChild(reloadNote);
                 } catch (e) {}
             }
-
             function recover(msg, src) {
                 report(msg, src);
                 var now = Date.now();
@@ -441,7 +431,6 @@
                 }
                 autoReload();   // aborting repeatedly: the WASM heap is gone, reload
             }
-
             window.addEventListener('error', function (e) {
                 if (isBenignNoise(e.message, '')) { squelch(e, String(e.message)); return; }
                 if (!isWasmAbort(e.message, e.filename)) { return; }   // real JS bugs stay visible
@@ -450,7 +439,6 @@
                 console.warn('[AR-Watchdog] engine abort suppressed:', e.message, (e.filename || '') + ':' + (e.lineno || 0));
                 recover(e.message, e.filename);
             }, true);
-
             window.addEventListener('unhandledrejection', function (e) {
                 var r = e.reason, msg = (r && (r.message !== undefined ? r.message : r)) || '';
                 var src = (r && (r.fileName || r.sourceURL)) || '';
