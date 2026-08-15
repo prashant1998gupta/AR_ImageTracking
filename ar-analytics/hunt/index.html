@@ -82,12 +82,14 @@
   <!-- ─── View: resume (lost session / new device) ─── -->
   <div class="view" id="view-resume">
     <h1>Resume Your Hunt</h1>
-    <p class="sub">Enter the <b>same name and phone number</b><br>you registered with.</p>
+    <p class="sub">Enter your name, plus your <b>phone number</b><br>or your <b>5-digit player code</b>.</p>
     <form id="resumeForm">
       <label>Full Name *</label>
       <input id="rName" type="text" autocomplete="name" required maxlength="100" placeholder="Name you registered with">
-      <label>Phone Number *</label>
-      <input id="rPhone" type="tel" autocomplete="tel" required maxlength="16" placeholder="Registered mobile number">
+      <label>Phone Number</label>
+      <input id="rPhone" type="tel" autocomplete="tel" maxlength="16" placeholder="Registered mobile number">
+      <label>Or Player Code</label>
+      <input id="rCode" type="text" inputmode="numeric" pattern="[0-9]{5}" maxlength="5" placeholder="5-digit code from registration" style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace; letter-spacing:0.25em;">
       <div class="err" id="resumeErr"></div>
       <button class="btn" id="resumeSubmit" type="submit">Resume Hunt</button>
       <button class="btn secondary" id="backToReg" type="button">New participant? Register</button>
@@ -98,6 +100,11 @@
   <div class="view" id="view-intro">
     <div class="bigmsg">You're In!</div>
     <p class="sub" id="introName"></p>
+    <div id="codeBoxIntro" style="display:none; margin:2px auto 14px; max-width:290px; background:rgba(255,255,255,0.05); border:1px dashed rgba(255,255,255,0.25); border-radius:12px; padding:10px 14px; text-align:center;">
+      <div style="font-size:10px; letter-spacing:0.18em; text-transform:uppercase; opacity:0.55;">Your player code</div>
+      <div class="pcode" style="font-size:26px; font-weight:800; letter-spacing:0.35em; padding-left:0.35em; font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">—</div>
+      <div style="font-size:10.5px; opacity:0.5;">Save it — resume on any device &amp; claim your prize with it</div>
+    </div>
     <div class="steps">
       <div class="step"><div class="n">1</div><p>Find all <b>five posters</b> around <span id="evName1">Bharatiya Vyapar Mahotsav</span>.</p></div>
       <div class="step"><div class="n">2</div><p>Scan each poster through the <b>AR camera</b>.</p></div>
@@ -114,6 +121,7 @@
   <div class="view" id="view-progress">
     <h1>Hunt In Progress</h1>
     <p class="sub" id="progName"></p>
+    <p class="sub" id="codeLineProg" style="display:none; font-size:12px; opacity:0.65;">Player code: <b class="pcode" style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace; letter-spacing:0.2em;">—</b></p>
     <div class="progress-pill" id="progPill"></div>
     <div class="err" id="progErr"></div>
     <button class="btn" id="resumeBtn">Continue Scanning</button>
@@ -126,6 +134,7 @@
     <p class="sub" id="doneSub">Congratulations! You completed the<br>Bharatiya Vyapar Mahotsav AR Meme Hunt.</p>
     <div class="time" id="doneTime">--:--</div>
     <div class="rank" id="doneRank"></div>
+    <p class="sub" id="codeLineDone" style="display:none; font-size:12px; opacity:0.65;">Show this at the prize desk — player code: <b class="pcode" style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace; letter-spacing:0.2em;">—</b></p>
     <a class="btn" href="leaderboard.html">View Leaderboard</a>
   </div>
 </div>
@@ -237,7 +246,25 @@ function esc(s) {
   });
 }
 
+// Show the player's 5-digit code wherever the current view has a slot for it.
+// Older server responses may lack player_code — the boxes just stay hidden.
+function showPlayerCode(state) {
+  var code = state && state.player_code ? String(state.player_code) : '';
+  ['codeBoxIntro', 'codeLineProg', 'codeLineDone'].forEach(function (id) {
+    var el = $(id);
+    if (!el) { return; }
+    if (code) {
+      var slot = el.querySelector('.pcode');
+      if (slot) { slot.textContent = code; }
+      el.style.display = '';
+    } else {
+      el.style.display = 'none';
+    }
+  });
+}
+
 function routeByState(state) {
+  showPlayerCode(state);
   if (state.completed) {
     $('doneTime').textContent = state.time_formatted || '--:--';
     $('doneRank').textContent = state.rank ? 'Leaderboard position: #' + state.rank : '';
@@ -294,12 +321,22 @@ $('backToReg').addEventListener('click', function () {
 $('resumeForm').addEventListener('submit', function (e) {
   e.preventDefault();
   setErr('resumeErr', '');
+  var phone = $('rPhone').value.trim();
+  var code = $('rCode').value.trim();
+  if (!phone && !code) {
+    setErr('resumeErr', 'Enter your phone number OR your 5-digit player code.');
+    return;
+  }
+  if (code && !/^[0-9]{5}$/.test(code)) {
+    setErr('resumeErr', 'The player code is exactly 5 digits.');
+    return;
+  }
   var btn = $('resumeSubmit');
   btn.disabled = true;
-  api('resume', 'POST', {
-    name: $('rName').value.trim(),
-    phone: $('rPhone').value.trim()
-  }).then(function (res) {
+  // Code wins when both are filled — it is the shorter, surer identifier
+  var body = { name: $('rName').value.trim() };
+  if (code) { body.code = code; } else { body.phone = phone; }
+  api('resume', 'POST', body).then(function (res) {
     btn.disabled = false;
     if (!res.success) { setErr('resumeErr', res.message); return; }
     localStorage.setItem(TOKEN_KEY, res.data.token);

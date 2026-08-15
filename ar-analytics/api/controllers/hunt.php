@@ -28,6 +28,14 @@
 define('HUNT_MIN_TOTAL_MS', 60000);   // faster than 60s across 5 posters = suspect
 define('HUNT_MIN_GAP_MS', 10000);     // faster than 10s between posters = suspect
 
+// Resume-by-code brute-force throttle. The code space is only 90 000 and player
+// names are public on the leaderboard, so a failed-attempt cap per client IP is
+// what keeps someone from scripting the space to hijack a named winner. 50 fails
+// / 5 min still lets a whole venue behind one NAT fumble freely, while a 90k
+// sweep would take days. (Keyed on REMOTE_ADDR — the TCP peer.)
+define('HUNT_RESUME_MAX_FAILS', 50);
+define('HUNT_RESUME_WINDOW_S', 300);
+
 require_once __DIR__ . '/../helpers/Database.php';
 require_once __DIR__ . '/../helpers/Auth.php';
 require_once __DIR__ . '/../helpers/Response.php';
@@ -333,6 +341,7 @@ if (!$hasParticipants) {
             company VARCHAR(150) DEFAULT '',
             business_type VARCHAR(100) DEFAULT '',
             token VARCHAR(64) NOT NULL,
+            player_code VARCHAR(5) NULL,
             consent BOOLEAN DEFAULT TRUE,
             registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             started_at DATETIME(3) NULL,
@@ -342,6 +351,7 @@ if (!$hasParticipants) {
             is_suspect BOOLEAN DEFAULT FALSE,
             UNIQUE KEY uk_phone (phone),
             UNIQUE KEY uk_token (token),
+            UNIQUE KEY uk_player_code (player_code),
             INDEX idx_completed (completed_at)
         ) ENGINE=InnoDB");
     } catch (Exception $e) {
@@ -352,6 +362,21 @@ if (!$hasParticipants) {
     // Quick Migration: add is_suspect if the table predates it
     $hasColSuspect = $db->scalar("SHOW COLUMNS FROM hunt_participants LIKE 'is_suspect'");
     if (!$hasColSuspect) { try { $db->execute("ALTER TABLE hunt_participants ADD COLUMN is_suspect BOOLEAN DEFAULT FALSE AFTER is_verified"); } catch (Exception $e) {} }
+    // Quick Migration: 5-digit player codes. Backfilled for everyone already
+    // registered, so mid-event rows get a code the moment this deploys.
+    // (UNIQUE allows multiple NULLs, so the ALTER is safe on a full table.)
+    $hasColCode = $db->scalar("SHOW COLUMNS FROM hunt_participants LIKE 'player_code'");
+    if (!$hasColCode) {
+        try {
+            $db->execute("ALTER TABLE hunt_participants ADD COLUMN player_code VARCHAR(5) NULL AFTER token, ADD UNIQUE KEY uk_player_code (player_code)");
+            // Bounded batch so one unlucky post-deploy request cannot hit
+            // max_execution_time on a big table — participantState lazily fills
+            // any remaining rows on their next touch.
+            foreach ($db->query("SELECT id FROM hunt_participants WHERE player_code IS NULL LIMIT 200", []) as $r) {
+                assignPlayerCode($db, intval($r['id']));
+            }
+        } catch (Exception $e) { error_log('[Hunt] player_code migration failed: ' . $e->getMessage()); }
+    }
 }
 $hasScans = $db->scalar("SHOW TABLES LIKE 'hunt_scans'");
 if (!$hasScans) {
@@ -380,6 +405,17 @@ if (!$hasSettings) {
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB");
     } catch (Exception $e) { error_log('[Hunt] create hunt_settings failed: ' . $e->getMessage()); }
+}
+$hasThrottle = $db->scalar("SHOW TABLES LIKE 'hunt_resume_throttle'");
+if (!$hasThrottle) {
+    // Non-fatal: without this table resume still works, just unthrottled.
+    try {
+        $db->execute("CREATE TABLE IF NOT EXISTS hunt_resume_throttle (
+            ip VARCHAR(45) PRIMARY KEY,
+            fail_count INT NOT NULL DEFAULT 0,
+            window_start TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB");
+    } catch (Exception $e) { error_log('[Hunt] create hunt_resume_throttle failed: ' . $e->getMessage()); }
 }
 
 // ─── Dispatch ────────────────────────────────────────────────────────
@@ -522,6 +558,7 @@ function handleRegister($db) {
         Response::error('Could not register, please try again', 500);
     }
     $participant = $db->queryOne("SELECT * FROM hunt_participants WHERE token = ?", [$token]);
+    $participant['player_code'] = assignPlayerCode($db, intval($participant['id']));
     Response::success(participantState($db, $participant, false), 'Registered');
 }
 
@@ -549,13 +586,109 @@ function handleResume($db) {
     if (!$input) Response::error('Invalid JSON body', 400);
 
     $name = trim(mb_substr($input['name'] ?? '', 0, 100, 'UTF-8'));
-    $phone = normalizePhone($input['phone'] ?? '');
     if (mb_strlen($name, 'UTF-8') < 2) Response::error('Please enter the name you registered with', 400);
+
+    // Resume by 5-digit player code (+ name — the same something-you-know guard
+    // as the phone path). This is the one brute-forceable resume path (90 000
+    // codes, public names), so it is throttled per IP, and "no such code" and
+    // "name doesn't match" return ONE identical message — never a 404-vs-409
+    // tell that would let someone map which codes are live.
+    $code = trim(strval($input['code'] ?? ''));
+    if ($code !== '') {
+        $ip = clientIp();
+        resumeThrottleGuard($db, $ip);
+        $existing = preg_match('/^[0-9]{5}$/', $code)
+            ? $db->queryOne("SELECT * FROM hunt_participants WHERE player_code = ?", [$code])
+            : null;
+        if (!$existing || mb_strtolower(trim($existing['name']), 'UTF-8') !== mb_strtolower($name, 'UTF-8')) {
+            resumeThrottleFail($db, $ip);
+            Response::error('No match — check the name and 5-digit code you registered with.', 404);
+        }
+        resumeThrottleReset($db, $ip);
+        resumeExisting($db, $existing, $name);   // name already matches → returns the session
+    }
+
+    $phone = normalizePhone($input['phone'] ?? '');
     if (strlen($phone) < 8 || strlen($phone) > 15) Response::error('Please enter a valid phone number', 400);
 
     $existing = $db->queryOne("SELECT * FROM hunt_participants WHERE phone = ?", [$phone]);
     if (!$existing) Response::error('No registration found for this phone number — please register first', 404);
     resumeExisting($db, $existing, $name);
+}
+
+/**
+ * Give a participant their unique 5-digit player code (10000–99999 — never a
+ * leading zero, so it survives spreadsheets and phone keyboards). The UNIQUE
+ * key is the arbiter: a collision just retries with a fresh number, and the
+ * "player_code IS NULL" guard makes concurrent assigns converge on one code.
+ * Returns the code now on the row, or null if the column is missing/failed —
+ * callers treat null as "no code yet", nothing else breaks.
+ */
+function assignPlayerCode($db, $participantId) {
+    for ($i = 0; $i < 40; $i++) {
+        $code = strval(random_int(10000, 99999));
+        try {
+            $changed = $db->execute(
+                "UPDATE hunt_participants SET player_code = ? WHERE id = ? AND player_code IS NULL",
+                [$code, $participantId]
+            );
+            if ($changed > 0) { return $code; }
+            // 0 rows: another request assigned first — return what won
+            $row = $db->queryOne("SELECT player_code FROM hunt_participants WHERE id = ?", [$participantId]);
+            return $row ? $row['player_code'] : null;
+        } catch (Exception $e) {
+            $isDup = ($e instanceof PDOException) &&
+                ($e->getCode() == 23000 || (isset($e->errorInfo[1]) && intval($e->errorInfo[1]) === 1062));
+            if (!$isDup) {
+                error_log('[Hunt] player code assign failed: ' . $e->getMessage());
+                return null;
+            }
+            // code taken by someone else — loop and try a fresh one
+        }
+    }
+    error_log('[Hunt] player code space looks exhausted (40 collisions in a row)');
+    return null;
+}
+
+/** The requesting client's IP — the TCP peer. Used only to key the resume
+ *  throttle; not trusting any forwarded header keeps it unspoofable. */
+function clientIp() {
+    return substr(strval($_SERVER['REMOTE_ADDR'] ?? ''), 0, 45);
+}
+
+/** 429 if this IP has burned through its failed-resume budget in the window.
+ *  Best-effort: a missing table or DB hiccup never blocks a real resume. */
+function resumeThrottleGuard($db, $ip) {
+    if ($ip === '') { return; }
+    try {
+        $row = $db->queryOne(
+            "SELECT fail_count, TIMESTAMPDIFF(SECOND, window_start, NOW()) AS age
+             FROM hunt_resume_throttle WHERE ip = ?", [$ip]);
+    } catch (Exception $e) { return; }
+    if ($row && intval($row['age']) <= HUNT_RESUME_WINDOW_S
+        && intval($row['fail_count']) >= HUNT_RESUME_MAX_FAILS) {
+        Response::error('Too many attempts — please wait a few minutes and try again.', 429);
+    }
+}
+
+/** Record one failed resume attempt for this IP; rolls the window when stale. */
+function resumeThrottleFail($db, $ip) {
+    if ($ip === '') { return; }
+    try {
+        $db->execute(
+            "INSERT INTO hunt_resume_throttle (ip, fail_count, window_start) VALUES (?, 1, NOW())
+             ON DUPLICATE KEY UPDATE
+               fail_count = IF(TIMESTAMPDIFF(SECOND, window_start, NOW()) > ?, 1, fail_count + 1),
+               window_start = IF(TIMESTAMPDIFF(SECOND, window_start, NOW()) > ?, NOW(), window_start)",
+            [$ip, HUNT_RESUME_WINDOW_S, HUNT_RESUME_WINDOW_S]);
+    } catch (Exception $e) { /* best effort */ }
+}
+
+/** Clear an IP's failures after a legitimate resume. */
+function resumeThrottleReset($db, $ip) {
+    if ($ip === '') { return; }
+    try { $db->execute("DELETE FROM hunt_resume_throttle WHERE ip = ?", [$ip]); }
+    catch (Exception $e) {}
 }
 
 function requireParticipant($db, $token) {
@@ -762,6 +895,13 @@ function participantState($db, $participant, $includeProgress) {
     $completed = $participant['completed_at'] !== null;
     $totalMs = $participant['total_ms'] !== null ? intval($participant['total_ms']) : null;
 
+    // Player code, lazily backfilled: rows created before the code column
+    // existed (or in any race window) get one on their next touch.
+    $playerCode = array_key_exists('player_code', $participant) ? $participant['player_code'] : null;
+    if ($playerCode === null || $playerCode === '') {
+        $playerCode = assignPlayerCode($db, intval($participant['id']));
+    }
+
     // Elapsed time since start (for the in-AR HUD timer)
     $elapsedMs = null;
     if ($completed) {
@@ -776,6 +916,7 @@ function participantState($db, $participant, $includeProgress) {
     return [
         'token' => $participant['token'],
         'name' => $participant['name'],
+        'player_code' => $playerCode,
         'started' => $participant['started_at'] !== null,
         'completed' => $completed,
         'scanned' => $scanned,
@@ -897,7 +1038,7 @@ function handleActivity($db) {
 
 function adminRows($db) {
     $participants = $db->query(
-        "SELECT id, name, phone, company, business_type, registered_at, started_at, completed_at, total_ms, is_verified, is_suspect
+        "SELECT id, name, phone, company, business_type, player_code, registered_at, started_at, completed_at, total_ms, is_verified, is_suspect
          FROM hunt_participants
          ORDER BY (completed_at IS NULL), total_ms ASC, completed_at ASC, registered_at ASC"
     );
@@ -963,14 +1104,16 @@ function handleAdminExport($db) {
     header('Cache-Control: no-cache');
 
     $out = fopen('php://output', 'w');
-    $header = ['Rank', 'Name', 'Phone', 'Company', 'Business Type', 'Registered At', 'Started At', 'Completed At', 'Total Time', 'Verified', 'Suspect'];
+    $header = ['Rank', 'Name', 'Code', 'Phone', 'Company', 'Business Type', 'Registered At', 'Started At', 'Completed At', 'Total Time', 'Verified', 'Suspect'];
     foreach (huntPosterIds() as $pid) { $header[] = $pid; }
     fputcsv($out, $header);
 
     foreach (adminRows($db) as $row) {
         $line = [
             $row['rank'] !== null ? $row['rank'] : '',
-            csvSafe($row['name']), $row['phone'], csvSafe($row['company']), csvSafe($row['business_type']),
+            csvSafe($row['name']),
+            isset($row['player_code']) && $row['player_code'] !== null ? $row['player_code'] : '',
+            $row['phone'], csvSafe($row['company']), csvSafe($row['business_type']),
             $row['registered_at'], $row['started_at'], $row['completed_at'],
             $row['time_formatted'] !== null ? $row['time_formatted'] : '',
             $row['is_verified'] ? 'YES' : '',
@@ -1227,6 +1370,7 @@ function handleAdminAddPlayer($db) {
     $row = $db->queryOne("SELECT id FROM hunt_participants WHERE token = ?", [$token]);
     if (!$row) Response::error('Insert failed', 500);
     $pid = intval($row['id']);
+    assignPlayerCode($db, $pid);
 
     // First scan sits at started_at, last at completed_at (matching the real
     // timer semantics: first scan → fifth scan), the rest spread evenly.

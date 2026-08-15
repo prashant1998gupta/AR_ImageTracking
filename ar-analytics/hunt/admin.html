@@ -680,7 +680,7 @@ function render(data) {
   var closedMap = {};
   (data.closed || []).forEach(function (id) { closedMap[id] = true; });
   renderTargets(posters, data.closed || []);
-  var head = '<tr><th>#</th><th>Participant</th><th>Phone</th><th>Business</th>';
+  var head = '<tr><th>#</th><th>Participant</th><th>Phone</th><th>Code</th><th>Business</th>';
   posters.forEach(function (p) {
     head += '<th>' + esc(p.label) + (closedMap[p.id] ? ' <span title="Closed — skipped for all players; scans of it do not count right now">⛔</span>' : '') + '</th>';
   });
@@ -697,6 +697,7 @@ function render(data) {
     html += '<tr><td' + rankCls + '>' + (p.rank ? '#' + p.rank : '—') + '</td>' +
       '<td>' + esc(p.name) + suspectTag + seedTag + (p.company ? '<span class="co">' + esc(p.company) + '</span>' : '') + '</td>' +
       '<td>' + esc(p.phone) + '</td>' +
+      '<td style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace; letter-spacing:0.08em;">' + esc(p.player_code || '—') + '</td>' +
       '<td>' + esc(p.business_type) + '</td>';
     posters.forEach(function (po) {
       var t = p.posters && p.posters[po.id];

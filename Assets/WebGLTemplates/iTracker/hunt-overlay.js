@@ -108,7 +108,8 @@
     timerBase: null,      // Date.now() - elapsed_ms
     active: false,        // token present + status ok
     nextHint: null,       // latest {id,label,hint} — clue stays recoverable
-    name: ''              // participant name (for the victory card)
+    name: '',             // participant name (for the victory card)
+    playerCode: ''        // 5-digit code — shown on completion, prize-desk id
   };
 
   // Scanned count over the CURRENT poster list only. state.scanned can hold ids
@@ -459,6 +460,7 @@
       state.timerBase = Date.now() - data.elapsed_ms;
     }
     if (data.name) { state.name = data.name; }
+    if (data.player_code) { state.playerCode = String(data.player_code); }
     if (data.next) { state.nextHint = data.next; }
     if (data.completed) { state.nextHint = null; }
     // Server-tunable UI settings (hunt/admin.html → Settings) override defaults
@@ -699,6 +701,7 @@
       '  <p class="hunt-p" id="hunt-done-msg">Congratulations! You completed the Bharatiya Vyapar Mahotsav AR Meme Hunt.</p>' +
       '  <div class="big-time" id="hunt-done-time">--:--</div>' +
       '  <div class="rank" id="hunt-done-rank"></div>' +
+      '  <div class="rank" id="hunt-done-code" style="display:none; font-size:12px; opacity:0.75;"></div>' +
       '  <img id="hunt-vc-preview" alt="My victory card">' +
       '  <a class="hunt-btn" id="hunt-vc-share">📲 Share Victory Card</a>' +
       '  <a class="hunt-btn" id="hunt-done-lb">View Leaderboard</a>' +
@@ -1269,6 +1272,12 @@
     }
     document.getElementById('hunt-done-time').textContent = data.time_formatted || '--:--';
     document.getElementById('hunt-done-rank').textContent = data.rank ? 'Leaderboard position: #' + data.rank : '';
+    var codeEl = document.getElementById('hunt-done-code');
+    var pcode = (data.player_code ? String(data.player_code) : state.playerCode);
+    if (codeEl) {
+      codeEl.textContent = pcode ? 'Prize desk player code: ' + pcode : '';
+      codeEl.style.display = pcode ? 'block' : 'none';
+    }
     try { renderVictoryCard(data); } catch (e) { console.error('[Hunt] victory card:', e); }
     doneEl.style.display = 'flex';
     spawnConfetti();
