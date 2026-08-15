@@ -157,7 +157,8 @@ Event scavenger-hunt campaign built on this platform. Full operations guide:
 `../MEME_HUNT_SETUP.md` (repo root).
 
 **Deploy** (no installer needed — `hunt.php` auto-creates `hunt_participants`,
-`hunt_scans`, `hunt_settings` on first request):
+`hunt_scans`, `hunt_settings`, `hunt_resume_throttle` and migrates new columns
+like `player_code` on first request):
 1. Upload `api/controllers/hunt.php`, updated `api/index.php`, updated
    `.htaccess`, and the whole `hunt/` folder alongside the existing deployment.
 2. Open `.../api/controllers/hunt.php?action=config` once → poster JSON = live.
@@ -166,10 +167,18 @@ Event scavenger-hunt campaign built on this platform. Full operations guide:
    overlay updates = replace that one file + bump `?v=N` in the build's
    `index.html` — no Unity rebuild.
 
-**Operate:** `hunt/admin.html` (same admin accounts) → participants, winner
-verification, CSV export, Reset All Data, and live Settings (poster
-labels/hints, anti-cheat floors, Next Clue delay, up to 4 rotating sponsor
-ads). Booth screen: `hunt/leaderboard.html?tv=1` in Chrome + F11.
+> **Deploying an update over a live event:** the migration backfills player
+> codes for existing rows in a bounded batch on first request, then lazily for
+> the rest — safe on a populated table. Pure PHP/HTML deploys (the event-control
+> features, player codes) need no AR rebuild; only overlay changes require
+> re-uploading the build's `hunt-overlay.js` + version bump.
+
+**Operate:** `hunt/admin.html` (same admin accounts) → participants (with player
+codes), winner verification, CSV export, Reset All Data, and the one-tap event
+controls (registration open/close, leaderboard & live-feed show/hide, per-target
+open/close) plus live Settings (poster list, labels/hints, anti-cheat floors,
+sequential toggle, Next Clue delay, branding, up to 4 rotating sponsor ads).
+Booth screen: `hunt/leaderboard.html?tv=1` in Chrome + F11.
 
 ---
 

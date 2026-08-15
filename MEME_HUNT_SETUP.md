@@ -50,15 +50,57 @@ QR on the printed posters → the landing URL.
 
 ### Admin (`/hunt/admin.html` — same accounts as Admin Nexus; username OR email)
 - Participants table: per-poster ✓/○ with timestamps, phones (admin-only),
-  ranks, **⚠ SUSPECT** flags, **Verify** buttons (verifying restores a suspect
-  to the public board), CSV export, **Reset All Data** (pre-event cleanup).
+  **player code** (5-digit), ranks, **⚠ SUSPECT** flags, **Verify** buttons
+  (verifying restores a suspect to the public board), CSV export (includes the
+  Code column), **Reset All Data** (pre-event cleanup).
+- **Add Player to Leaderboard**: seed a finished/verified run (demo/booth
+  entries); auto-generates a `00…`-prefixed phone so seeded rows are obvious.
+
+**Always-visible event-control cards** (each is one tap, live for everyone
+instantly — no rebuild, nothing deleted, all reversible):
+- **Registration — Open / Closed**: close sign-ups when the campaign is over.
+  New visitors then see a "This hunt has ended" screen instead of the form and
+  cannot register (server also blocks it, `403`). **Everyone already
+  registered keeps playing** — they resume, scan and finish normally, and the
+  leaderboard keeps updating.
+- **Public Displays**: two independent toggles —
+  - **Leaderboard SHOWN / HIDDEN**: hiding it shows a "🏁 The Hunt Is Over —
+    back soon" card in place of the rankings (and the server stops sending any
+    names/rankings while hidden). Optional custom message: `leaderboard_over_msg`
+    setting (no input box yet — set via API/DB or ask to add one).
+  - **Live Feed SHOWN / HIDDEN**: hides the activity ticker; independent of the
+    leaderboard (board can stay up with the feed off).
+- **Targets — Open / Close**: close any poster mid-event (damaged, area
+  blocked). It vanishes from every player's chips instantly, is no longer
+  required to finish (counter becomes x/open-count), and the sequential order
+  skips it. Scans already made are **kept** — re-opening restores everyone's
+  credit. Players holding all remaining open targets finish automatically with
+  their last scan as the finish time. The last open target cannot be closed.
+
 - **⚙ Settings** (live for everyone instantly — no rebuild):
+  - **Poster list** (paste the Unity `hunt-posters.json` — ids must match the
+    build; see "Swapping in the REAL meme posters" below)
   - Poster **labels** (chips/thumbnail) and **hints** per poster
   - **Anti-cheat floors**: min total seconds + min gap seconds → SUSPECT flag
   - **Next Clue button delay** (seconds after scan; ≈ meme length − 1s)
+  - **Sequential vs any-order** toggle (posters found in order, or any order)
+  - **White-label branding**: event name, brand name, hunt title, primary
+    color, powered-by, CTA headline/text/url — drives overlay, landing,
+    leaderboard and victory card
   - **Sponsor Ads**: up to 4 image URLs + optional click-through links —
     rotate per Next Clue tap; empty = disabled; never before the first scan,
     never on the completion screen. Upload images to `hunt/` via file manager.
+
+### Player codes (resume + prize claiming)
+Every player gets a unique **5-digit code** at registration, shown on the
+"You're In!" screen, on every return visit, and on the AR completion screen.
+Uses:
+- **Resume on any device**: the resume form takes name + **phone OR code**.
+- **Prize desk**: find a winner by their code in the admin table / CSV instead
+  of hunting by phone or name.
+Resume-by-code is throttled per IP (50 failed tries / 5 min → `429`) and gives
+one generic "no match" message for both wrong-code and wrong-name, so the
+90 000-code space can't be brute-forced or enumerated against public names.
 
 ### Anti-cheat
 Phone = unique participant (resume requires name match). Server-side ms
@@ -146,11 +188,23 @@ labels/hints in dashboard Settings.
 **During the event:**
 - Hints/labels/floors/ads are all live-editable from a phone via admin Settings.
 - Help desk: participants who lost their session → "Already registered? Resume"
-  (exact registered name is visible in the admin table if they forget).
+  with name + phone **or their 5-digit player code** (name is also visible in
+  the admin table if they forget it).
+- **Poster damaged / area blocked** → **Targets — Open / Close**: close that
+  poster; the hunt continues on the rest. Re-open it when it's back.
 
-**Prizes:** verify the top 3 in person (ask them to re-scan one poster in front
-of staff), press **Verify** on their rows, then award. Verifying also restores
-any legitimately-fast SUSPECT run to the public board.
+**Prizes:** find the winner in the admin table by their **player code** (or
+name). Verify the top 3 in person (ask them to re-scan one poster in front of
+staff), press **Verify** on their rows, then award. Verifying also restores any
+legitimately-fast SUSPECT run to the public board.
+
+**Wrapping the event:**
+1. **Registration → Closed**: new visitors see "This hunt has ended"; people
+   mid-hunt can still finish.
+2. When play has fully stopped, **Public Displays → Leaderboard HIDDEN** to
+   swap the rankings for the "back soon" card (and **Live Feed HIDDEN** if you
+   want the ticker gone too). All reversible — re-open for the next event, or
+   **Reset All Data** before it.
 
 ## Known limitations — what the system does NOT prevent
 

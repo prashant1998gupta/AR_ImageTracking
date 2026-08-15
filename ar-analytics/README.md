@@ -143,15 +143,21 @@ ar-analytics/
 ## Meme Hunt Module (event campaigns)
 
 A timed AR scavenger hunt built on this platform (see `../MEME_HUNT_SETUP.md`
-for the full guide). `hunt.php` auto-creates its three tables
-(`hunt_participants`, `hunt_scans`, `hunt_settings`) on first request.
+for the full guide). `hunt.php` auto-creates its tables (`hunt_participants`,
+`hunt_scans`, `hunt_settings`, `hunt_resume_throttle`) and migrates new columns
+(e.g. `player_code`) on first request — no installer.
 
-- **Public:** register / resume (phone + name), scan recording with server-side
-  ms timestamps, leaderboard, live activity feed (first names only).
+- **Public:** register / resume (name + phone **or 5-digit player code**), scan
+  recording with server-side ms timestamps, leaderboard, live activity feed
+  (first names only). Each player gets a unique code for cross-device resume and
+  prize-desk lookup (resume-by-code is per-IP throttled + non-enumerable).
 - **Admin (`hunt/admin.html`, same accounts as the admin panel):** participant
-  table with phones, winner verification, SUSPECT flags, CSV export, data
-  reset, and live Settings: poster labels/hints, anti-cheat floors, Next Clue
-  delay, up to 4 rotating sponsor ads.
+  table (phones + player codes), winner verification, SUSPECT flags, seed-player,
+  CSV export, data reset. **One-tap event controls, all live/reversible:**
+  registration open/close (end the campaign), leaderboard show/hide (swaps in a
+  "hunt is over" card), live-feed show/hide, and per-target open/close. Live
+  Settings: poster list, labels/hints, anti-cheat floors, sequential toggle,
+  Next Clue delay, branding, up to 4 rotating sponsor ads.
 - **In-AR UI** lives in the Unity WebGL template (`hunt-overlay.js`), which
   talks to `hunt.php` cross-origin (wildcard CORS is already platform policy).
 
