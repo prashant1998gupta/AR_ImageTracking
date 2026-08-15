@@ -128,6 +128,14 @@
     <a class="btn secondary" href="leaderboard.html">View Leaderboard</a>
   </div>
 
+  <!-- ─── View: hunt ended (registration closed) ─── -->
+  <div class="view" id="view-ended">
+    <div class="bigmsg">That's a Wrap! 🎉</div>
+    <p class="sub">This hunt has ended — thank you to everyone who played.<br>New registration is now closed.</p>
+    <a class="btn" href="leaderboard.html">View Final Leaderboard</a>
+    <button class="linklike" id="endedResume" type="button">Already playing? Resume to finish your hunt →</button>
+  </div>
+
   <!-- ─── View: completed ─── -->
   <div class="view" id="view-done">
     <div class="bigmsg">Challenge Complete!</div>
@@ -212,6 +220,14 @@ fetch(API + '?action=config').then(function (r) { return r.json(); }).then(funct
   if (res && res.success && res.data && typeof res.data.total === 'number' && res.data.total > 0) {
     var pc = document.getElementById('posterCount');
     if (pc) { pc.textContent = res.data.total; }
+  }
+  // Campaign closed: a NEW visitor (no saved session) sees the ended screen
+  // instead of the sign-up form. Existing players — anyone with a token, or
+  // who taps "Resume" — are never blocked here (the server still lets them in).
+  if (res && res.success && res.data && res.data.ui && res.data.ui.registration_open === false
+      && !localStorage.getItem(TOKEN_KEY)
+      && document.getElementById('view-register').classList.contains('active')) {
+    show('view-ended');
   }
 }).catch(function () {});
 
@@ -310,6 +326,10 @@ $('regForm').addEventListener('submit', function (e) {
 });
 
 // ─── Resume (lost session / new device) ───
+$('endedResume').addEventListener('click', function () {
+  setErr('resumeErr', '');
+  show('view-resume');
+});
 $('goResume').addEventListener('click', function () {
   setErr('resumeErr', '');
   show('view-resume');

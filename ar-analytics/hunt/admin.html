@@ -106,6 +106,22 @@
       <div style="margin-top:8px;"><span class="muted" id="apMsg"></span></div>
     </div>
 
+    <!-- ─── Campaign registration (end the hunt) ─── -->
+    <div style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.09); border-radius:12px; padding:16px 20px; margin-bottom:20px;">
+      <h2 style="font-size:12px; letter-spacing:0.12em; text-transform:uppercase; margin-bottom:4px;">Registration — Open / Closed</h2>
+      <p class="muted" style="margin-bottom:12px;">Close registration when the campaign is over. New visitors then see <b>“This hunt has ended”</b> instead of the sign-up form, and no new player can join. <b>Everyone already registered keeps playing</b> — they can still resume and finish, and the leaderboard keeps updating.</p>
+      <div id="regRow" style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;"><span class="muted">Loading…</span></div>
+      <div style="margin-top:8px;"><span class="muted" id="regMsg"></span></div>
+    </div>
+
+    <!-- ─── Public displays: leaderboard + live feed ─── -->
+    <div style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.09); border-radius:12px; padding:16px 20px; margin-bottom:20px;">
+      <h2 style="font-size:12px; letter-spacing:0.12em; text-transform:uppercase; margin-bottom:4px;">Public Displays</h2>
+      <p class="muted" style="margin-bottom:12px;">Turn the public <b>leaderboard</b> or the <b>live feed</b> on/off — instantly, for the big screen and every phone. Hiding the leaderboard shows a <b>“The Hunt Is Over”</b> message in its place. The feed toggle is independent (you can keep the board up with the feed hidden). Player progress and rankings are never deleted — turning a display back on shows everything again.</p>
+      <div id="dispRow" style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;"><span class="muted">Loading…</span></div>
+      <div style="margin-top:8px;"><span class="muted" id="dispMsg"></span></div>
+    </div>
+
     <!-- ─── Per-target open/close (event-time kill-switch) ─── -->
     <div style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.09); border-radius:12px; padding:16px 20px; margin-bottom:20px;">
       <h2 style="font-size:12px; letter-spacing:0.12em; text-transform:uppercase; margin-bottom:4px;">Targets — Open / Close</h2>
@@ -627,6 +643,84 @@ function progressCell(p, posters, closedMap) {
   return cell;
 }
 
+// ─── Campaign registration open/close ────────────────────────────────
+// One button, fed by the same admin-participants payload as everything else.
+var regBusy = false;
+function renderRegistration(open) {
+  if (regBusy) { return; }
+  var isOpen = open !== false;   // default open unless the server says closed
+  $('regRow').innerHTML =
+    '<button class="tgbtn' + (isOpen ? '' : ' closed') + '" id="regToggle" data-open="' + (isOpen ? 1 : 0) + '">' +
+    (isOpen ? 'Registration OPEN' : 'Hunt ENDED') +
+    ' <span class="st">' + (isOpen ? 'TAP TO END' : 'TAP TO REOPEN') + '</span></button>';
+  $('regToggle').addEventListener('click', function () {
+    var wantOpen = $('regToggle').getAttribute('data-open') !== '1';   // currently open → close it
+    if (!wantOpen && !confirm('End the hunt?\n\nNew visitors will see “This hunt has ended” and can no longer register. Everyone already registered can still resume and finish, and the leaderboard keeps updating.')) { return; }
+    regBusy = true;
+    $('regToggle').disabled = true;
+    fetch(API + '?action=admin-set-registration', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token() },
+      body: JSON.stringify({ open: wantOpen })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        regBusy = false;
+        $('regMsg').textContent = res.message || (res.success ? 'Saved' : 'Failed');
+        $('regMsg').style.color = res.success ? '#5fd06a' : '#e05555';
+        load();
+      })
+      .catch(function () {
+        regBusy = false;
+        $('regMsg').textContent = 'Network error — nothing changed';
+        $('regMsg').style.color = '#e05555';
+        load();
+      });
+  });
+}
+
+// ─── Public displays: leaderboard + live feed ────────────────────────
+var dispBusy = false;
+function renderDisplays(leaderboardOn, feedOn) {
+  if (dispBusy) { return; }
+  function btn(what, on, onLabel, offLabel) {
+    return '<button class="tgbtn' + (on ? '' : ' closed') + '" data-what="' + what + '" data-open="' + (on ? 1 : 0) + '">' +
+      (on ? onLabel : offLabel) + ' <span class="st">' + (on ? 'TAP TO HIDE' : 'TAP TO SHOW') + '</span></button>';
+  }
+  $('dispRow').innerHTML =
+    btn('leaderboard', leaderboardOn !== false, 'Leaderboard SHOWN', 'Leaderboard HIDDEN') +
+    btn('feed', feedOn !== false, 'Live Feed SHOWN', 'Live Feed HIDDEN');
+  $('dispRow').querySelectorAll('.tgbtn').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var what = b.getAttribute('data-what');
+      var wantOpen = b.getAttribute('data-open') !== '1';   // currently shown → hide it
+      if (!wantOpen && what === 'leaderboard' && !confirm('Hide the public leaderboard?\n\nEveryone viewing it will see “The Hunt Is Over” instead of the rankings. Nothing is deleted — turn it back on any time.')) { return; }
+      dispBusy = true;
+      $('dispRow').querySelectorAll('.tgbtn').forEach(function (x) { x.disabled = true; });
+      fetch(API + '?action=admin-set-display', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token() },
+        body: JSON.stringify({ what: what, open: wantOpen })
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          dispBusy = false;
+          $('dispRow').querySelectorAll('.tgbtn').forEach(function (x) { x.disabled = false; });
+          $('dispMsg').textContent = res.message || (res.success ? 'Saved' : 'Failed');
+          $('dispMsg').style.color = res.success ? '#5fd06a' : '#e05555';
+          load();
+        })
+        .catch(function () {
+          dispBusy = false;
+          $('dispRow').querySelectorAll('.tgbtn').forEach(function (x) { x.disabled = false; });
+          $('dispMsg').textContent = 'Network error — nothing changed';
+          $('dispMsg').style.color = '#e05555';
+          load();
+        });
+    });
+  });
+}
+
 // ─── Per-target open/close toggles ───────────────────────────────────
 // Rendered from the same admin-participants payload as the table, so the
 // 15s auto-refresh keeps two admins' screens in sync.
@@ -679,6 +773,8 @@ function render(data) {
   var posters = data.posters || [];
   var closedMap = {};
   (data.closed || []).forEach(function (id) { closedMap[id] = true; });
+  renderRegistration(data.registration_open);
+  renderDisplays(data.leaderboard_on, data.feed_on);
   renderTargets(posters, data.closed || []);
   var head = '<tr><th>#</th><th>Participant</th><th>Phone</th><th>Code</th><th>Business</th>';
   posters.forEach(function (p) {

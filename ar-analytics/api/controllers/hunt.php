@@ -216,10 +216,37 @@ function huntUi() {
         'sequential' => $sequential,
         'branding' => huntBranding(),
         'ads' => $ads,
+        // false once the campaign is closed from the admin panel — the landing
+        // page then shows "hunt has ended" to new visitors instead of the form.
+        'registration_open' => !registrationClosed(),
         // legacy single-ad fields for any cached overlay still reading them
         'ad_image_url' => count($ads) ? $ads[0]['image'] : '',
         'ad_link_url' => count($ads) ? $ads[0]['link'] : '',
     ];
+}
+
+/** Whether sign-ups are closed (campaign over). Stored as its own setting so it
+ *  is one atomic toggle, independent of every other UI setting. Default: open. */
+function registrationClosed() {
+    return huntSetting('registration_closed') === true;
+}
+
+/** Public leaderboard visible? When off, leaderboard.html shows a "hunt is over,
+ *  back soon" message instead of the rankings. Default: on. */
+function leaderboardOff() {
+    return huntSetting('leaderboard_off') === true;
+}
+
+/** Live activity feed visible? Independent of the leaderboard. Default: on. */
+function feedOff() {
+    return huntSetting('feed_off') === true;
+}
+
+/** Optional admin-set message shown when the leaderboard is off. */
+function leaderboardOverMessage() {
+    $m = huntSetting('leaderboard_over_msg');
+    if (is_string($m) && trim($m) !== '') { return trim(mb_substr($m, 0, 240, 'UTF-8')); }
+    return '';
 }
 
 /** Anti-cheat plausibility floors — dashboard-tunable, defaults from the constants. */
@@ -495,6 +522,16 @@ switch ($action) {
         Auth::requireAuth(['admin', 'super_admin']);
         handleAdminSetTargetState($db);
         break;
+    case 'admin-set-registration':
+        if ($method !== 'POST') Response::error('Method not allowed', 405);
+        Auth::requireAuth(['admin', 'super_admin']);
+        handleAdminSetRegistration($db);
+        break;
+    case 'admin-set-display':
+        if ($method !== 'POST') Response::error('Method not allowed', 405);
+        Auth::requireAuth(['admin', 'super_admin']);
+        handleAdminSetDisplay($db);
+        break;
     default:
         Response::error('Unknown action', 404);
 }
@@ -539,7 +576,13 @@ function handleRegister($db) {
 
     $existing = $db->queryOne("SELECT * FROM hunt_participants WHERE phone = ?", [$phone]);
     if ($existing) {
-        resumeExisting($db, $existing, $name);
+        resumeExisting($db, $existing, $name);   // returning player — allowed even when closed
+    }
+
+    // New sign-up. If the campaign has been closed from the admin panel, stop
+    // here: existing players (handled above) keep playing, but no NEW ones join.
+    if (registrationClosed()) {
+        Response::error('This hunt has ended — new registration is closed. Thanks for joining!', 403);
     }
 
     $token = bin2hex(random_bytes(16));
@@ -935,6 +978,16 @@ function participantState($db, $participant, $includeProgress) {
 }
 
 function handleLeaderboard($db) {
+    // Turned off from the admin panel (campaign wrapped): return the "over"
+    // signal + branding so leaderboard.html can show the goodbye message,
+    // and NEVER expose rankings/names while off.
+    if (leaderboardOff()) {
+        Response::success([
+            'enabled' => false,
+            'over_message' => leaderboardOverMessage(),
+            'branding' => huntBranding(),
+        ]);
+    }
     $rows = $db->query(
         "SELECT name, company, total_ms, completed_at FROM hunt_participants
          WHERE completed_at IS NOT NULL AND total_ms IS NOT NULL
@@ -957,7 +1010,7 @@ function handleLeaderboard($db) {
         'total_participants' => intval($db->scalar("SELECT COUNT(*) FROM hunt_participants")),
         'total_completed' => intval($db->scalar("SELECT COUNT(*) FROM hunt_participants WHERE completed_at IS NOT NULL")),
     ];
-    Response::success(['leaderboard' => $board, 'stats' => $stats]);
+    Response::success(['enabled' => true, 'leaderboard' => $board, 'stats' => $stats]);
 }
 
 /** First name only — the live ticker is a public display. */
@@ -971,6 +1024,11 @@ function firstName($name) {
  * and joins (first names only, no phones), plus a "hunting right now" count.
  */
 function handleActivity($db) {
+    // Feed turned off from the admin panel: report nothing (the page then hides
+    // the ticker). Cheap short-circuit — no queries run.
+    if (feedOff()) {
+        Response::success(['enabled' => false, 'events' => [], 'hunting_now' => 0]);
+    }
     $labels = [];
     foreach (huntPosters() as $p) { $labels[$p['id']] = $p['label']; }
     $events = [];
@@ -1031,7 +1089,7 @@ function handleActivity($db) {
                              AND s.scanned_at >= (NOW() - INTERVAL 15 MINUTE)))"
     ));
 
-    Response::success(['events' => $events, 'hunting_now' => $huntingNow]);
+    Response::success(['enabled' => true, 'events' => $events, 'hunting_now' => $huntingNow]);
 }
 
 // ─── Admin actions ───────────────────────────────────────────────────
@@ -1085,6 +1143,9 @@ function handleAdminParticipants($db) {
         'participants' => adminRows($db),
         'posters' => $allPosters,
         'closed' => closedPosterIds(),
+        'registration_open' => !registrationClosed(),
+        'leaderboard_on' => !leaderboardOff(),
+        'feed_on' => !feedOff(),
         'stats' => [
             'total_participants' => intval($db->scalar("SELECT COUNT(*) FROM hunt_participants")),
             'total_completed' => intval($db->scalar("SELECT COUNT(*) FROM hunt_participants WHERE completed_at IS NOT NULL")),
@@ -1275,6 +1336,55 @@ function handleAdminSaveSettings($db) {
         ]);
     }
     Response::success(null, 'Settings saved — live immediately');
+}
+
+/**
+ * Open or close SIGN-UPS for the whole campaign. POST { "open": true|false }.
+ * Closing blocks only NEW registrations — everyone already registered keeps
+ * playing, resuming and finishing, and the leaderboard keeps updating. Stored
+ * as its own 'registration_closed' setting so it is one clean atomic toggle.
+ */
+function handleAdminSetRegistration($db) {
+    $input = json_decode(file_get_contents('php://input'), true);
+    if (!$input) Response::error('Invalid JSON body', 400);
+    if (!array_key_exists('open', $input)) Response::error('Missing "open" (true/false)', 400);
+    $open = filter_var($input['open'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+    if ($open === null) Response::error('"open" must be true or false', 400);
+
+    if ($open) { deleteHuntSetting($db, 'registration_closed'); }
+    else { saveHuntSetting($db, 'registration_closed', true); }
+
+    Response::success(
+        ['registration_open' => $open],
+        $open
+            ? 'Registration is OPEN — new players can join again.'
+            : 'Registration is CLOSED — the hunt has ended for new players. Existing players can still finish.'
+    );
+}
+
+/**
+ * Show/hide a public DISPLAY surface. POST { "what": "leaderboard"|"feed",
+ * "open": true|false }. Each maps to its own "<x>_off" setting (absent = on).
+ * The public leaderboard page reads the resulting 'enabled' flag per endpoint.
+ */
+function handleAdminSetDisplay($db) {
+    $input = json_decode(file_get_contents('php://input'), true);
+    if (!$input) Response::error('Invalid JSON body', 400);
+    $what = trim(strval($input['what'] ?? ''));
+    $map = ['leaderboard' => 'leaderboard_off', 'feed' => 'feed_off'];
+    if (!isset($map[$what])) Response::error('"what" must be "leaderboard" or "feed"', 400);
+    if (!array_key_exists('open', $input)) Response::error('Missing "open" (true/false)', 400);
+    $open = filter_var($input['open'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+    if ($open === null) Response::error('"open" must be true or false', 400);
+
+    if ($open) { deleteHuntSetting($db, $map[$what]); }
+    else { saveHuntSetting($db, $map[$what], true); }
+
+    $nameMap = ['leaderboard' => 'Leaderboard', 'feed' => 'Live feed'];
+    Response::success(
+        ['what' => $what, 'open' => $open],
+        $nameMap[$what] . ' is now ' . ($open ? 'VISIBLE' : 'HIDDEN') . ' — live for everyone immediately.'
+    );
 }
 
 /**

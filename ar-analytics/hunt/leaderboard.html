@@ -67,6 +67,15 @@
   <div class="stats" id="stats"><span class="live">●</span> Live</div>
   <div id="liveNow"><span class="pulse"></span><span id="liveNowTxt"></span></div>
 
+  <!-- Shown when the admin turns the leaderboard off (campaign wrapped) -->
+  <div id="overCard" style="display:none; text-align:center; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:14px; padding:34px 22px; margin-bottom:20px;">
+    <div style="font-size:34px; margin-bottom:10px;">🏁</div>
+    <div style="font-size:20px; font-weight:800; letter-spacing:0.03em; margin-bottom:8px;">The Hunt Is Over</div>
+    <p id="overMsg" style="color:rgba(255,255,255,0.55); font-size:13px; line-height:1.65;">Thanks to everyone who played! We'll be back soon with the next challenge. 👀</p>
+  </div>
+
+  <!-- Everything below hides while the leaderboard is off -->
+  <div id="boardWrap">
   <div id="feedWrap">
     <div id="feedHead">
       <span class="t">Live Hunt Feed</span>
@@ -92,6 +101,7 @@
   </table>
   <div class="empty" id="empty" style="display:none">No one has completed the hunt yet.<br>Be the first — top 3 win prizes!</div>
   <div id="moreNote" style="display:none; text-align:center; color:rgba(255,255,255,0.3); font-size:11px; padding:12px 0 0;"></div>
+  </div><!-- /boardWrap -->
 
   <div class="cta">
     <h2 id="ctaHeadline">Want to Make Your Marketing Interactive Too?</h2>
@@ -240,10 +250,26 @@ function refreshMe() {
     .catch(function () { /* keep last state */ });
 }
 
+// Leaderboard turned OFF from admin → show the goodbye card, hide the board
+// (feed + rankings). Independent of the feed toggle. Reversible live.
+function applyLeaderboardVisibility(data) {
+  var off = data && data.enabled === false;
+  document.getElementById('overCard').style.display = off ? 'block' : 'none';
+  document.getElementById('boardWrap').style.display = off ? 'none' : 'block';
+  document.getElementById('stats').style.display = off ? 'none' : '';
+  if (off && data.over_message) { document.getElementById('overMsg').textContent = data.over_message; }
+  if (off && data.branding) { applyBranding(data.branding); }
+  return off;
+}
+
 function refresh() {
   fetch(API + '?action=leaderboard')
     .then(function (r) { return r.json(); })
-    .then(function (res) { if (res.success) render(res.data); })
+    .then(function (res) {
+      if (!res.success) { return; }
+      if (applyLeaderboardVisibility(res.data)) { return; }   // off — nothing to render
+      render(res.data);
+    })
     .catch(function () { /* keep last data */ });
 }
 
@@ -280,6 +306,15 @@ function agoTxt(s) {
 }
 
 function renderActivity(data) {
+  // Feed turned OFF from admin → hide the whole ticker. Independent of the
+  // leaderboard toggle, so the board can stay up with the feed hidden.
+  var feedWrap = document.getElementById('feedWrap');
+  if (data && data.enabled === false) {
+    if (feedWrap) { feedWrap.style.display = 'none'; }
+    document.getElementById('liveNow').style.display = 'none';
+    return;
+  }
+  if (feedWrap) { feedWrap.style.display = ''; }
   var events = data.events || [];
   var html = '';
   var newFinish = false;
