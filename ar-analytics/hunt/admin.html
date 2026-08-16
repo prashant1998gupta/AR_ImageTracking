@@ -135,6 +135,17 @@
       <h2 style="font-size:13px; letter-spacing:0.12em; text-transform:uppercase; margin-bottom:4px;">Hunt Settings</h2>
       <p class="muted" style="margin-bottom:14px;">Changes go live immediately — no app rebuild needed. Clear a field to reset it to the built-in default.</p>
 
+      <!-- ─── Event mode (makes the hunt generic) ─── -->
+      <div style="margin-bottom:18px; padding-bottom:16px; border-bottom:1px solid rgba(255,255,255,0.08);">
+        <h2 style="font-size:12px; letter-spacing:0.12em; text-transform:uppercase; margin-bottom:4px;">Event Mode</h2>
+        <p class="muted" style="margin-bottom:8px;">How players are ranked. <b>Timed</b> = fastest wins (a race). <b>Untimed</b> = no clock, ranked by who finishes first (collect-them-all). <b>Points</b> = each poster has a points weight (set per poster below), ranked by total score — great for engagement events.</p>
+        <select id="setMode" style="max-width:260px;">
+          <option value="timed">Timed — fastest total time wins</option>
+          <option value="untimed">Untimed — finish order, no clock</option>
+          <option value="points">Points — weighted score per poster</option>
+        </select>
+      </div>
+
       <!-- ─── Poster list (Unity is the source of truth for the ids) ─── -->
       <div style="margin-bottom:18px; padding-bottom:16px; border-bottom:1px solid rgba(255,255,255,0.08);">
         <h2 style="font-size:12px; letter-spacing:0.12em; text-transform:uppercase; margin-bottom:4px;">Poster list (from Unity)</h2>
@@ -206,6 +217,17 @@
         <span class="muted" id="settingsMsg"></span>
       </div>
     </div>
+    <!-- ─── Per-stall lead export (the ROI deliverable for each brand) ─── -->
+    <div style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.09); border-radius:12px; padding:16px 20px; margin-bottom:20px;">
+      <h2 style="font-size:12px; letter-spacing:0.12em; text-transform:uppercase; margin-bottom:4px;">Stall Leads (per poster)</h2>
+      <p class="muted" style="margin-bottom:12px;">Download everyone who scanned one stall's poster — name, phone, company, business type and scan time. This is the lead list you hand each brand as proof of the footfall you delivered.</p>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+        <select id="stallPoster" style="max-width:260px;"><option value="">Choose a stall / poster…</option></select>
+        <button class="btn" id="stallExportBtn">Download Stall Leads CSV</button>
+        <span class="muted" id="stallMsg"></span>
+      </div>
+    </div>
+
     <div class="tablewrap">
       <table>
         <thead id="thead"></thead>
@@ -307,6 +329,10 @@ function loadSettings() {
           '</div>' +
           '<div class="plabel"><label>Label (chips)</label><input class="inLabel" type="text" maxlength="20" value="' + esc(p.label) + '"></div>' +
           '<div class="phint"><label>Hint (shown after the previous scan)</label><textarea class="inHint" maxlength="300">' + esc(p.hint) + '</textarea></div>' +
+          '<div style="flex-basis:100%; height:0;"></div>' +
+          '<div style="flex:0 0 130px;"><label title="Staff/quiz code needed to COUNT this poster — leave empty for a free scan">Unlock code</label><input class="inCode" type="text" maxlength="32" placeholder="none" value="' + esc(p.unlock_code || '') + '" style="text-transform:uppercase; letter-spacing:0.1em;"></div>' +
+          '<div style="flex:0 0 90px;"><label title="Weight in Points mode (ignored in timed/untimed)">Points</label><input class="inPoints" type="number" min="0" max="1000" step="1" value="' + (p.points != null ? p.points : 1) + '"></div>' +
+          '<div style="flex:1; min-width:200px;"><label>Stall offer (shown after scan)</label><input class="inOffer" type="text" maxlength="200" placeholder="e.g. Show staff for a free sample" value="' + esc(p.offer || '') + '"></div>' +
           '</div>';
       });
       $('setPosters').innerHTML = html;
@@ -320,6 +346,7 @@ function loadSettings() {
       $('setMinGap').value = res.data.floors.min_gap_s;
       $('setNextDelay').value = (res.data.ui && res.data.ui.next_btn_delay_s != null) ? res.data.ui.next_btn_delay_s : 9;
       $('setSequential').checked = !!(res.data.ui && res.data.ui.sequential);
+      $('setMode').value = res.data.mode || (res.data.ui && res.data.ui.mode) || 'timed';
       var br = res.data.branding || {};
       $('brEventName').value = br.event_name || '';
       $('brEventMeta').value = br.event_meta || '';
@@ -452,7 +479,10 @@ $('saveSettingsBtn').addEventListener('click', function () {
   $('setPosters').querySelectorAll('.poster-row').forEach(function (row) {
     posters[row.getAttribute('data-pid')] = {
       label: row.querySelector('.inLabel').value,
-      hint: row.querySelector('.inHint').value
+      hint: row.querySelector('.inHint').value,
+      unlock_code: row.querySelector('.inCode').value,
+      points: row.querySelector('.inPoints').value,
+      offer: row.querySelector('.inOffer').value
     };
   });
   $('settingsMsg').textContent = 'Saving…';
@@ -461,6 +491,7 @@ $('saveSettingsBtn').addEventListener('click', function () {
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token() },
     body: JSON.stringify({
       posters: posters,
+      mode: $('setMode').value,
       branding: {
         event_name: $('brEventName').value,
         event_meta: $('brEventMeta').value,
@@ -625,6 +656,38 @@ $('exportBtn').addEventListener('click', function () {
     .catch(function () { alert('Export failed — are you still logged in?'); });
 });
 
+// Keep the stall-leads dropdown in sync with the live poster list, preserving
+// the current selection across the 15s auto-refresh.
+function renderStallOptions(posters) {
+  var sel = $('stallPoster');
+  if (!sel) { return; }
+  var prev = sel.value;
+  var html = '<option value="">Choose a stall / poster…</option>';
+  (posters || []).forEach(function (p) {
+    html += '<option value="' + esc(p.id) + '">' + esc(p.label) + ' (' + esc(p.id) + ')</option>';
+  });
+  sel.innerHTML = html;
+  if (prev) { sel.value = prev; }
+}
+
+$('stallExportBtn').addEventListener('click', function () {
+  var pid = $('stallPoster').value;
+  if (!pid) { $('stallMsg').textContent = 'Pick a stall first.'; $('stallMsg').style.color = '#e05555'; return; }
+  $('stallMsg').textContent = 'Preparing…'; $('stallMsg').style.color = '';
+  fetch(API + '?action=admin-export-stall&poster_id=' + encodeURIComponent(pid), { headers: { 'Authorization': 'Bearer ' + token() } })
+    .then(function (r) { if (!r.ok) throw new Error('export failed'); return r.blob(); })
+    .then(function (blob) {
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'stall_leads_' + pid + '.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      $('stallMsg').textContent = 'Downloaded.'; $('stallMsg').style.color = '#5fd06a';
+    })
+    .catch(function () { $('stallMsg').textContent = 'Export failed — still logged in?'; $('stallMsg').style.color = '#e05555'; });
+});
+
 function fmtDate(s) {
   if (!s) return '';
   return s.replace(/\.\d+$/, '');   // trim milliseconds for display
@@ -776,6 +839,7 @@ function render(data) {
   renderRegistration(data.registration_open);
   renderDisplays(data.leaderboard_on, data.feed_on);
   renderTargets(posters, data.closed || []);
+  renderStallOptions(posters);
   var head = '<tr><th>#</th><th>Participant</th><th>Phone</th><th>Code</th><th>Business</th>';
   posters.forEach(function (p) {
     head += '<th>' + esc(p.label) + (closedMap[p.id] ? ' <span title="Closed — skipped for all players; scans of it do not count right now">⛔</span>' : '') + '</th>';

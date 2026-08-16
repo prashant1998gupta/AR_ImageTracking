@@ -96,7 +96,7 @@
   </div>
 
   <table>
-    <thead><tr><th>Rank</th><th>Participant</th><th>Time</th></tr></thead>
+    <thead><tr><th>Rank</th><th>Participant</th><th id="metricHead">Time</th></tr></thead>
     <tbody id="rows"></tbody>
   </table>
   <div class="empty" id="empty" style="display:none">No one has completed the hunt yet.<br>Be the first — top 3 win prizes!</div>
@@ -192,6 +192,9 @@ function esc(s) {
 function render(data) {
   var rows = document.getElementById('rows');
   var board = data.leaderboard || [];
+  window.__mode = data.mode || 'timed';
+  var mh = document.getElementById('metricHead');
+  if (mh) { mh.textContent = data.metric_label || 'Time'; }
   document.getElementById('empty').style.display = board.length ? 'none' : 'block';
   var html = '';
   board.forEach(function (e) {
@@ -199,15 +202,25 @@ function render(data) {
     if (myRank !== null && e.rank === myRank) { cls += ' me'; }
     html += '<tr' + (cls ? ' class="' + cls + '"' : '') + '><td class="rank">' + e.rank + '</td><td>' + esc(e.name) +
       (e.company ? '<span class="co">' + esc(e.company) + '</span>' : '') +
-      '</td><td class="time">' + esc(e.time_formatted) + '</td></tr>';
+      '</td><td class="time">' + esc(e.metric != null && e.metric !== '' ? e.metric : e.time_formatted) + '</td></tr>';
   });
   rows.innerHTML = html;
   var s = data.stats || {};
   document.getElementById('stats').innerHTML =
     '<span class="live">●</span> Live — ' + (s.total_completed || 0) + ' finished / ' + (s.total_participants || 0) + ' joined';
   var moreNote = document.getElementById('moreNote');
-  if ((s.total_completed || 0) > board.length && board.length > 0) {
-    moreNote.textContent = 'Showing the top ' + board.length + ' fastest — ' + s.total_completed + ' hunters have finished in total';
+  // In points mode the board lists scorers regardless of completion, so
+  // total_completed is the wrong denominator — show a generic note when the
+  // board is full (more may exist). Timed/untimed keep the finisher count.
+  if (window.__mode === 'points') {
+    if (board.length >= 10) {
+      moreNote.textContent = 'Showing the top 10 by score';
+      moreNote.style.display = 'block';
+    } else {
+      moreNote.style.display = 'none';
+    }
+  } else if ((s.total_completed || 0) > board.length && board.length > 0) {
+    moreNote.textContent = 'Showing the top ' + board.length + (window.__mode === 'untimed' ? ' finishers' : ' fastest') + ' — ' + s.total_completed + ' hunters have finished in total';
     moreNote.style.display = 'block';
   } else {
     moreNote.style.display = 'none';
@@ -227,22 +240,26 @@ function refreshMe() {
         return;
       }
       var d = res.data;
+      var mode = (d.ui && d.ui.mode) || 'timed';
       document.getElementById('youName').textContent = d.name;
-      if (d.completed) {
+      // A rank can exist WITHOUT completion in points mode (scorers are ranked
+      // as they go), so key the "Your Rank" card off d.rank, not d.completed.
+      if (d.rank) {
+        myRank = d.rank;
         document.getElementById('youLabel').textContent = 'Your Rank';
-        if (d.rank) {
-          myRank = d.rank;
-          document.getElementById('youRank').textContent = '#' + d.rank;
-          document.getElementById('youTime').textContent = d.time_formatted;
-        } else {
-          myRank = null;
-          document.getElementById('youRank').textContent = d.time_formatted;
-          document.getElementById('youTime').textContent = 'pending verification';
-        }
+        document.getElementById('youRank').textContent = '#' + d.rank;
+        document.getElementById('youTime').textContent =
+          mode === 'points' ? (d.score + ' pts') : mode === 'untimed' ? 'Finished' : d.time_formatted;
+      } else if (d.completed && mode === 'timed') {
+        // Completed but no rank in timed mode = flagged, awaiting verification.
+        myRank = null;
+        document.getElementById('youLabel').textContent = 'Your Rank';
+        document.getElementById('youRank').textContent = d.time_formatted;
+        document.getElementById('youTime').textContent = 'pending verification';
       } else {
         myRank = null;
         document.getElementById('youLabel').textContent = 'Your Progress';
-        document.getElementById('youRank').textContent = d.count + '/' + d.total;
+        document.getElementById('youRank').textContent = mode === 'points' ? (d.score + ' pts') : (d.count + '/' + d.total);
         document.getElementById('youTime').textContent = 'keep hunting!';
       }
       card.style.display = 'flex';

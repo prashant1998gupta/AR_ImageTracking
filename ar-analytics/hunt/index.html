@@ -109,7 +109,7 @@
       <div class="step"><div class="n">1</div><p>Find all <b>five posters</b> around <span id="evName1">Bharatiya Vyapar Mahotsav</span>.</p></div>
       <div class="step"><div class="n">2</div><p>Scan each poster through the <b>AR camera</b>.</p></div>
       <div class="step"><div class="n">3</div><p>Follow the <b>clue</b> after every scan.</p></div>
-      <div class="step"><div class="n">4</div><p>Complete the challenge <b>as fast as possible</b>. Your timer starts at your <b>first poster scan</b> — so reach poster 1, then go fast!</p></div>
+      <div class="step"><div class="n">4</div><p id="step4">Complete the challenge <b>as fast as possible</b>. Your timer starts at your <b>first poster scan</b> — so reach poster 1, then go fast!</p></div>
     </div>
     <div class="warn" id="arUrlWarn"></div>
     <div class="err" id="introErr"></div>
@@ -221,6 +221,17 @@ fetch(API + '?action=config').then(function (r) { return r.json(); }).then(funct
     var pc = document.getElementById('posterCount');
     if (pc) { pc.textContent = res.data.total; }
   }
+  // Mode-aware instruction copy (timed = race, untimed = collect, points = score)
+  if (res && res.success && res.data && res.data.ui && res.data.ui.mode) {
+    var st4 = document.getElementById('step4');
+    if (st4) {
+      if (res.data.ui.mode === 'untimed') {
+        st4.innerHTML = 'Find and scan <b>every poster</b> to complete the hunt — no clock, just collect them all!';
+      } else if (res.data.ui.mode === 'points') {
+        st4.innerHTML = 'Each poster is worth <b>points</b> — scan as many as you can to <b>top the leaderboard</b>!';
+      }
+    }
+  }
   // Campaign closed: a NEW visitor (no saved session) sees the ended screen
   // instead of the sign-up form. Existing players — anyone with a token, or
   // who taps "Resume" — are never blocked here (the server still lets them in).
@@ -281,13 +292,18 @@ function showPlayerCode(state) {
 
 function routeByState(state) {
   showPlayerCode(state);
+  var mode = (state.ui && state.ui.mode) || 'timed';
   if (state.completed) {
-    $('doneTime').textContent = state.time_formatted || '--:--';
+    // Headline metric matches the mode — a points/untimed run must not show a clock.
+    $('doneTime').textContent = mode === 'points' ? ((state.score || 0) + ' pts')
+      : mode === 'untimed' ? '🏁 Done!' : (state.time_formatted || '--:--');
     $('doneRank').textContent = state.rank ? 'Leaderboard position: #' + state.rank : '';
     show('view-done');
   } else if (state.started) {
     $('progName').textContent = state.name;
-    $('progPill').innerHTML = '<b>' + state.count + ' / ' + state.total + '</b> posters scanned — timer is running!' +
+    var progMetric = mode === 'points' ? ('<b>' + (state.score || 0) + ' pts</b> so far')
+      : ('<b>' + state.count + ' / ' + state.total + '</b> posters scanned' + (mode === 'timed' ? ' — timer is running!' : ''));
+    $('progPill').innerHTML = progMetric +
       (state.next ? '<br><br>Next hint: ' + esc(state.next.hint) : '');
     show('view-progress');
   } else {

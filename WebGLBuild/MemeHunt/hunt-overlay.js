@@ -109,7 +109,9 @@
     active: false,        // token present + status ok
     nextHint: null,       // latest {id,label,hint} — clue stays recoverable
     name: '',             // participant name (for the victory card)
-    playerCode: ''        // 5-digit code — shown on completion, prize-desk id
+    playerCode: '',       // 5-digit code — shown on completion, prize-desk id
+    mode: 'timed',        // timed | untimed | points (from ui.mode)
+    score: 0              // accumulated points (points mode)
   };
 
   // Scanned count over the CURRENT poster list only. state.scanned can hold ids
@@ -189,7 +191,17 @@
     api('scan', 'POST', { token: getToken(), poster_id: posterId }).then(function (res) {
       if (res && res.success) {
         dropPending(posterId);
-        applyState(res.data, false);
+        if (res.data && res.data.need_code) {
+          // This poster needs a stall/quiz code (added while it was queued
+          // offline). The queue can't supply one, so drop it, undo the
+          // optimistic tick, and tell the player to scan it again for the prompt.
+          delete state.scanned[posterId];
+          state.count = countScanned();
+          renderChips();
+          toast('Scan the ' + (res.data.poster_label || labelOf(posterId)) + ' poster again to enter its code', 3500);
+        } else {
+          applyState(res.data, false);
+        }
         if (loadPending().length) { flushPending(); }
       } else if (res && res.success === false) {
         // Definitive server rejection (bad poster id, invalid token, ...):
@@ -245,6 +257,7 @@
       }
       return;
     }
+    if (pendingCodePoster === id) { return; }   // its code prompt is already open
     if (state.scanned[id]) {
       toast('✓ ' + labelOf(id) + ' already scanned — find the next poster!', 2600);
       return;
@@ -255,7 +268,12 @@
     api('scan', 'POST', { token: getToken(), poster_id: id }).then(function (res) {
       inFlight[id] = false;
       if (res && res.success) {
-        if (res.data && res.data.counted === false) {
+        if (res.data && res.data.need_code) {
+          // This poster is gated: the visitor needs the stall/quiz code to count
+          // it. Show a code prompt (not a failure) and resync state quietly.
+          applyState(res.data, false);
+          showCodePrompt(res.data.poster_id, res.data.poster_label || labelOf(id), !!res.data.code_wrong);
+        } else if (res.data && res.data.counted === false) {
           // The admin closed this target AFTER our poster list loaded (the
           // overlay never polls, so a stale list is normal). The server
           // accepted the scan but it does not count — celebrating it with the
@@ -461,6 +479,8 @@
     }
     if (data.name) { state.name = data.name; }
     if (data.player_code) { state.playerCode = String(data.player_code); }
+    if (typeof data.score === 'number') { state.score = data.score; }
+    if (data.ui && data.ui.mode) { state.mode = data.ui.mode; }
     if (data.next) { state.nextHint = data.next; }
     if (data.completed) { state.nextHint = null; }
     // Server-tunable UI settings (hunt/admin.html → Settings) override defaults
@@ -505,6 +525,7 @@
         setNextBtnVisible(false);
         pendingNext = null;
         hintCard('🎉 ' + data.total + '/' + data.total, 'Challenge complete — enjoy the last meme! 🎬', true);
+        if (data.offer) { showOffer(data.offer); }
         scheduleReveal(data.poster_id, CFG.doneMinMs, CFG.doneMaxMs, function () {
           showCompletion(data);
         });
@@ -524,6 +545,7 @@
         // on its own.
         pendingNext = { count: data.count, total: data.total, hint: data.next.hint };
         hintCard('✓ ' + data.count + '/' + data.total, 'Enjoy the meme! 🎬', true);
+        if (data.offer) { showOffer(data.offer); }
         setNextBtnVisible(false);
         clearTimeout(nextBtnTimer);
         nextBtnTimer = setTimeout(function () { setNextBtnVisible(true); }, CFG.nextBtnDelayMs);
@@ -608,6 +630,19 @@
       '  #hunt-top { position:absolute; top:calc(10px + env(safe-area-inset-top)); left:0; right:0; display:none; justify-content:center; gap:10px; align-items:center; }' +
       '  #hunt-timer, #hunt-count { background:rgba(8,8,8,0.72); border:1px solid rgba(var(--hbr),0.45); color:#fff; border-radius:20px; padding:6px 14px; font-size:12.5px; font-weight:700; letter-spacing:0.08em; font-variant-numeric:tabular-nums; }' +
       '  #hunt-count b { color:var(--hbl); }' +
+      '  #hunt-code { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:88vw; max-width:340px; background:rgba(12,12,12,0.96); border:1px solid rgba(var(--hbr),0.6); border-radius:18px; padding:20px 18px; display:none; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,0.6); }' +
+      '  #hunt-code .ct { font-size:15px; font-weight:800; margin-bottom:4px; }' +
+      '  #hunt-code .cs { font-size:12px; color:rgba(255,255,255,0.6); line-height:1.5; margin-bottom:14px; }' +
+      '  #hunt-code input { width:100%; text-align:center; font-size:22px; font-weight:800; letter-spacing:0.25em; text-transform:uppercase; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.25); border-radius:12px; color:#fff; padding:12px; outline:none; margin-bottom:6px; }' +
+      '  #hunt-code input:focus { border-color:var(--hba); }' +
+      '  #hunt-code .cerr { font-size:11.5px; color:#ff8888; min-height:15px; margin-bottom:10px; }' +
+      '  #hunt-code .cbtns { display:flex; gap:8px; }' +
+      '  #hunt-code button { flex:1; border:none; border-radius:12px; padding:12px; font-size:13px; font-weight:700; cursor:pointer; }' +
+      '  #hunt-code .cgo { background:linear-gradient(135deg,var(--hba),var(--hbd)); color:#fff; }' +
+      '  #hunt-code .cx { background:rgba(255,255,255,0.1); color:rgba(255,255,255,0.7); }' +
+      '  #hunt-offer { position:absolute; left:50%; bottom:calc(70px + env(safe-area-inset-bottom)); transform:translateX(-50%); width:88vw; max-width:340px; background:rgba(8,8,8,0.9); border:1px solid rgba(95,208,106,0.6); border-radius:14px; padding:12px 16px; display:none; text-align:center; }' +
+      '  #hunt-offer .ol { font-size:9.5px; letter-spacing:0.18em; text-transform:uppercase; color:#5fd06a; font-weight:800; margin-bottom:3px; }' +
+      '  #hunt-offer .ov { font-size:13.5px; color:#fff; line-height:1.45; }' +
       // ONE LINE, always. Labels are admin-editable, so no fixed font size is right
       // for every set — fitChips() shrinks --chip-fs until the row fits. Padding is
       // in em so it scales with the text. flex:0 0 auto is load-bearing: chips must
@@ -681,6 +716,8 @@
       '  #hunt-done { overflow-y:auto; }' +
       '</style>' +
       '<div id="hunt-top"><div id="hunt-count"><b>0</b>/5</div><div id="hunt-timer">00:00</div></div>' +
+      '<div id="hunt-code"><div class="ct" id="hunt-code-t">Stall code</div><div class="cs" id="hunt-code-s"></div><input id="hunt-code-in" type="text" inputmode="text" autocomplete="off" maxlength="32" placeholder="CODE"><div class="cerr" id="hunt-code-err"></div><div class="cbtns"><button class="cx" id="hunt-code-x">Cancel</button><button class="cgo" id="hunt-code-go">Unlock ▸</button></div></div>' +
+      '<div id="hunt-offer"><div class="ol">Stall offer</div><div class="ov" id="hunt-offer-v"></div></div>' +
       '<div id="hunt-chips"></div>' +
       '<div id="hunt-peek-backdrop"></div>' +
       '<div id="hunt-peek"><img id="hunt-peek-img" alt="Next poster"><div class="pk" id="hunt-peek-label"></div><div class="pkhint" id="hunt-peek-hint"></div></div>' +
@@ -750,6 +787,11 @@
     });
     nextBtnEl = document.getElementById('hunt-hint-next');
     nextBtnEl.addEventListener('click', advanceToClue);
+    document.getElementById('hunt-code-go').addEventListener('click', submitCode);
+    document.getElementById('hunt-code-x').addEventListener('click', hideCodePrompt);
+    document.getElementById('hunt-code-in').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); submitCode(); }
+    });
     document.getElementById('hunt-gate-btn').setAttribute('href', CFG.landingUrl);
     // #resume deep-link: the landing page opens its resume form directly
     document.getElementById('hunt-gate-resume').setAttribute('href', CFG.landingUrl + '#resume');
@@ -928,6 +970,58 @@
   }
   window.addEventListener('resize', function () { fitChips(); });
   window.addEventListener('orientationchange', function () { setTimeout(fitChips, 250); });
+
+  // ─── Unlock-code prompt (staff / quiz-gated posters) ────────────────
+  var pendingCodePoster = null;
+  function showCodePrompt(posterId, label, wasWrong) {
+    var box = document.getElementById('hunt-code');
+    if (!box) { return; }
+    pendingCodePoster = posterId;
+    document.getElementById('hunt-code-t').textContent = 'Unlock “' + label + '”';
+    document.getElementById('hunt-code-s').textContent = 'Ask the ' + label + ' stall for the code, then enter it here to count this poster.';
+    document.getElementById('hunt-code-err').textContent = wasWrong ? 'That code is not right — check with the stall.' : '';
+    var inp = document.getElementById('hunt-code-in');
+    if (!wasWrong) { inp.value = ''; }
+    box.style.display = 'block';
+    try { inp.focus(); } catch (e) {}
+  }
+  function hideCodePrompt() {
+    var box = document.getElementById('hunt-code');
+    if (box) { box.style.display = 'none'; }
+    pendingCodePoster = null;
+  }
+  function submitCode() {
+    if (!pendingCodePoster) { return; }
+    var code = (document.getElementById('hunt-code-in').value || '').trim();
+    if (!code) { document.getElementById('hunt-code-err').textContent = 'Enter the code first.'; return; }
+    var posterId = pendingCodePoster;
+    document.getElementById('hunt-code-go').disabled = true;
+    api('scan', 'POST', { token: getToken(), poster_id: posterId, code: code }).then(function (res) {
+      document.getElementById('hunt-code-go').disabled = false;
+      if (res && res.success && res.data && res.data.need_code) {
+        document.getElementById('hunt-code-err').textContent = 'That code is not right — check with the stall.';
+      } else if (res && res.success) {
+        hideCodePrompt();
+        applyState(res.data, true);          // counts it, shows enjoy card + offer
+      } else {
+        document.getElementById('hunt-code-err').textContent = (res && res.message) || 'Could not verify — try again.';
+      }
+    }).catch(function () {
+      document.getElementById('hunt-code-go').disabled = false;
+      document.getElementById('hunt-code-err').textContent = 'Network error — try again.';
+    });
+  }
+
+  // ─── Stall offer banner (shown briefly after a counted scan) ────────
+  var offerTimer = null;
+  function showOffer(text) {
+    var box = document.getElementById('hunt-offer');
+    if (!box) { return; }
+    document.getElementById('hunt-offer-v').textContent = text;
+    box.style.display = 'block';
+    clearTimeout(offerTimer);
+    offerTimer = setTimeout(function () { box.style.display = 'none'; }, 7000);
+  }
 
   function toast(msg, ms) {
     if (!toastEl) { return; }
@@ -1139,13 +1233,26 @@
     vcFitFont(ctx, name, '800', 68, 34, 920, FAM);
     ctx.fillText(name, W / 2, 600);
 
-    // Time
+    // Headline metric — matches the event mode (time raced / points scored / done)
+    var vcMode = (data.ui && data.ui.mode) || state.mode || 'timed';
+    var vcBig, vcCaption;
+    var nPosters = (state.posters.length ? state.posters : FALLBACK_POSTERS).length;
+    if (vcMode === 'points') {
+      vcBig = ((typeof data.score === 'number' ? data.score : state.score) || 0) + '';
+      vcCaption = 'POINTS SCORED';
+    } else if (vcMode === 'untimed') {
+      vcBig = '✓';
+      vcCaption = 'ALL ' + nPosters + ' MEMES FOUND';
+    } else {
+      vcBig = data.time_formatted || '--:--';
+      vcCaption = 'HUNT TIME · ALL ' + nPosters + ' MEMES FOUND';
+    }
     ctx.fillStyle = BR.accent;
-    ctx.font = '800 175px ' + FAM;
-    ctx.fillText(data.time_formatted || '--:--', W / 2, 745);
+    ctx.font = (vcMode === 'points' ? '800 175px ' : (vcMode === 'untimed' ? '800 150px ' : '800 175px ')) + FAM;
+    ctx.fillText(vcBig, W / 2, 745);
     ctx.fillStyle = 'rgba(255,255,255,0.45)';
     ctx.font = '600 26px ' + FAM;
-    ctx.fillText('HUNT TIME · ALL ' + (state.posters.length ? state.posters : FALLBACK_POSTERS).length + ' MEMES FOUND', W / 2, 850);
+    ctx.fillText(vcCaption, W / 2, 850);
 
     // Rank pill
     if (data.rank) {
@@ -1218,8 +1325,13 @@
 
   function renderVictoryCard(data) {
     vcCanvas = buildVictoryCard(data);
-    vcText = 'I completed the ' + BR.huntTitle + ' at ' + BR.eventName + ' in ' +
-      (data.time_formatted || '') + (data.rank ? ' — Rank #' + data.rank : '') +
+    var shareMode = (data.ui && data.ui.mode) || state.mode || 'timed';
+    var shareMetric = shareMode === 'points'
+      ? ('with ' + (((typeof data.score === 'number' ? data.score : state.score) || 0)) + ' points')
+      : shareMode === 'untimed'
+        ? '' : ('in ' + (data.time_formatted || ''));
+    vcText = 'I completed the ' + BR.huntTitle + ' at ' + BR.eventName +
+      (shareMetric ? ' ' + shareMetric : '') + (data.rank ? ' — Rank #' + data.rank : '') +
       '! 🏆 Can you beat my time? 👉 ' + CFG.landingUrl;
 
     var preview = document.getElementById('hunt-vc-preview');
@@ -1270,7 +1382,13 @@
       peekBackdrop.style.display = 'none';
       peekEl.classList.remove('big');
     }
-    document.getElementById('hunt-done-time').textContent = data.time_formatted || '--:--';
+    // Headline metric matches the mode: time raced, points scored, or just done.
+    var mode = (data.ui && data.ui.mode) || state.mode;
+    var bigMetric;
+    if (mode === 'points') { bigMetric = (typeof data.score === 'number' ? data.score : state.score) + ' pts'; }
+    else if (mode === 'untimed') { bigMetric = '🏁 Done!'; }
+    else { bigMetric = data.time_formatted || '--:--'; }
+    document.getElementById('hunt-done-time').textContent = bigMetric;
     document.getElementById('hunt-done-rank').textContent = data.rank ? 'Leaderboard position: #' + data.rank : '';
     var codeEl = document.getElementById('hunt-done-code');
     var pcode = (data.player_code ? String(data.player_code) : state.playerCode);
@@ -1314,11 +1432,21 @@
     var mm = Math.floor(s / 60);
     return (mm < 10 ? '0' : '') + mm + ':' + (ss < 10 ? '0' : '') + ss;
   }
-  setInterval(function () {
-    if (timerEl && state.active && state.started && !state.completed && state.timerBase) {
-      timerEl.textContent = fmtTimer(Date.now() - state.timerBase);
+  function refreshTimerDisplay() {
+    if (!timerEl) { return; }
+    if (state.mode === 'untimed') {
+      timerEl.style.display = 'none';                       // no clock in untimed
+    } else if (state.mode === 'points') {
+      timerEl.style.display = '';
+      timerEl.textContent = state.score + ' pts';           // score, not a clock
+    } else {
+      timerEl.style.display = '';
+      if (state.active && state.started && !state.completed && state.timerBase) {
+        timerEl.textContent = fmtTimer(Date.now() - state.timerBase);
+      }
     }
-  }, 500);
+  }
+  setInterval(refreshTimerDisplay, 500);
 
   // ─── Boot ───────────────────────────────────────────────────────────
   function boot() {

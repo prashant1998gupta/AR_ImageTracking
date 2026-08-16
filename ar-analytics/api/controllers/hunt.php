@@ -81,21 +81,52 @@ function huntPosters($refresh = false) {
     $manifest = huntPosterList();
     if ($manifest !== null) { $posters = $manifest; }
 
-    // Per-poster label/hint overrides apply ON TOP of whichever list won,
-    // keyed by id — the admin's label/hint editor keeps working either way.
+    // Defaults for the engagement fields every poster carries (admin-editable):
+    //   unlock_code — staff/quiz code required to COUNT this poster ('' = none)
+    //   points      — weight in points/quiz mode (ignored in timed/untimed)
+    //   offer       — text shown to the player right after scanning this poster
+    foreach ($posters as $i => $p) {
+        $posters[$i]['unlock_code'] = isset($p['unlock_code']) ? strval($p['unlock_code']) : '';
+        $posters[$i]['points']      = isset($p['points']) ? max(0, intval($p['points'])) : 1;
+        $posters[$i]['offer']       = isset($p['offer']) ? strval($p['offer']) : '';
+    }
+
+    // Per-poster overrides apply ON TOP of whichever list won, keyed by id —
+    // the admin's label/hint/code/points/offer editor works either way.
     $overrides = huntSetting('posters');
     if (is_array($overrides)) {
         foreach ($posters as $i => $p) {
             if (isset($overrides[$p['id']]) && is_array($overrides[$p['id']])) {
                 $o = $overrides[$p['id']];
-                // Empty override = fall back to the default (lets admins "reset")
+                // Empty label/hint = fall back to the default (lets admins "reset")
                 if (!empty($o['label'])) { $posters[$i]['label'] = $o['label']; }
                 if (!empty($o['hint']))  { $posters[$i]['hint']  = $o['hint']; }
+                if (isset($o['unlock_code'])) { $posters[$i]['unlock_code'] = strval($o['unlock_code']); }
+                if (isset($o['points']) && $o['points'] !== '') { $posters[$i]['points'] = max(0, intval($o['points'])); }
+                if (isset($o['offer'])) { $posters[$i]['offer'] = strval($o['offer']); }
             }
         }
     }
     $cached = $posters;
     return $cached;
+}
+
+/** One poster's full config by id (label/hint/unlock_code/points/offer), or null. */
+function huntPosterById($id) {
+    foreach (huntPosters() as $p) { if ($p['id'] === $id) { return $p; } }
+    return null;
+}
+
+/**
+ * Event mode — makes the hunt generic:
+ *   timed   (default) — fastest total time wins; HUD timer; leaderboard by time.
+ *   untimed          — no clock; leaderboard by finish order; "collect them all".
+ *   points           — each poster has a points weight; leaderboard by score.
+ * Absent/unknown = timed, so every existing campaign is unchanged.
+ */
+function huntMode() {
+    $m = huntSetting('mode');
+    return in_array($m, ['timed', 'untimed', 'points'], true) ? $m : 'timed';
 }
 
 /**
@@ -214,6 +245,7 @@ function huntUi() {
     return [
         'next_btn_delay_s' => $delay,
         'sequential' => $sequential,
+        'mode' => huntMode(),
         'branding' => huntBranding(),
         'ads' => $ads,
         // false once the campaign is closed from the admin panel — the landing
@@ -488,6 +520,10 @@ switch ($action) {
         Auth::requireAuth(['admin', 'super_admin']);
         handleAdminExport($db);
         break;
+    case 'admin-export-stall':
+        Auth::requireAuth(['admin', 'super_admin']);
+        handleAdminExportStall($db);
+        break;
     case 'admin-verify':
         if ($method !== 'POST') Response::error('Method not allowed', 405);
         Auth::requireAuth(['admin', 'super_admin']);
@@ -543,7 +579,14 @@ function publicPosters() {
     // exist for them: no chip, no hint, not required to finish.
     $out = [];
     foreach (openPosters() as $p) {
-        $out[] = ['id' => $p['id'], 'label' => $p['label']];
+        $out[] = [
+            'id' => $p['id'],
+            'label' => $p['label'],
+            // A boolean so the overlay can prompt for a code; the code itself is
+            // NEVER sent to players — only the stall/quiz answer holder has it.
+            'code_required' => isset($p['unlock_code']) && trim($p['unlock_code']) !== '',
+            'points' => isset($p['points']) ? intval($p['points']) : 1,
+        ];
     }
     return $out;
 }
@@ -778,25 +821,51 @@ function handleScan($db) {
         Response::success($state, 'Challenge already completed');
     }
 
+    // What this participant has already scanned (reused by the sequential gate
+    // and the unlock-code gate below).
+    $have = [];
+    foreach ($db->query("SELECT poster_id FROM hunt_scans WHERE participant_id = ?", [$participant['id']]) as $s) {
+        $have[$s['poster_id']] = true;
+    }
+    $alreadyScanned = !empty($have[$posterId]);
+
     // Sequential mode (admin toggle): posters must be found in order. Checked
     // BEFORE the timer auto-start, so a rejected out-of-order first scan does
     // not start anyone's clock. Re-scans of already-counted posters fall
     // through to the normal duplicate path. The order walks the OPEN set —
     // a closed target is skipped in the sequence (after 2 comes 4).
     $uiCfg = huntUi();
-    if ($isOpen && !empty($uiCfg['sequential'])) {
-        $have = [];
-        foreach ($db->query("SELECT poster_id FROM hunt_scans WHERE participant_id = ?", [$participant['id']]) as $s) {
-            $have[$s['poster_id']] = true;
+    if ($isOpen && !empty($uiCfg['sequential']) && !$alreadyScanned) {
+        $expected = null;
+        foreach (openPosters() as $p) {
+            if (empty($have[$p['id']])) { $expected = $p; break; }
         }
-        if (empty($have[$posterId])) {
-            $expected = null;
-            foreach (openPosters() as $p) {
-                if (empty($have[$p['id']])) { $expected = $p; break; }
-            }
-            if ($expected && $posterId !== $expected['id']) {
-                Response::error('Posters unlock in order — find the "' . $expected['label'] . '" poster next!', 409);
-            }
+        if ($expected && $posterId !== $expected['id']) {
+            Response::error('Posters unlock in order — find the "' . $expected['label'] . '" poster next!', 409);
+        }
+    }
+
+    // Unlock-code gate (engagement): if this poster carries an unlock code, the
+    // visitor must provide it to RECORD the poster — the stall staff hand it over
+    // (or it's the quiz answer). Applies whether the poster is open OR closed: a
+    // closed coded poster must not be silently recorded codeless, or a
+    // close→scan→reopen sequence would count it without the code ever entered.
+    // Only for a not-yet-recorded poster (re-scans never need a code). Returned
+    // as success + need_code so the overlay shows a code prompt; recording
+    // nothing keeps the clock unstarted.
+    $poster = huntPosterById($posterId);
+    if (!$alreadyScanned && $poster && trim($poster['unlock_code']) !== '') {
+        $given = trim(strval($input['code'] ?? ''));
+        if ($given === '' || mb_strtolower($given, 'UTF-8') !== mb_strtolower(trim($poster['unlock_code']), 'UTF-8')) {
+            $state = participantState($db, $participant, true);
+            $state['need_code'] = true;
+            $state['code_wrong'] = ($given !== '');   // '' = "enter code", non-empty = "wrong code"
+            $state['poster_id'] = $posterId;
+            $state['poster_label'] = $poster['label'];
+            $state['counted'] = false;
+            Response::success($state, $given !== ''
+                ? 'That code is not right — check with the stall.'
+                : 'Ask the stall staff for the unlock code to count this poster.');
         }
     }
 
@@ -838,13 +907,22 @@ function handleScan($db) {
 
     // Completion check — counts only scans for posters that are CURRENTLY OPEN
     // (closed and removed posters never count), sets completed_at exactly once.
-    maybeFinalizeCompletion($db, $participant['id']);
+    $wasCompleted = maybeFinalizeCompletion($db, $participant['id']);
+    // Points/untimed players are ranked BEFORE completing, so the gap floor
+    // must run at scan time too — completion (which also gap-checks) may never
+    // come. Skip when completion just ran it, and in timed mode (checked there).
+    if (!$wasCompleted && $isOpen && !$duplicate && huntMode() !== 'timed') {
+        flagGapOnly($db, $participant['id']);
+    }
 
     $participant = $db->queryOne("SELECT * FROM hunt_participants WHERE id = ?", [$participant['id']]);
     $state = participantState($db, $participant, true);
     $state['duplicate'] = $duplicate;
     $state['poster_id'] = $posterId;
     $state['counted'] = $isOpen;
+    // Brand offer shown to the player right after a real (open) scan — the
+    // nudge to turn to the stall staff. Empty on closed/duplicate is harmless.
+    $state['offer'] = (!$duplicate && $isOpen && $poster && trim($poster['offer']) !== '') ? trim($poster['offer']) : '';
     Response::success($state, $duplicate ? 'Poster already scanned' : 'Poster scanned');
 }
 
@@ -863,30 +941,48 @@ function handleStatus($db) {
  * poster), so implausibly fast completions are flagged and kept off the public
  * leaderboard until an admin verifies the participant in person.
  */
+/** True if any two consecutive COUNTED (open-poster) scans are closer than the
+ *  min-gap floor — physically-impossible spacing = forged rapid-fire. Works with
+ *  no completion / no total_ms, so it also catches points-mode non-completers. */
+function hasGapViolation($db, $participantId) {
+    $floors = huntFloors();
+    $openIds = openPosterIds();
+    if (!count($openIds)) { return false; }
+    $ph = implode(',', array_fill(0, count($openIds), '?'));
+    $times = [];
+    foreach ($db->query("SELECT scanned_at FROM hunt_scans WHERE participant_id = ? AND poster_id IN ($ph) ORDER BY scanned_at ASC", array_merge([$participantId], $openIds)) as $s) {
+        $dt = DateTime::createFromFormat('Y-m-d H:i:s.u', $s['scanned_at'])
+           ?: DateTime::createFromFormat('Y-m-d H:i:s', $s['scanned_at']);
+        if ($dt) $times[] = floatval($dt->format('U.u'));
+    }
+    for ($i = 1; $i < count($times); $i++) {
+        if (($times[$i] - $times[$i - 1]) * 1000 < $floors['gap']) { return true; }
+    }
+    return false;
+}
+
+/** Set is_suspect if this participant's counted scans are implausibly fast.
+ *  Called at COMPLETION (has total_ms). The total-time floor is timed-only; the
+ *  gap floor applies in every mode. Points-mode non-completers are caught by
+ *  flagGapOnly() at scan time instead (they never reach completion). */
 function flagIfImplausible($db, $participantId) {
     $row = $db->queryOne("SELECT total_ms FROM hunt_participants WHERE id = ?", [$participantId]);
     if (!$row || $row['total_ms'] === null) return;
-
     $floors = huntFloors();
-    $suspect = intval($row['total_ms']) < $floors['total'];
-    // Gap check runs over COUNTED (open-poster) scans only: a stray scan of an
-    // admin-closed target seconds after a real one must not flag a fair player.
-    $openIds = openPosterIds();
-    if (!$suspect && count($openIds)) {
-        $ph = implode(',', array_fill(0, count($openIds), '?'));
-        $times = [];
-        foreach ($db->query("SELECT scanned_at FROM hunt_scans WHERE participant_id = ? AND poster_id IN ($ph) ORDER BY scanned_at ASC", array_merge([$participantId], $openIds)) as $s) {
-            $dt = DateTime::createFromFormat('Y-m-d H:i:s.u', $s['scanned_at'])
-               ?: DateTime::createFromFormat('Y-m-d H:i:s', $s['scanned_at']);
-            if ($dt) $times[] = floatval($dt->format('U.u'));
-        }
-        for ($i = 1; $i < count($times); $i++) {
-            if (($times[$i] - $times[$i - 1]) * 1000 < $floors['gap']) { $suspect = true; break; }
-        }
-    }
+    $suspect = (huntMode() === 'timed') && intval($row['total_ms']) < $floors['total'];
+    if (!$suspect) { $suspect = hasGapViolation($db, $participantId); }
     if ($suspect) {
         $db->execute("UPDATE hunt_participants SET is_suspect = TRUE WHERE id = ?", [$participantId]);
         error_log('[Hunt] participant ' . $participantId . ' flagged as suspect (implausibly fast completion)');
+    }
+}
+
+/** Points/untimed non-completers get ranked publicly without ever hitting the
+ *  completion path, so run the gap floor at SCAN time to keep forged rapid-fire
+ *  runs off the board. Idempotent — once flagged, stays flagged until verified. */
+function flagGapOnly($db, $participantId) {
+    if (hasGapViolation($db, $participantId)) {
+        $db->execute("UPDATE hunt_participants SET is_suspect = TRUE WHERE id = ?", [$participantId]);
     }
 }
 
@@ -900,9 +996,69 @@ function formatMs($ms) {
     return sprintf('%02d:%02d', intval($totalSeconds / 60), $totalSeconds % 60);
 }
 
+/**
+ * Points-mode standings, computed in PHP (event scale = hundreds): every
+ * non-hidden player who has scored >0, ranked by score DESC then earliest
+ * last-scan. Cached per request. Shared by the leaderboard and each player's
+ * own rank so the two never disagree.
+ */
+function pointsBoard($db, $refresh = false) {
+    static $cached = null;
+    if ($refresh) { $cached = null; return []; }
+    if ($cached !== null) { return $cached; }
+    $pts = [];
+    foreach (openPosters() as $p) { $pts[$p['id']] = intval($p['points']); }
+    $players = $db->query("SELECT id, name, company, is_suspect, is_verified FROM hunt_participants");
+    $scans = $db->query("SELECT participant_id, poster_id, scanned_at FROM hunt_scans");
+    $score = [];
+    $last = [];
+    foreach ($scans as $sc) {
+        if (!isset($pts[$sc['poster_id']])) { continue; }   // only OPEN posters score
+        $pid = $sc['participant_id'];
+        $score[$pid] = (isset($score[$pid]) ? $score[$pid] : 0) + $pts[$sc['poster_id']];
+        if (!isset($last[$pid]) || strcmp($sc['scanned_at'], $last[$pid]) > 0) { $last[$pid] = $sc['scanned_at']; }
+    }
+    $list = [];
+    foreach ($players as $p) {
+        if ($p['is_suspect'] && !$p['is_verified']) { continue; }
+        $sc = isset($score[$p['id']]) ? $score[$p['id']] : 0;
+        if ($sc <= 0) { continue; }
+        $list[] = ['id' => intval($p['id']), 'name' => $p['name'], 'company' => $p['company'],
+                   'score' => $sc, 'last' => isset($last[$p['id']]) ? $last[$p['id']] : ''];
+    }
+    usort($list, function ($a, $b) {
+        if ($a['score'] !== $b['score']) { return $b['score'] - $a['score']; }
+        return strcmp($a['last'], $b['last']);
+    });
+    $cached = $list;
+    return $list;
+}
+
 function participantRank($db, $participant) {
-    if ($participant['completed_at'] === null || $participant['total_ms'] === null) return null;
     if (!empty($participant['is_suspect']) && empty($participant['is_verified'])) return null;
+    $mode = huntMode();
+
+    if ($mode === 'points') {
+        foreach (pointsBoard($db) as $i => $e) {
+            if ($e['id'] === intval($participant['id'])) { return $i + 1; }
+        }
+        return null;
+    }
+
+    if ($mode === 'untimed') {
+        if ($participant['completed_at'] === null) return null;
+        $ahead = intval($db->scalar(
+            "SELECT COUNT(*) FROM hunt_participants
+             WHERE completed_at IS NOT NULL AND id != ?
+               AND NOT (is_suspect = TRUE AND is_verified = FALSE)
+               AND completed_at < ?",
+            [$participant['id'], $participant['completed_at']]
+        ));
+        return $ahead + 1;
+    }
+
+    // timed (default)
+    if ($participant['completed_at'] === null || $participant['total_ms'] === null) return null;
     $ahead = intval($db->scalar(
         "SELECT COUNT(*) FROM hunt_participants
          WHERE completed_at IS NOT NULL AND id != ?
@@ -926,6 +1082,12 @@ function participantState($db, $participant, $includeProgress) {
     foreach ($scannedRows as $row) {
         if (in_array($row['poster_id'], $openIds, true)) { $scanned[] = $row['poster_id']; }
     }
+
+    // Player's accumulated points (points mode) — sum of open posters scanned.
+    $ptsById = [];
+    foreach (openPosters() as $p) { $ptsById[$p['id']] = intval($p['points']); }
+    $score = 0;
+    foreach ($scanned as $sid) { $score += isset($ptsById[$sid]) ? $ptsById[$sid] : 0; }
 
     $next = null;
     foreach (openPosters() as $p) {
@@ -965,6 +1127,7 @@ function participantState($db, $participant, $includeProgress) {
         'scanned' => $scanned,
         'count' => count($scanned),
         'total' => count(openPosters()),
+        'score' => $score,
         'inactive' => closedPosterIds(),
         'next' => $completed ? null : $next,
         'total_ms' => $totalMs,
@@ -988,29 +1151,58 @@ function handleLeaderboard($db) {
             'branding' => huntBranding(),
         ]);
     }
-    $rows = $db->query(
-        "SELECT name, company, total_ms, completed_at FROM hunt_participants
-         WHERE completed_at IS NOT NULL AND total_ms IS NOT NULL
-           AND NOT (is_suspect = TRUE AND is_verified = FALSE)
-         ORDER BY total_ms ASC, completed_at ASC
-         LIMIT 10"
-    );
+    $mode = huntMode();
     $board = [];
-    $rank = 1;
-    foreach ($rows as $row) {
-        $board[] = [
-            'rank' => $rank,
-            'name' => $row['name'],
-            'company' => $row['company'],
-            'time_formatted' => formatMs(intval($row['total_ms'])),
-        ];
-        $rank++;
+    $metricLabel = 'Time';
+
+    if ($mode === 'points') {
+        $metricLabel = 'Points';
+        $rank = 1;
+        foreach (array_slice(pointsBoard($db), 0, 10) as $e) {
+            $board[] = ['rank' => $rank++, 'name' => $e['name'], 'company' => $e['company'],
+                        'metric' => $e['score'] . ' pts', 'time_formatted' => ''];
+        }
+    } elseif ($mode === 'untimed') {
+        $metricLabel = 'Result';
+        $rows = $db->query(
+            "SELECT name, company, completed_at FROM hunt_participants
+             WHERE completed_at IS NOT NULL
+               AND NOT (is_suspect = TRUE AND is_verified = FALSE)
+             ORDER BY completed_at ASC LIMIT 10"
+        );
+        $rank = 1;
+        foreach ($rows as $row) {
+            $board[] = ['rank' => $rank, 'name' => $row['name'], 'company' => $row['company'],
+                        'metric' => $rank === 1 ? '🏆 First!' : 'Finished', 'time_formatted' => ''];
+            $rank++;
+        }
+    } else {
+        // timed (default)
+        $rows = $db->query(
+            "SELECT name, company, total_ms, completed_at FROM hunt_participants
+             WHERE completed_at IS NOT NULL AND total_ms IS NOT NULL
+               AND NOT (is_suspect = TRUE AND is_verified = FALSE)
+             ORDER BY total_ms ASC, completed_at ASC
+             LIMIT 10"
+        );
+        $rank = 1;
+        foreach ($rows as $row) {
+            $board[] = ['rank' => $rank++, 'name' => $row['name'], 'company' => $row['company'],
+                        'metric' => formatMs(intval($row['total_ms'])),
+                        'time_formatted' => formatMs(intval($row['total_ms']))];
+        }
     }
     $stats = [
         'total_participants' => intval($db->scalar("SELECT COUNT(*) FROM hunt_participants")),
         'total_completed' => intval($db->scalar("SELECT COUNT(*) FROM hunt_participants WHERE completed_at IS NOT NULL")),
     ];
-    Response::success(['enabled' => true, 'leaderboard' => $board, 'stats' => $stats]);
+    Response::success([
+        'enabled' => true,
+        'mode' => $mode,
+        'metric_label' => $metricLabel,
+        'leaderboard' => $board,
+        'stats' => $stats,
+    ]);
 }
 
 /** First name only — the live ticker is a public display. */
@@ -1189,6 +1381,39 @@ function handleAdminExport($db) {
     exit;
 }
 
+/**
+ * Per-STALL lead export: everyone who scanned one poster, with contact details
+ * and the scan time — the tangible ROI you hand each brand. CSV download.
+ */
+function handleAdminExportStall($db) {
+    $posterId = trim($_GET['poster_id'] ?? '');
+    if (!in_array($posterId, huntPosterIds(), true)) Response::error('Unknown poster', 400);
+    $poster = huntPosterById($posterId);
+    $label = $poster ? $poster['label'] : $posterId;
+
+    header('Content-Type: text/csv; charset=utf-8');
+    $safeName = preg_replace('/[^A-Za-z0-9_-]+/', '_', $label);
+    header('Content-Disposition: attachment; filename="stall_leads_' . $safeName . '.csv"');
+    header('Cache-Control: no-cache');
+
+    $out = fopen('php://output', 'w');
+    fputcsv($out, ['Name', 'Phone', 'Company', 'Business Type', 'Scanned At', 'Player Code']);
+    $rows = $db->query(
+        "SELECT p.name, p.phone, p.company, p.business_type, p.player_code, s.scanned_at
+         FROM hunt_scans s JOIN hunt_participants p ON p.id = s.participant_id
+         WHERE s.poster_id = ? ORDER BY s.scanned_at ASC",
+        [$posterId]
+    );
+    foreach ($rows as $r) {
+        fputcsv($out, [
+            csvSafe($r['name']), $r['phone'], csvSafe($r['company']), csvSafe($r['business_type']),
+            $r['scanned_at'], isset($r['player_code']) ? $r['player_code'] : '',
+        ]);
+    }
+    fclose($out);
+    exit;
+}
+
 /** Mark a completed participant as manually verified (also clears the suspect flag). */
 function handleAdminVerify($db) {
     $input = json_decode(file_get_contents('php://input'), true);
@@ -1226,6 +1451,7 @@ function handleAdminSettings($db) {
         ],
         'ui' => huntUi(),
         'branding' => huntBranding(),
+        'mode' => huntMode(),
     ]);
 }
 
@@ -1296,9 +1522,21 @@ function handleAdminSaveSettings($db) {
             $clean[$pid] = [
                 'label' => isset($vals['label']) ? trim(mb_substr($vals['label'], 0, 20, 'UTF-8')) : '',
                 'hint' => isset($vals['hint']) ? trim(mb_substr($vals['hint'], 0, 300, 'UTF-8')) : '',
+                // Engagement fields: staff/quiz unlock code, points weight, stall offer.
+                'unlock_code' => isset($vals['unlock_code']) ? trim(mb_substr($vals['unlock_code'], 0, 32, 'UTF-8')) : '',
+                'points' => isset($vals['points']) && $vals['points'] !== '' ? max(0, min(1000, intval($vals['points']))) : 1,
+                'offer' => isset($vals['offer']) ? trim(mb_substr($vals['offer'], 0, 200, 'UTF-8')) : '',
             ];
         }
         saveHuntSetting($db, 'posters', $clean);
+    }
+    if (array_key_exists('mode', $input)) {
+        $m = $input['mode'];
+        if (in_array($m, ['timed', 'untimed', 'points'], true) && $m !== 'timed') {
+            saveHuntSetting($db, 'mode', $m);
+        } else {
+            deleteHuntSetting($db, 'mode');   // timed is the default → no row needed
+        }
     }
     if (isset($input['floors']) && is_array($input['floors'])) {
         saveHuntSetting($db, 'floors', [
